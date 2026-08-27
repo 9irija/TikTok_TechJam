@@ -1,0 +1,24 @@
+{
+  "id": "fm_baseline_repro",
+  "model": "fm",
+  "hypothesis": "Reproduce the official FM baseline exactly (k=16, lr=0.001, batch=8192, 5 fields, seed 0) before writing anything original. If our harness can't hit the published validation primary (~0.6016), nothing downstream -- including every later experiment's delta-over-baseline -- can be trusted.",
+  "hyperparams": {
+    "k": 16,
+    "lr": 0.001,
+    "batch": 8192,
+    "epochs": 40,
+    "patience": 4
+  },
+  "fields": [
+    "user_id",
+    "video_id",
+    "author_id",
+    "tab",
+    "dur_bucket"
+  ],
+  "parent_id": null,
+  "seeds": [
+    0
+  ],
+  "notes": "Config matches kuairand-starter-kit/baseline_scores.json exactly."
+}

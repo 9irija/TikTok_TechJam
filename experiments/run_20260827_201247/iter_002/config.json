@@ -1,0 +1,26 @@
+{
+  "id": "fm_seed_variance",
+  "model": "fm",
+  "hypothesis": "Run the identical baseline config on 3 seeds to measure our own harness's noise floor before accepting any future result as a real improvement. The organizer's own 5-seed std is 0.0008 against a convergence epsilon of 0.002 (only ~2.5 sigma of margin) -- a single noisy run can look like a false improvement or a false convergence, so this is cheap insurance, not busywork.",
+  "hyperparams": {
+    "k": 16,
+    "lr": 0.001,
+    "batch": 8192,
+    "epochs": 40,
+    "patience": 4
+  },
+  "fields": [
+    "user_id",
+    "video_id",
+    "author_id",
+    "tab",
+    "dur_bucket"
+  ],
+  "parent_id": "fm_baseline_repro",
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "notes": "Noise-Aware Convergence Check, P1 table -- pulled forward because it's cheap and protects every later decision from being poisoned by seed noise."
+}

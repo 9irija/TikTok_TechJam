@@ -1,0 +1,36 @@
+# Dataset -- large, publicly downloadable (see README/CLAUDE.md for the
+# fetch command), never commit it.
+kuairand-starter-kit/KuaiRand-Pure/
+kuairand-starter-kit/KuaiRand-1K/
+kuairand-starter-kit/KuaiRand-27K/
+kuairand-starter-kit/*.tar.gz
+
+# NOTE: logs/, experiments/, and submission_*.csv are intentionally NOT
+# ignored -- the Run & Iteration Log (logs/run_log.jsonl, run_summary.json,
+# analysis_report.md, experiments/*/) and the final submission CSVs are
+# required deliverables (PS Deliverables items 3 & 4), not build artifacts.
+# Re-running `python run.py` regenerates them deterministically per config,
+# so committing the latest run's output is the intended workflow.
+
+# Disk cache for encoded training data (agent/cache.py) -- regenerated
+# automatically, purely a speed optimization, not source.
+.cache/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Claude Code session-local runtime state (not project content) -- keep
+# .claude/skills/ (intentional, part of the deliverable), drop the rest.
+.claude/scheduled_tasks.lock
+.claude/settings.json
+.claude/settings.local.json

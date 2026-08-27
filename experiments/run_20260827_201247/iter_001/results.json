@@ -1,0 +1,98 @@
+{
+  "run_id": "run_20260827_201247",
+  "iteration_id": "iter_001",
+  "timestamp": 1787832860.743414,
+  "status": "ok",
+  "config_id": "fm_baseline_repro",
+  "model": "fm",
+  "hypothesis": "Reproduce the official FM baseline exactly (k=16, lr=0.001, batch=8192, 5 fields, seed 0) before writing anything original. If our harness can't hit the published validation primary (~0.6016), nothing downstream -- including every later experiment's delta-over-baseline -- can be trusted.",
+  "parent_id": null,
+  "code_diff": {
+    "__root__": true
+  },
+  "hyperparams": {
+    "k": 16,
+    "lr": 0.001,
+    "batch": 8192,
+    "epochs": 40,
+    "patience": 4
+  },
+  "metrics": {
+    "n_seeds": 1,
+    "valid": {
+      "GAUC_mean": 0.6671326321610643,
+      "GAUC_std": 0.0,
+      "nDCG@5_mean": 0.5358048805448538,
+      "nDCG@5_std": 0.0,
+      "primary_mean": 0.601468756352959,
+      "primary_std": 0.0
+    },
+    "test": {
+      "GAUC_mean": 0.6621228758829982,
+      "GAUC_std": 0.0,
+      "nDCG@5_mean": 0.5285584577777425,
+      "nDCG@5_std": 0.0,
+      "primary_mean": 0.5953406668303703,
+      "primary_std": 0.0
+    },
+    "delta_vs_baseline_test": {
+      "delta_GAUC": 0.0011228758829981977,
+      "delta_nDCG@5": 0.00035845777774246024,
+      "delta_primary_mean": 0.000740666830370329
+    },
+    "per_seed": [
+      {
+        "experiment_id": "fm_baseline_repro",
+        "seed": 0,
+        "best_epoch": 7,
+        "epochs_run": 11,
+        "valid": {
+          "GAUC": 0.6671326321610643,
+          "nDCG@5": 0.5358048805448538,
+          "primary": 0.601468756352959
+        },
+        "test": {
+          "GAUC": 0.6621228758829982,
+          "nDCG@5": 0.5285584577777425,
+          "primary": 0.5953406668303703
+        },
+        "wall_time_s": 91.9327507019043,
+        "num_params": 684421,
+        "train_loss_curve": [
+          0.6390894102198738,
+          0.5478637912443706,
+          0.5129100088562284,
+          0.5003835703645434,
+          0.4941232014979635,
+          0.4896847467337336,
+          0.4859333538583347,
+          0.4820883546556745,
+          0.4783631669623511,
+          0.47438121352876933,
+          0.47045187694685797
+        ],
+        "valid_primary_curve": [
+          0.5869302535796688,
+          0.5955691855780602,
+          0.5993100994183413,
+          0.5994256427435505,
+          0.6010457286151139,
+          0.6006120484001061,
+          0.601468756352959,
+          0.6012132696660496,
+          0.6006924656226564,
+          0.5996368059476811,
+          0.5990411311295976
+        ]
+      }
+    ]
+  },
+  "wall_time_s": 92.76949286460876,
+  "recovery_events": [],
+  "convergence": {
+    "iteration_id": "iter_001",
+    "valid_primary": 0.601468756352959,
+    "is_new_best": true,
+    "stagnant_streak": 0
+  }
+}

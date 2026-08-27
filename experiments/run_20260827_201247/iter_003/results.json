@@ -1,0 +1,187 @@
+{
+  "run_id": "run_20260827_201247",
+  "iteration_id": "iter_003",
+  "timestamp": 1787833398.3935199,
+  "status": "ok",
+  "config_id": "deepfm_default",
+  "model": "deepfm",
+  "hypothesis": "Test whether a deep MLP component over the same shared embeddings captures higher-order, nonlinear feature interactions the FM's pairwise term structurally can't. Starter kit README headroom item #5 ranks 'change model' behind loss function / sequence / multi-task changes, but it is the cheapest of the P0 Model Zoo entries to stand up first and gives later experiments a second model family to branch from, not just tuning the same FM. Run on 3 seeds (matching fm_baseline_repro's own noise-floor rigor from fm_seed_variance) rather than 1 -- a single-seed 'win' over a baseline whose own 5-seed std is 0.0008 is exactly the false-improvement risk fm_seed_variance exists to guard against, so the model this run may end up selecting as validation-best deserves the same scrutiny.",
+  "parent_id": "fm_baseline_repro",
+  "code_diff": {
+    "hyperparams": {
+      "before": {
+        "k": 16,
+        "lr": 0.001,
+        "batch": 8192,
+        "epochs": 40,
+        "patience": 4
+      },
+      "after": {
+        "k": 16,
+        "hidden": [
+          64,
+          32
+        ],
+        "lr": 0.001,
+        "batch": 8192,
+        "epochs": 40,
+        "patience": 4
+      }
+    },
+    "model": {
+      "before": "fm",
+      "after": "deepfm"
+    }
+  },
+  "hyperparams": {
+    "k": 16,
+    "hidden": [
+      64,
+      32
+    ],
+    "lr": 0.001,
+    "batch": 8192,
+    "epochs": 40,
+    "patience": 4
+  },
+  "metrics": {
+    "n_seeds": 3,
+    "valid": {
+      "GAUC_mean": 0.6688485681250128,
+      "GAUC_std": 0.0007332091095543571,
+      "nDCG@5_mean": 0.5362733718397223,
+      "nDCG@5_std": 0.00023851686998250152,
+      "primary_mean": 0.6025609699823676,
+      "primary_std": 0.00048178235385013527
+    },
+    "test": {
+      "GAUC_mean": 0.6640356984813821,
+      "GAUC_std": 0.0005105274228296544,
+      "nDCG@5_mean": 0.5304701277115689,
+      "nDCG@5_std": 0.0006353576787419551,
+      "primary_mean": 0.5972529130964755,
+      "primary_std": 0.00056352158146561
+    },
+    "delta_vs_baseline_test": {
+      "delta_GAUC": 0.0030356984813820764,
+      "delta_nDCG@5": 0.00227012771156887,
+      "delta_primary_mean": 0.0026529130964754732
+    },
+    "per_seed": [
+      {
+        "experiment_id": "deepfm_default",
+        "seed": 0,
+        "best_epoch": 3,
+        "epochs_run": 7,
+        "valid": {
+          "GAUC": 0.669369632990526,
+          "nDCG@5": 0.5363485757685225,
+          "primary": 0.6028591043795242
+        },
+        "test": {
+          "GAUC": 0.6641563424506858,
+          "nDCG@5": 0.5302938161379102,
+          "primary": 0.5972250792942979
+        },
+        "wall_time_s": 93.62822532653809,
+        "num_params": 691718,
+        "train_loss_curve": [
+          0.5624658712318965,
+          0.5064823846731867,
+          0.49865341037511823,
+          0.4927544014794486,
+          0.4869119771889278,
+          0.47940556939159124,
+          0.4684623922620501
+        ],
+        "valid_primary_curve": [
+          0.600684526144923,
+          0.6028070165151702,
+          0.6028591043795242,
+          0.6002104735645708,
+          0.5975706573474425,
+          0.5896268815666121,
+          0.5848231711867609
+        ]
+      },
+      {
+        "experiment_id": "deepfm_default",
+        "seed": 1,
+        "best_epoch": 2,
+        "epochs_run": 6,
+        "valid": {
+          "GAUC": 0.6693644131468143,
+          "nDCG@5": 0.5365205394711698,
+          "primary": 0.6029424763089921
+        },
+        "test": {
+          "GAUC": 0.6645918512721223,
+          "nDCG@5": 0.5313213069198278,
+          "primary": 0.5979565790959751
+        },
+        "wall_time_s": 97.8388044834137,
+        "num_params": 691718,
+        "train_loss_curve": [
+          0.5604375106947762,
+          0.5069581261702947,
+          0.5002195658428329,
+          0.49422596054417745,
+          0.4885690661413329,
+          0.4829679684979575
+        ],
+        "valid_primary_curve": [
+          0.6013372797694975,
+          0.6029424763089921,
+          0.6020555297836734,
+          0.6018641098634767,
+          0.5974512448864119,
+          0.593611227503885
+        ]
+      },
+      {
+        "experiment_id": "deepfm_default",
+        "seed": 2,
+        "best_epoch": 3,
+        "epochs_run": 7,
+        "valid": {
+          "GAUC": 0.6678116582376982,
+          "nDCG@5": 0.5359510002794748,
+          "primary": 0.6018813292585865
+        },
+        "test": {
+          "GAUC": 0.6633589017213383,
+          "nDCG@5": 0.5297952600769688,
+          "primary": 0.5965770808991535
+        },
+        "wall_time_s": 83.66780805587769,
+        "num_params": 691718,
+        "train_loss_curve": [
+          0.558855225784438,
+          0.5068317402686392,
+          0.5001034798366683,
+          0.4947350331715175,
+          0.4876116499304771,
+          0.47776414155960084,
+          0.4655773486409869
+        ],
+        "valid_primary_curve": [
+          0.6010111102589966,
+          0.6018075753616003,
+          0.6018813292585865,
+          0.6016094960729683,
+          0.5983562271446892,
+          0.5918227971324691,
+          0.5861302349451958
+        ]
+      }
+    ]
+  },
+  "wall_time_s": 277.3902499675751,
+  "recovery_events": [],
+  "convergence": {
+    "iteration_id": "iter_003",
+    "valid_primary": 0.6025609699823676,
+    "is_new_best": true,
+    "stagnant_streak": 2
+  }
+}

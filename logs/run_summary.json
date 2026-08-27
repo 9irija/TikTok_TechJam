@@ -1,0 +1,65 @@
+{
+  "run_id": "run_20260827_201247",
+  "finished_at": 1787833888.5822408,
+  "num_iterations": 4,
+  "manual_intervention_count": 0,
+  "manual_interventions": [],
+  "convergence": {
+    "epsilon": 0.002,
+    "N": 3,
+    "converged": true,
+    "best_iteration_id": "iter_004",
+    "best_valid_primary": 0.602760493952577,
+    "num_iterations": 4,
+    "trajectory": [
+      {
+        "iteration_id": "iter_001",
+        "valid_primary": 0.601468756352959,
+        "is_new_best": true,
+        "stagnant_streak": 0
+      },
+      {
+        "iteration_id": "iter_002",
+        "valid_primary": 0.6014399038727732,
+        "is_new_best": false,
+        "stagnant_streak": 1
+      },
+      {
+        "iteration_id": "iter_003",
+        "valid_primary": 0.6025609699823676,
+        "is_new_best": true,
+        "stagnant_streak": 2
+      },
+      {
+        "iteration_id": "iter_004",
+        "valid_primary": 0.602760493952577,
+        "is_new_best": true,
+        "stagnant_streak": 3
+      }
+    ]
+  },
+  "resource_totals": {
+    "wall_time_total_s": 1083.2956883907318,
+    "run_wall_time_s": 1083.357411146164,
+    "llm_tokens_total": 0,
+    "gpu_hours_total": 0.0
+  },
+  "best_submission_metrics": {
+    "config_id": "deepfm_wider",
+    "valid": {
+      "GAUC": 0.6686421182636719,
+      "nDCG@5": 0.5363253109159775,
+      "primary": 0.6024837145898247
+    },
+    "test": {
+      "GAUC": 0.6642687860532687,
+      "nDCG@5": 0.5306464876231103,
+      "primary": 0.5974576368381894
+    },
+    "delta_vs_baseline_test": {
+      "delta_GAUC": 0.0032687860532686352,
+      "delta_nDCG@5": 0.0024464876231102828,
+      "delta_primary_mean": 0.002857636838189459
+    }
+  }
+}

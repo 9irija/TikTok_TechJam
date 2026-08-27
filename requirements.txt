@@ -1,0 +1,23 @@
+# Phase 0 (this repo, right now): numpy only, matching the starter kit's own
+# zero-dependency philosophy ("numpy only (no torch / pandas / scikit-learn)").
+# `agent/` (evaluator, convergence, FM, DeepFM, orchestrator, recovery,
+# logging, submission validator) imports nothing beyond this line.
+numpy>=1.24
+
+# ---------------------------------------------------------------------------
+# Already installed in this dev environment, used for ad-hoc EDA notebooks /
+# scripts only -- never imported by anything under agent/ or run.py itself.
+pandas>=2.0
+
+# ---------------------------------------------------------------------------
+# Not yet installed / not yet required. Uncomment as later phases need them
+# (see CLAUDE.md roadmap). Keep this list honest -- an unused heavy
+# dependency here is a Feasibility & Practicality red flag, not a convenience.
+#
+# torch>=2.0            # P2 Extended Model Zoo (DCNv2 etc.) if/when it needs autograd
+# scikit-learn>=1.3      # P2 LightGBM's sklearn API + light preprocessing
+# lightgbm>=4.0          # P2 Extended Model Zoo
+# optuna>=3.0             # P2 Hyperparameter Search
+# matplotlib>=3.7          # only if a static PNG chart is ever needed instead
+                          # of the HTML dashboard (tools/generate_dashboard.py
+                          # is self-contained, no plotting library required)
