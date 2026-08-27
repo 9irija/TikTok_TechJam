@@ -26,7 +26,7 @@ mocked, not smoke-tested on synthetic data alone.
 | 3 | Evaluator Wrapper | `agent/evaluator.py` | Imports organizer's `evaluate.py` directly — zero reimplementation of pinned scoring conventions |
 | 4 | Convergence Detector | `agent/convergence.py` | ε/N read live from `baseline_scores.json`, not hardcoded |
 | 5 | Structured Experiment Interface | `agent/config.py` | `ExperimentConfig` + structural diffing (the "code diff" for config-driven experiments) |
-| 6 | Structured Run Log | `agent/run_logger.py` | Per-iteration JSONL + `experiments/iter_NNN/{config,hypothesis,results,logs}` |
+| 6 | Structured Run Log | `agent/run_logger.py` | Per-iteration JSONL + `experiments/<run_id>/iter_NNN/{config,hypothesis,results,logs}` |
 | 7 | Failure Recovery | `agent/recovery.py` | Subprocess isolation, real timeout kill, retry, degraded fallback |
 | 8 | Submission Validator | `agent/submission.py` | Wraps `submit.py`'s exact write/check logic |
 
