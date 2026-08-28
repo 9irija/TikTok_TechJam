@@ -123,7 +123,7 @@ only the validation split throughout — see
 `docs/PHASE0_FEATURES_AND_IMPROVEMENTS.md` §4 for the full per-seed
 breakdown and significance calculation.
 
-## P1 results (two rounds — round 2 acts on round 1's own diagnosis)
+## P1 results (three rounds — each acts on the previous round's own diagnosis)
 
 Full details, including three bugs found and fixed during this pass's own
 validation, in
@@ -152,9 +152,31 @@ above) — with zero manual intervention:
 |---|---|---|---|---|
 | `fm_bpr_regularized` | 0.5989 | **+0.0008** (right direction) | still −0.0026 | `noise_floor` |
 
-Honest read: the diagnosis was correct and the fix helped, but didn't close
-the gap — BPR still underperforms FM/DeepFM here. That's a real, complete
-result, not a story stopped early because it stopped being flattering.
+**Round 3** — a hand-authored follow-up from directly comparing full
+validation curve *shapes* (not just best-epoch ratios, which is all the
+automated Diagnosis Engine currently checks — a real gap, see
+`P1_FEATURES_AND_RESULTS.md` §6): `fm_baseline_repro` climbs gradually for
+7 epochs before declining; both prior BPR attempts instead plateaued by
+epoch 2–4. `fm_bpr_slow_and_steady` (lr cut ~3x, more patience/epochs)
+confirmed the hypothesis — its curve now climbs gradually for 6 epochs,
+qualitatively matching the baseline's healthy shape:
+
+| Round | Config | Valid primary | Δ vs. previous |
+|---|---|---|---|
+| 1 | `fm_bpr_default` | 0.5981 | — |
+| 2 | `fm_bpr_regularized` | 0.5989 | +0.0008 |
+| 3 | `fm_bpr_slow_and_steady` | 0.5994 | +0.0005 |
+
+Honest conclusion: 3 rounds fixed BPR's *training dynamics* (no more
+overfitting, healthy convergence shape) but only partially closed the
+*quality* gap — still 0.0021 below the FM baseline, 0.0034 below DeepFM.
+The Selector's own diminishing-returns prior predicted round 3's gain
+almost exactly (+0.0004 projected vs. +0.0005 actual) — the honest signal
+to stop iterating on this specific lever (FM + BPR + hyperparameters) and
+either try DeepFM_BPR or accept this direction has a structural, not
+tunable, ceiling here. Best result across the whole project remains Phase
+0's `deepfm_wider` (+0.0030). Reported as a real, incomplete trend — not
+a clean win, and not worth a 4th round without a genuinely new hypothesis.
 
 ## Team / contributions
 

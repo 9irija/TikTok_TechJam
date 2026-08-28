@@ -31,3 +31,7 @@ Thumbs.db
 
 # Claude Code tooling -- local dev aid, not part of the submitted solution.
 .claude/
+
+# Secrets -- never commit an API key. .env.example documents the expected
+# variable name; the real .env holds the actual key, locally only.
+.env

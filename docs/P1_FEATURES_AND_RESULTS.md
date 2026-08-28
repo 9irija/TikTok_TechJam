@@ -239,12 +239,62 @@ the predicted direction — but only partially closed the gap, and the test
 split actually moved slightly the other way (0.5918 vs. `fm_bpr_default`'s
 0.5926, both still below FM's 0.5953). This isn't a clean win to report as
 one; it's confirmation that regularization was A real lever, not THE fix
-that makes BPR competitive here. A fair, complete read: either BPR needs
-more than a hyperparameter retune to work well on this dataset (e.g. a
-different negative-sampling ratio per positive, or the pairwise objective
-itself may simply suit this data's sparsity pattern worse than pointwise
-does), or a genuinely different learning rate (not just L2/patience) is
-still untested. Reported exactly as measured, not oversold.
+that makes BPR competitive here.
+
+## 3.6. Round 3 — a curve-shape hypothesis, hand-authored, and where BPR's iteration ends
+
+Not triggered by an automated diagnosis tag this time — a manual
+observation from directly comparing full validation-curve *shapes*, not
+just best-epoch ratios (a real gap in the automated Diagnosis Engine, noted
+honestly in §6): `fm_baseline_repro`'s curve climbs gradually for 7 epochs
+before declining; both prior BPR attempts instead plateau by epoch 2–4.
+Hypothesis: BPR was converging too *fast* to a shallow optimum, not merely
+overfitting — a different failure mode than round 2's fix addressed.
+`fm_bpr_slow_and_steady`: lr cut ~3x (0.001 → 0.0003), patience and epoch
+budget both raised to give a slower process room to actually get there.
+
+**Result — the hypothesis was correct, the curve shape confirms it:**
+
+```
+fm_bpr_slow_and_steady valid-primary curve (12 epochs, best=6):
+0.5936, 0.5955, 0.5977, 0.5983, 0.5992, 0.5994, 0.5991, 0.5987, 0.5987, 0.5984, 0.5983, 0.5981
+```
+
+A genuine gradual climb over 6 epochs, then a gentle decline — qualitatively
+matching `fm_baseline_repro`'s healthy shape, not the earlier BPR attempts'
+fast-plateau pattern. The diagnosis about *why* training looked unhealthy
+was right.
+
+| Round | Config | Valid primary | Δ vs. previous BPR attempt |
+|---|---|---|---|
+| 1 | `fm_bpr_default` | 0.5981 | — |
+| 2 | `fm_bpr_regularized` | 0.5989 | +0.0008 |
+| 3 | `fm_bpr_slow_and_steady` | 0.5994 | +0.0005 |
+
+**Where this ends, honestly.** Three rounds of diagnosis-driven iteration
+recovered +0.0013 total and fixed the *training dynamics* (no more
+overfitting, a healthy convergence shape) — but the quality ceiling itself
+only moved a little, and BPR still sits **0.0021 below** the FM baseline
+(0.6015) and **0.0034 below** DeepFM (0.6028). The Best-First Selector's own
+diminishing-returns prior predicted this before the run: it projected
+round 3's gain at +0.0004 (extrapolated at half of round 2's own gain);
+actual was +0.0005 — close enough to trust the same prior for a round 4.
+That's the honest signal to stop iterating on *this specific* lever
+(FM + BPR + hyperparameters): the fixable problem (bad convergence dynamics)
+is fixed; what's left looks like it needs a structurally different change —
+DeepFM_BPR (untested), a different negative-sampling ratio per positive
+(currently exactly 1:1, never varied), or accepting that pairwise loss may
+simply suit this specific data's sparsity pattern worse than pointwise does
+on a plain FM architecture. Reported as a real, if incomplete, positive
+trend — not a clean win, and not worth a fourth round of the same lever
+without a genuinely different hypothesis. Best known result across the
+whole project remains Phase 0's `deepfm_wider` (§4 of
+[`PHASE0_FEATURES_AND_IMPROVEMENTS.md`](PHASE0_FEATURES_AND_IMPROVEMENTS.md)).
+
+_Caveat: all three BPR rounds used a single seed (matching P1's
+smoke/iteration pace, not Phase 0's 3-seed discipline) — the qualitative
+conclusion (still below baseline) is robust to that, but the exact gap size
+carries more single-seed noise than a final reported number ideally would._
 
 ---
 
@@ -297,28 +347,42 @@ evidence the mechanism works; this round simply didn't need it.
 
 ## 6. Honest limitations / what's next
 
-**Resolved by round 2 (§3.5), not still open:** the "one round, not a loop"
-and "BPR hyperparameters unchanged" gaps from round 1 — `_diagnosis_driven_candidates()`
-now reacts to a node's own diagnosis, verified with a real (if only
-partial) recovery. What's still genuinely open:
+**Resolved by rounds 2–3, not still open:** the "one round, not a loop" and
+"BPR hyperparameters unchanged" gaps from round 1 —
+`_diagnosis_driven_candidates()` reacted twice (an automated trigger, then
+a hand-authored one) with real, honestly-reported, if only partial,
+recovery each time (+0.0008, then +0.0005 — diminishing returns the
+Selector's own prior correctly anticipated). What's still genuinely open:
 
-- **Diagnosis-driven candidate generation covers exactly one trigger**
-  (`overfitting_risk` on `fm_bpr_default` specifically) — a hardcoded
-  `if`, not a general "propose a fix for any diagnosis tag" mechanism.
-  Extending this to react to `regression`/`ranking_tradeoff`/etc. generically
-  (not per-node-id) is the natural next step before this looks like a real
-  loop rather than one demonstrated reaction.
-- **BPR still underperforms after the diagnosis-informed fix.** Round 2
-  confirmed the *direction* was right (+0.0008) but didn't close the gap to
-  baseline (still −0.0026). Untested remaining levers: a learning rate
-  actually tuned for BPR's gradient landscape (not just L2/patience), a
-  different positive:negative sampling ratio, or accepting BPR may need a
-  fundamentally different tweak (or may simply not suit this dataset as
-  well as pointwise loss does) — a legitimate possible outcome, not
-  something more retuning is guaranteed to fix.
+- **Diagnosis-driven candidate generation covers exactly two triggers**
+  (`overfitting_risk` on `fm_bpr_default`; the curve-shape follow-up after
+  `fm_bpr_regularized`), both effectively hardcoded to specific node IDs —
+  not a general "propose a fix for any diagnosis tag on any node" mechanism.
+  Generalizing this (react to `regression`/`ranking_tradeoff` on *any* node,
+  not by name) is the natural next step before this looks like a real loop
+  rather than two demonstrated reactions.
+- **The Diagnosis Engine doesn't compare full curve shapes**, only
+  best_epoch/epochs_run ratios (`_overfitting_note()`) — round 3's key
+  insight (BPR converging too *fast*, not just overfitting) came from a
+  human comparing `valid_primary_curve` arrays directly, something the
+  automated engine doesn't do. A real, concrete extension: compare a new
+  node's curve trajectory shape against its parent's (or against
+  `fm_baseline_repro`'s as a reference "healthy" shape) automatically.
+- **BPR still underperforms FM/DeepFM after 3 rounds of diagnosis-driven
+  fixes.** The fixable problem (bad convergence dynamics — confirmed fixed
+  in round 3's curve shape) is fixed; the remaining ~0.002-0.003 gap looks
+  structural, not a hyperparameter away. Untested remaining levers:
+  DeepFM_BPR (below), a different positive:negative sampling ratio
+  (currently fixed 1:1), or accepting the objective may simply suit this
+  dataset's sparsity pattern worse than pointwise does on this architecture
+  — a legitimate possible outcome, not something more retuning is
+  guaranteed to fix.
 - **DeepFM_BPR not built.** Pairwise loss combined with the DeepFM
   architecture (rather than plain FM) is untested — a natural next
   candidate, and cheap to add given `fm_bpr.py`'s pattern.
+- **All 3 BPR rounds used a single seed**, not Phase 0's 3-seed discipline
+  — appropriate for iteration pace, but the reported gap sizes carry more
+  noise than a number intended as final would.
 - **Residual ~0.0001 nondeterminism** in full BPR runs, noted in §2.2, not
   fully root-caused given its immaterial size.
 - **The Best-First Selector's cost/gain model is a simple heuristic**, not

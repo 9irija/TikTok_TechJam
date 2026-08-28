@@ -931,6 +931,116 @@
       "diagnosis_tag": "noise_floor",
       "created_at": 1787881642.018108,
       "updated_at": 1787881642.021992
+    },
+    "fm_bpr_slow_and_steady": {
+      "node_id": "fm_bpr_slow_and_steady",
+      "config": {
+        "id": "fm_bpr_slow_and_steady",
+        "model": "fm_bpr",
+        "hypothesis": "Manual curve-shape analysis, not yet something the Diagnosis Engine checks automatically (a real gap -- it compares best_epoch/epochs_run ratios, not full trajectory shape against a healthy reference): fm_baseline_repro's own valid-primary curve rises steadily for 7 epochs (0.5869 -> 0.6015) before declining -- gradual, sustained convergence. Both prior BPR attempts (default AND regularized) instead plateau by epoch 2-4 and never show that gradual climb -- fast convergence to a shallow optimum, a different failure mode than 'overfitting', which the L2/patience fix in fm_bpr_regularized correctly stabilized (flatter curve) without correctly diagnosing (the real ceiling didn't move). This candidate targets convergence speed directly: lr cut ~3x (0.001 -> 0.0003) for a more gradual trajectory, patience and epoch budget both raised to give that slower process room to actually get there.",
+        "hyperparams": {
+          "k": 16,
+          "lr": 0.0003,
+          "l2": 1e-05,
+          "batch": 8192,
+          "epochs": 60,
+          "patience": 6
+        },
+        "fields": [
+          "user_id",
+          "video_id",
+          "author_id",
+          "tab",
+          "dur_bucket"
+        ],
+        "parent_id": "fm_bpr_regularized",
+        "seeds": [
+          0
+        ],
+        "notes": "Hand-authored from direct comparison against fm_baseline_repro's own curve -- not (yet) an automated Diagnosis Engine trigger; see P1_FEATURES_AND_RESULTS.md.",
+        "edge_type": "debug"
+      },
+      "edge_type": "debug",
+      "parent_id": "fm_bpr_regularized",
+      "status": "done",
+      "fidelity": "100pct",
+      "metrics": {
+        "n_seeds": 1,
+        "valid": {
+          "GAUC_mean": 0.6640669934950179,
+          "GAUC_std": 0.0,
+          "nDCG@5_mean": 0.5347697219898744,
+          "nDCG@5_std": 0.0,
+          "primary_mean": 0.5994183577424461,
+          "primary_std": 0.0
+        },
+        "test": {
+          "GAUC_mean": 0.6578673372577868,
+          "GAUC_std": 0.0,
+          "nDCG@5_mean": 0.5275574132491592,
+          "nDCG@5_std": 0.0,
+          "primary_mean": 0.592712375253473,
+          "primary_std": 0.0
+        },
+        "delta_vs_baseline_test": {
+          "delta_GAUC": -0.0031326627422132436,
+          "delta_nDCG@5": -0.0006425867508408345,
+          "delta_primary_mean": -0.001887624746527039
+        },
+        "per_seed": [
+          {
+            "experiment_id": "fm_bpr_slow_and_steady",
+            "seed": 0,
+            "best_epoch": 6,
+            "epochs_run": 12,
+            "valid": {
+              "GAUC": 0.6640669934950179,
+              "nDCG@5": 0.5347697219898744,
+              "primary": 0.5994183577424461
+            },
+            "test": {
+              "GAUC": 0.6578673372577868,
+              "nDCG@5": 0.5275574132491592,
+              "primary": 0.592712375253473
+            },
+            "wall_time_s": 266.703125,
+            "num_params": 684421,
+            "train_loss_curve": [
+              0.6730976812273478,
+              0.6094378807561861,
+              0.5633596319088833,
+              0.5422018727810263,
+              0.53017570946714,
+              0.5200010838268472,
+              0.5116734228117003,
+              0.5036600875339919,
+              0.4957374197116001,
+              0.48685576139594156,
+              0.4781813066211536,
+              0.4699434738793819
+            ],
+            "valid_primary_curve": [
+              0.5935636557801552,
+              0.595526368227733,
+              0.5977379595680083,
+              0.5983479882335694,
+              0.5992274870027194,
+              0.5994183577424461,
+              0.5991434036442483,
+              0.5987178352453679,
+              0.5987047180588163,
+              0.5983972268640358,
+              0.598314400417583,
+              0.5981261706100476
+            ],
+            "train_fraction": 1.0
+          }
+        ]
+      },
+      "insight": "Change vs. parent (+0.0005 primary) is within the significance bar (0.0020, flat epsilon, single-seed) -- not distinguishable from run-to-run variance.",
+      "diagnosis_tag": "noise_floor",
+      "created_at": 1787882966.602311,
+      "updated_at": 1787882966.6110027
     }
   }
 }
