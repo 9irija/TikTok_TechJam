@@ -1,5 +1,12 @@
 # Phase 4 — LLM Research Strategist: Real, Working, and It Found a Real Improvement
 
+> **Superseded as "project-best" by P2's `deepfm_mtl_v1`** (multi-task
+> DeepFM, torch) — see [`P2_FEATURES_AND_RESULTS.md`](P2_FEATURES_AND_RESULTS.md).
+> Everything below is left exactly as it was: `deepfm_regularized` was a
+> real, 3-seed-verified improvement when this was written, and remains the
+> best evidence in this project of the LLM finding a genuine, non-obvious
+> gap (both DeepFM nodes' `overfitting_risk` flags) on its own.
+
 Deliverable-facing summary of Phase 4: the LLM replaces the hand-authored
 candidate pools that drove Phase 0 and P1, and — on its very first real
 run — found a genuine, 3-seed-verified improvement over Phase 0's best

@@ -78,19 +78,38 @@ From the Starter Kit README, tested and **no gain**:
 
 1. **Loss function**: pointwise logloss now; GAUC/nDCG are *ranking* metrics —
    pairwise (BPR) or listwise (per-user softmax) is their top guess.
+   **Done (P1):** `fm_bpr` -- 3 diagnosis-driven rounds, real but plateaued
+   ~0.002 below baseline, see P1_FEATURES_AND_RESULTS.md.
 2. **User history / sequences**: zero sequential modeling currently exists
-   (DIN/SIM-style interest modeling is untouched).
+   (DIN/SIM-style interest modeling is untouched). **Still open** -- the
+   next natural PyTorch target (attention backward pass is a genuinely
+   good autograd use case, same reasoning as deepfm_mtl below).
 3. **Multi-task**: `is_click, is_like, is_follow, is_comment, is_forward,
    play_time_ms` all exist in the logs, unused as auxiliary signals.
+   **Done (P2):** `agent/model_zoo/deepfm_mtl.py` -- first torch model in
+   the project, auxiliary is_like/is_follow/is_comment/is_forward heads
+   sharing DeepFM's embedding table. `deepfm_mtl_v1`, 3-seed verified:
+   valid primary 0.6046 +/- 0.0003 vs. deepfm_regularized's 0.6035 +/-
+   0.0002 -- real `clear_improvement`, now the project-best. See README
+   "Multi-task learning" for the honest test-split nuance.
 4. **Watch-time modeling**: censored regression on `play_time` (see CWM,
    github.com/hyz20/CWM — reference only, don't adopt its `torch==1.6.0` dep
    or its self-redefined `long_view2` label; it evaluates against something
-   other than this task's pinned label).
+   other than this task's pinned label). Still open.
 5. **Model architecture** (DeepFM/DCN/xDeepFM) — explicitly ranked *last*
    since capacity is empirically not the bottleneck (see dead ends above).
-6. Temporal features / train↔test drift.
+   **LightGBM tried too (P2, `lgbm_baseline`):** valid primary 0.5995,
+   confirms the same finding extends to tree-based models -- this task's
+   signal lives in high-cardinality `user_id x video_id` embedding
+   crossing, which trees can't represent as efficiently as a learned
+   embedding table. Not integrated into the Model Zoo proper (real
+   training-loop interface mismatch, not worth the refactor once the
+   standalone result was this clearly behind) -- see README "Multi-task
+   learning" section for the full reasoning.
+6. Temporal features / train↔test drift. Still open.
 7. `log_random_4_22_to_5_08_pure.csv` — randomized-exposure subset, usable
    for an unbiased secondary validation set / IPW / counterfactual eval.
+   Still open.
 
 ## Train/valid/test discipline
 
@@ -160,20 +179,26 @@ logs/                          run_log.jsonl (shared, append-only, run_id per en
 kuairand-starter-kit/          organizer's code, UNMODIFIED (evaluate.py/data.py/submit.py/baseline.py)
   KuaiRand-Pure/data/            downloaded dataset (gitignored -- see Quick start)
 docs/                         the full PS + brainstorm doc, PDF, its 2 extracted diagrams, and the
-                                Phase 0 / P1 / Phase 4 features+results writeups
+                                Phase 0 / P1 / Phase 4 / P2 features+results writeups
 .env / .env.example            GEMINI_API_KEY -- .env is gitignored (real key), .env.example is the
                                  committed template (empty value) -- NEVER put a real key in .env.example
 ```
 
 ### Design decisions worth knowing before you change anything
 
-- **Numpy-only, on purpose.** This dev environment has numpy + pandas, no
-  torch/sklearn/matplotlib. `agent/` never imports beyond numpy so `python
-  run.py` keeps working in the Starter Kit's own zero-dependency spirit.
-  DeepFM's MLP is hand-rolled (manual forward + backprop + Adam) rather than
-  reaching for torch -- see `agent/model_zoo/deepfm.py` docstring. Don't add
-  a torch/sklearn import to anything under `agent/` without updating
-  `requirements.txt`'s honesty comment and confirming it's actually needed.
+- **Numpy-only by default, torch added deliberately and scoped (P2).**
+  `python run.py`/`run_p1.py` (minus one new model) still work in the
+  Starter Kit's zero-dependency spirit -- FM/DeepFM/FM_BPR stay hand-rolled
+  numpy (manual forward + backprop + Adam), each with one clean,
+  worth-hand-deriving backward pass -- see `agent/model_zoo/deepfm.py`
+  docstring. `agent/model_zoo/deepfm_mtl.py` is the one deliberate
+  exception: a 5-headed shared-bottom multi-task network (1 main + 4
+  auxiliary losses merging into one shared embedding table) is exactly the
+  case hand-rolled backprop stops paying for itself, so it's built in
+  torch (CPU wheel, `requirements.txt` now lists it as a real, used
+  dependency, not aspirational). Don't add a torch/sklearn import to
+  anything else under `agent/` without the same justification -- "autograd
+  is genuinely the right tool here," not "it would be more convenient."
 - **FM is a faithful port, not a rewrite.** `agent/model_zoo/fm.py` must stay
   numerically identical to `kuairand-starter-kit/baseline.py`'s FM class. If
   a baseline-reproduction run doesn't hit ~0.6016 valid primary, that's a bug
@@ -276,7 +301,7 @@ alias stub in this environment that fails with no interpreter installed).
 | Feasibility & Practicality (15%) | `wall_time_total_s` / `gpu_hours_total` throughout; `llm_tokens_total` is real (not structurally zero) only in `logs/p4_run_report.json` -- Gemini free tier means it's also genuinely $0, not an estimate |
 | Presentation (10%, final only) | `tools/generate_analysis.py` report; dashboard artifact (P2, pulled forward per doc's own advice -- not built yet, see Roadmap) |
 | Deliverable: Run & Iteration Logs | `logs/run_log.jsonl` + `experiments/<run_id>/iter_*/` + `tools/generate_analysis.py` -> `logs/analysis_report.md` |
-| Deliverable: Final submission | `tools/generate_submission.py` resolves the Research Map's confirmed best (`ResearchMap.best_confirmed_node()`) and calls `agent/submission.py` to write+validate `submission_valid.csv` / `submission_test.csv` -- currently `deepfm_regularized` (Phase 4), 3-seed verified |
+| Deliverable: Final submission | `tools/generate_submission.py` resolves the Research Map's confirmed best (`ResearchMap.best_confirmed_node()`) and calls `agent/submission.py` to write+validate `submission_valid.csv` / `submission_test.csv` -- currently `deepfm_mtl_v1` (P2, torch multi-task), 3-seed verified |
 
 ## Roadmap (Phase 0 + P1 + Phase 4 + Phase 5 are DONE; Phase 6 + P2 substantially closed; what's left below)
 
@@ -306,17 +331,30 @@ alias stub in this environment that fails with no interpreter installed).
   `deepfm_wider`'s architecture, reasoning from *both* DeepFM nodes'
   `overfitting_risk` flags -- a gap P1's own hand-authored logic never
   acted on), **3-seed-verified as a real improvement** (0.6035±0.0002 vs.
-  0.6028, `clear_improvement`) -- **this is now the project-best result**,
-  reflected in `submission_valid.csv`/`submission_test.csv`. Iteration 2's
+  0.6028, `clear_improvement`) -- **project-best at the time**, since
+  superseded by `deepfm_mtl_v1` (P2, see the "Unexplored headroom" #3
+  entry above and README "Multi-task learning"). Iteration 2's
   proposal was a genuine regression, correctly caught and reported, not
   hidden. `tools/verify_multiseed.py` (new this pass) promotes a promising
   single-seed result to 3-seed-verified on demand. Full writeup:
   [`docs/PHASE4_RESULTS.md`](docs/PHASE4_RESULTS.md).
-- **Not yet built from the P1 tier:** Multi-Task Feature Exploitation,
-  TikTok-disclosed features (completion rate, rewatch flag, fast-skip,
-  creator aggregates), Per-Segment Metric Diagnosis, generalized
-  (not per-node-id-hardcoded) diagnosis-driven candidate generation.
-  `DeepFM_BPR` is a natural, cheap extension of what's already built.
+- **P2 (post-roadmap, done this pass): Multi-Task Feature Exploitation +
+  TikTok-disclosed features -- both closed.** `agent/features.py`
+  (completion rate, rewatch flag, fast-skip, creator aggregates as
+  train-only aggregates; `features_v1` came back `noise_floor`, a real
+  negative result) and `agent/model_zoo/deepfm_mtl.py` (multi-task,
+  auxiliary is_like/is_follow/is_comment/is_forward heads; `deepfm_mtl_v1`
+  came back a real, 3-seed-verified `clear_improvement` -- now the
+  project-best). LightGBM also tried (`lgbm_baseline`, standalone, not
+  integrated into the Model Zoo) -- see README "Multi-task learning" for
+  the full reasoning on both.
+- **Still not built from the P1 tier:** Per-Segment Metric Diagnosis,
+  generalized (not per-node-id-hardcoded) diagnosis-driven candidate
+  generation. `DeepFM_BPR` is a natural, cheap extension of what's already
+  built. Sequence modeling (DIN/SIM-style, the starter kit's own #2-ranked
+  untested item) is the next natural PyTorch target -- attention's
+  backward pass is a genuinely good autograd use case, same reasoning as
+  `deepfm_mtl`.
 - **Not yet built from Phase 4:** budget-aware stopping (the `budget` dict
   in the LLM prompt is informational only -- nothing changes behavior as it
   depletes), auto-triggering `verify_multiseed.py` when a new best node
@@ -324,9 +362,11 @@ alias stub in this environment that fails with no interpreter installed).
   Map's own tags instead of a hand-maintained string. See
   `docs/PHASE4_RESULTS.md` §6 for the complete list.
 - **Phase 3 (Model Zoo + tuning) -- partially covered:** FM/DeepFM/FM_BPR
-  done; DCNv2/Wide&Deep/LightGBM need torch/sklearn (not installed in this
-  env, install when this phase starts). Hyperparameter search (Optuna) not
-  started.
+  (numpy) + DeepFM_MTL (torch, P2) done; LightGBM tried standalone (not
+  integrated -- real interface mismatch with the per-epoch SGD loop, not
+  worth the refactor given the result); DCNv2/Wide&Deep still not started.
+  Hyperparameter search (Optuna) not started -- genuinely the one place an
+  existing tool would be a clear win over anything hand-rolled, still open.
 - **Phase 5 (multi-fidelity + early termination) -- done, including the
   "log GPU saved" requirement that was initially missed:** built as part
   of P1 (`agent/multi_fidelity.py`), but per-stage costs were computed for

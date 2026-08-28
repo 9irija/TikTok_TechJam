@@ -155,6 +155,33 @@ def test_fm_bpr_forward_backward_reduces_loss():
     assert np.allclose(m.predict(X), m2.predict(X)), "get_state/set_state round-trip must reproduce predictions"
 
 
+def test_deepfm_mtl_forward_backward_reduces_loss():
+    """P2's first torch model: same shape of test as every numpy model above
+    (loss goes down on synthetic data, predict/get_state/set_state all
+    behave), plus the one thing unique to it -- mtl_step actually consumes
+    the 4 auxiliary labels and doesn't crash/produce non-finite output."""
+    from agent.model_zoo.deepfm_mtl import build
+
+    rng = np.random.default_rng(0)
+    n, n_fields, dim = 2000, 5, 200
+    X = rng.integers(0, dim, size=(n, n_fields)).astype(np.int32)
+    y = rng.integers(0, 2, size=n).astype(np.float32)
+    aux = rng.integers(0, 2, size=(n, 4)).astype(np.float32)
+
+    m = build(dim=dim, n_fields=n_fields, k=8, hidden=[16, 8], lr=0.01, aux_weight=0.2, seed=0)
+    losses = [m.mtl_step(X[i:i + 200], y[i:i + 200], aux[i:i + 200]) for i in range(0, n, 200) for _ in range(3)]
+    assert losses[-1] < losses[0], f"main-task loss should decrease on synthetic data: {losses[0]} -> {losses[-1]}"
+
+    preds = m.predict(X)
+    assert preds.shape == (n,), preds.shape
+    assert np.isfinite(preds).all(), "predictions must be finite"
+
+    state = m.get_state()
+    m2 = build(dim=dim, n_fields=n_fields, k=8, hidden=[16, 8], lr=0.01, aux_weight=0.2, seed=2)
+    m2.set_state(state)
+    assert np.allclose(m.predict(X), m2.predict(X)), "get_state/set_state round-trip must reproduce predictions"
+
+
 def test_research_map_basic():
     import tempfile
     from agent.research_map import ResearchMap
@@ -509,6 +536,13 @@ def main() -> int:
         test_fm_forward_backward_reduces_loss,
         test_deepfm_forward_backward_reduces_loss,
         test_fm_bpr_forward_backward_reduces_loss,
+    ]
+    try:
+        import torch  # noqa: F401
+        tests.append(test_deepfm_mtl_forward_backward_reduces_loss)
+    except ImportError:
+        pass
+    tests += [
         test_research_map_basic,
         test_research_map_best_confirmed_node_skips_noise_floor,
         test_diagnosis_rules,

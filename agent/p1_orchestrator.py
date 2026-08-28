@@ -109,6 +109,7 @@ def p1_candidate_pool(map: ResearchMap) -> list[ExperimentConfig]:
         ),
     ]
     candidates.extend(_engineered_feature_candidates(map))
+    candidates.extend(_multi_task_candidates(map))
     candidates.extend(_diagnosis_driven_candidates(map))
     return [c for c in candidates if c.id not in map.nodes]
 
@@ -149,6 +150,54 @@ def _engineered_feature_candidates(map: ResearchMap) -> list[ExperimentConfig]:
         edge_type="improve",
         notes="agent/features.py -- first use of ExperimentConfig.fields actually affecting "
               "encoding (previously vestigial, see agent/experiment.py's _load_encoded fix).",
+    )]
+
+
+def _multi_task_candidates(map: ResearchMap) -> list[ExperimentConfig]:
+    """Tests a genuinely different lever than every other P1/P4 candidate so
+    far: not a hyperparameter, not a new input field, but a training
+    *objective* change -- agent/model_zoo/deepfm_mtl.py adds four auxiliary
+    sigmoid heads (is_like/is_follow/is_comment/is_forward) sharing the same
+    embedding table as the main long_view task, a shared-bottom multi-task
+    setup in the public ESMM/MMoE line of recsys work (allowed per the
+    problem statement: "papers, public solutions... changes to any pipeline
+    stage"). Same fields, same k/hidden/lr/l2 as the current best DeepFM
+    node -- parent_id isolates the multi-task objective as the only
+    variable, same discipline as fm_bpr_default's loss-only comparison.
+
+    First real use of torch in this project (see deepfm_mtl.py's own
+    docstring for why: FM/DeepFM/FM_BPR's single-loss backward passes were
+    worth hand-deriving to keep the starter kit's numpy-only philosophy;
+    merging five different loss gradients back into one shared trunk is
+    exactly the case autograd is for, not a shortcut around it).
+    """
+    best = map.best_confirmed_node()
+    if best is None or best.status != "done" or best.config.model != "deepfm" or "deepfm_mtl_v1" in map.nodes:
+        return []  # only meaningful on top of a DeepFM node -- the aux heads share DeepFM's embedding table
+    try:
+        import torch  # noqa: F401
+    except ImportError:
+        return []  # torch not installed in this environment -- skip, don't fail the whole pool
+
+    base_hp = dict(best.config.hyperparams)
+    base_hp["aux_weight"] = 0.2  # standard small weighting (public MTL convention: aux regularizes,
+    # doesn't dominate -- the metric that's actually scored is long_view alone)
+    return [ExperimentConfig(
+        id="deepfm_mtl_v1", model="deepfm_mtl",
+        hypothesis=(
+            f"Multi-task learning, not a hyperparameter or input-feature change: adds auxiliary "
+            f"is_like/is_follow/is_comment/is_forward sigmoid heads sharing '{best.node_id}'s "
+            f"embedding table (valid primary {(best.metrics or {}).get('valid', {}).get('primary_mean')}), "
+            f"a shared-bottom setup in the public ESMM/MMoE recsys line. Hypothesis: long_view and "
+            f"these other logged engagement signals share structure (all downstream of genuine "
+            f"enjoyment of the video), so their gradients can regularize the shared embeddings even "
+            f"though only long_view is ever scored. Same fields/k/hidden/lr/l2 as the parent, so any "
+            f"effect is attributable to the multi-task objective alone."
+        ),
+        hyperparams=base_hp, fields=list(best.config.fields), parent_id=best.node_id, seeds=[0],
+        edge_type="improve",
+        notes="agent/model_zoo/deepfm_mtl.py -- first torch model in the Model Zoo; agent/experiment.py's "
+              "is_mtl branch feeds it agent/features.py's load_aux_labels() alongside (X, y).",
     )]
 
 

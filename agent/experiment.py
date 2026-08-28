@@ -59,6 +59,7 @@ class ExperimentResult:
 
 
 _ENCODED_CACHE: dict[tuple, Any] = {}  # (data_dir, tuple(fields)) -> (enc, dim), in-process memo
+_AUX_LABEL_CACHE: dict[str, Any] = {}  # data_dir -> {split: (N,4) array}, only loaded for mtl_step models
 
 
 def _load_encoded(data_dir: str, fields: list[str]):
@@ -140,6 +141,7 @@ def run_experiment(config: ExperimentConfig, data_dir: str, seed: int,
     Xva, yva, uva = enc["valid"]
     Xte, yte, ute = enc["test"]
 
+    sub_idx = None
     if train_fraction < 1.0:
         n = max(1, int(len(ytr) * train_fraction))
         sub_idx = np.random.default_rng(seed).choice(len(ytr), size=n, replace=False)
@@ -172,10 +174,28 @@ def run_experiment(config: ExperimentConfig, data_dir: str, seed: int,
         user_index = build_user_pos_neg_index(utr, ytr)
         n_batches_per_epoch = max(1, len(ytr) // bs)
 
+    is_mtl = hasattr(model, "mtl_step")
+    if is_mtl:
+        # P2's multi-task DeepFM (agent/model_zoo/deepfm_mtl.py): needs
+        # is_like/is_follow/is_comment/is_forward alongside (X, y) per batch.
+        # Cached per data_dir (not per-fields -- aux labels don't depend on
+        # which encoder built X) so a second mtl experiment in the same
+        # process/subprocess doesn't re-parse the raw CSVs.
+        if data_dir not in _AUX_LABEL_CACHE:
+            from .features import load_aux_labels
+            _AUX_LABEL_CACHE[data_dir] = load_aux_labels(data_dir)
+        aux_tr = _AUX_LABEL_CACHE[data_dir]["train"]
+        if sub_idx is not None:
+            aux_tr = aux_tr[sub_idx]  # same sub-sample as Xtr/ytr, same seeded indices
+
     for ep in range(1, epochs + 1):
         if is_bpr:
             losses = [model.bpr_step(xp, xn) for xp, xn in
                       sample_bpr_batches(rng, Xtr, user_index, n_batches_per_epoch, bs)]
+        elif is_mtl:
+            idx = rng.permutation(len(ytr))
+            losses = [model.mtl_step(Xtr[idx[i:i + bs]], ytr[idx[i:i + bs]], aux_tr[idx[i:i + bs]])
+                      for i in range(0, len(idx), bs)]
         else:
             idx = rng.permutation(len(ytr))
             losses = [model.step(Xtr[idx[i:i + bs]], ytr[idx[i:i + bs]]) for i in range(0, len(idx), bs)]

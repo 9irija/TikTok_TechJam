@@ -18,14 +18,34 @@ google-genai>=1.0    # Gemini API client (free tier -- see CLAUDE.md's provider 
 python-dotenv>=1.0    # loads GEMINI_API_KEY from .env (gitignored; .env.example is the template)
 
 # ---------------------------------------------------------------------------
+# P2 Extended Model Zoo, first real use: agent/model_zoo/deepfm_mtl.py
+# (multi-task DeepFM with auxiliary is_like/is_follow/is_comment/is_forward
+# heads -- see docs/P2_FEATURES_AND_RESULTS.md). CPU-only wheel; autograd is a
+# genuine win here over hand-rolled backprop (unlike FM/DeepFM/FM_BPR, which
+# stay numpy-only on purpose -- see their own docstrings) because a 5-headed
+# shared-bottom network's backward pass is exactly what autograd is for.
+# deepfm_mtl_v1 (3-seed verified) is the current project-best.
+torch>=2.0
+
+# ---------------------------------------------------------------------------
+# Used for one standalone diagnostic check (`lgbm_baseline` in the Research
+# Map, see docs/P2_FEATURES_AND_RESULTS.md), NOT part of the core pipeline --
+# no agent/model_zoo/ entry, no agent/experiment.py integration (LightGBM
+# manages its own boosting/early-stopping internally, a real interface
+# mismatch with every other model's per-epoch SGD loop -- not worth that
+# refactor once the standalone result showed a clear, structurally-explained
+# loss vs. the embedding-based models). Real result, not required to
+# reproduce anything else in this repo.
+lightgbm>=4.0
+
+# ---------------------------------------------------------------------------
 # Not yet installed / not yet required. Uncomment as later phases need them
 # (see CLAUDE.md roadmap). Keep this list honest -- an unused heavy
 # dependency here is a Feasibility & Practicality red flag, not a convenience.
 #
-# torch>=2.0            # P2 Extended Model Zoo (DCNv2 etc.) if/when it needs autograd
-# scikit-learn>=1.3      # P2 LightGBM's sklearn API + light preprocessing
-# lightgbm>=4.0          # P2 Extended Model Zoo
-# optuna>=3.0             # P2 Hyperparameter Search
+# scikit-learn>=1.3      # only if a future model actually needs its API --
+                          # lightgbm's own native API above needed no sklearn
+# optuna>=3.0             # P2 Hyperparameter Search -- still genuinely open
 # matplotlib>=3.7          # only if a static PNG chart is ever needed instead
                           # of the HTML dashboard (tools/generate_dashboard.py
                           # is self-contained, no plotting library required)

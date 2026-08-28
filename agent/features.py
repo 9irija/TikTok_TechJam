@@ -81,6 +81,28 @@ def load_splits(data_dir: str | None = None) -> dict[str, list[dict[str, Any]]]:
     return {name: [x for x in rows if lo <= x["date"] <= hi] for name, (lo, hi) in SPLITS.items()}
 
 
+AUX_LABEL_FIELDS = ["is_like", "is_follow", "is_comment", "is_forward"]
+
+
+def load_aux_labels(data_dir: str | None = None) -> dict[str, np.ndarray]:
+    """Per-split (N, 4) float32 arrays of `AUX_LABEL_FIELDS` -- TikTok's
+    other logged engagement signals, used only as AUXILIARY training
+    targets for a multi-task model (agent/model_zoo/deepfm_mtl.py), never
+    as model *input* (that would be a different, much more direct leak than
+    the play_time_ms one this file already guards against: is_like/
+    is_follow/etc. are themselves outcomes of the same impression being
+    scored, not history). Same row order as `load_splits`/`encode_extended`
+    -- both iterate the identical two log files in the identical order with
+    the identical date-range filter (kuairand-starter-kit/data.py does too;
+    confirmed by direct comparison, not assumed), so an aux array from here
+    lines up positionally with any encoder's X/y for the same split without
+    needing to carry a shared row-id key through.
+    """
+    splits = load_splits(data_dir)
+    return {name: np.array([[x[f] for f in AUX_LABEL_FIELDS] for x in rows], dtype=np.float32)
+            for name, rows in splits.items()}
+
+
 def compute_train_only_aggregates(train_rows: list[dict[str, Any]]) -> dict[str, dict[str, float]]:
     """Per-video and per-author aggregate stats from the TRAINING split
     only. `play_time_ms` is read here -- and ONLY here -- to compute a

@@ -1,0 +1,123 @@
+{
+  "run_id": "run_20260828_133812",
+  "iteration_id": "iter_001",
+  "timestamp": 1787895957.4121137,
+  "status": "ok",
+  "config_id": "deepfm_mtl_v1",
+  "model": "deepfm_mtl",
+  "hypothesis": "Multi-task learning, not a hyperparameter or input-feature change: adds auxiliary is_like/is_follow/is_comment/is_forward sigmoid heads sharing 'deepfm_regularized's embedding table (valid primary 0.6034507203196051), a shared-bottom setup in the public ESMM/MMoE recsys line. Hypothesis: long_view and these other logged engagement signals share structure (all downstream of genuine enjoyment of the video), so their gradients can regularize the shared embeddings even though only long_view is ever scored. Same fields/k/hidden/lr/l2 as the parent, so any effect is attributable to the multi-task objective alone.",
+  "parent_id": "deepfm_regularized",
+  "code_diff": {
+    "__root__": true
+  },
+  "hyperparams": {
+    "k": 16,
+    "lr": 0.001,
+    "l2": 0.0001,
+    "batch": 8192,
+    "epochs": 20,
+    "patience": 5,
+    "hidden": [
+      128,
+      64
+    ],
+    "aux_weight": 0.2
+  },
+  "metrics": {
+    "n_seeds": 1,
+    "valid": {
+      "GAUC_mean": 0.6718893194079371,
+      "GAUC_std": 0.0,
+      "nDCG@5_mean": 0.5378789515887021,
+      "nDCG@5_std": 0.0,
+      "primary_mean": 0.6048841354983197,
+      "primary_std": 0.0
+    },
+    "test": {
+      "GAUC_mean": 0.6647753464597194,
+      "GAUC_std": 0.0,
+      "nDCG@5_mean": 0.530973502683808,
+      "nDCG@5_std": 0.0,
+      "primary_mean": 0.5978744245717638,
+      "primary_std": 0.0
+    },
+    "delta_vs_baseline_test": {
+      "delta_GAUC": 0.003775346459719331,
+      "delta_nDCG@5": 0.002773502683808049,
+      "delta_primary_mean": 0.00327442457176369
+    },
+    "per_seed": [
+      {
+        "experiment_id": "deepfm_mtl_v1",
+        "seed": 0,
+        "best_epoch": 12,
+        "epochs_run": 17,
+        "valid": {
+          "GAUC": 0.6718893194079371,
+          "nDCG@5": 0.5378789515887021,
+          "primary": 0.6048841354983197
+        },
+        "test": {
+          "GAUC": 0.6647753464597194,
+          "nDCG@5": 0.530973502683808,
+          "primary": 0.5978744245717638
+        },
+        "wall_time_s": 388.921875,
+        "num_params": 703370,
+        "train_loss_curve": [
+          0.5815072796174459,
+          0.5132309707147734,
+          0.5090536615678243,
+          0.508308302291802,
+          0.5074363863893918,
+          0.5070041897041457,
+          0.5063159218856267,
+          0.5055934388722693,
+          0.5049380651542119,
+          0.504067297918456,
+          0.5031969949603081,
+          0.502378275351865,
+          0.5015938473599297,
+          0.5000995676432337,
+          0.49864113139254707,
+          0.49690004331724985,
+          0.49562155689511983
+        ],
+        "valid_primary_curve": [
+          0.5986131733431796,
+          0.601606193160384,
+          0.6026212548626035,
+          0.6021206042738645,
+          0.6028283177327283,
+          0.603064562710014,
+          0.6037925537868242,
+          0.6038882305994925,
+          0.6036344031013055,
+          0.6042712160146135,
+          0.6041311898017397,
+          0.6048841354983197,
+          0.6039600974071468,
+          0.6042547031087839,
+          0.6027841722895173,
+          0.6012897124571348,
+          0.6016220430099317
+        ],
+        "train_fraction": 1.0
+      }
+    ]
+  },
+  "wall_time_s": 435.484375,
+  "recovery_events": [],
+  "convergence": null,
+  "fidelity_info": {
+    "final_stage": "100pct",
+    "killed_at": null,
+    "kill_reason": null,
+    "stage_wall_times_s": {
+      "1pct": 18.265625,
+      "10pct": 28.296875,
+      "100pct": 388.921875
+    },
+    "estimated_time_saved_s": null
+  }
+}

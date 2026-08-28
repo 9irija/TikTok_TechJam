@@ -1523,6 +1523,243 @@
       "diagnosis_tag": "noise_floor",
       "created_at": 1787889318.109951,
       "updated_at": 1787894021.8797128
+    },
+    "deepfm_mtl_v1": {
+      "node_id": "deepfm_mtl_v1",
+      "config": {
+        "id": "deepfm_mtl_v1",
+        "model": "deepfm_mtl",
+        "hypothesis": "Multi-task learning, not a hyperparameter or input-feature change: adds auxiliary is_like/is_follow/is_comment/is_forward sigmoid heads sharing 'deepfm_regularized's embedding table (valid primary 0.6034507203196051), a shared-bottom setup in the public ESMM/MMoE recsys line. Hypothesis: long_view and these other logged engagement signals share structure (all downstream of genuine enjoyment of the video), so their gradients can regularize the shared embeddings even though only long_view is ever scored. Same fields/k/hidden/lr/l2 as the parent, so any effect is attributable to the multi-task objective alone.",
+        "hyperparams": {
+          "k": 16,
+          "lr": 0.001,
+          "l2": 0.0001,
+          "batch": 8192,
+          "epochs": 20,
+          "patience": 5,
+          "hidden": [
+            128,
+            64
+          ],
+          "aux_weight": 0.2
+        },
+        "fields": [
+          "user_id",
+          "video_id",
+          "author_id",
+          "tab",
+          "dur_bucket"
+        ],
+        "parent_id": "deepfm_regularized",
+        "seeds": [
+          0
+        ],
+        "notes": "agent/model_zoo/deepfm_mtl.py -- first torch model in the Model Zoo; agent/experiment.py's is_mtl branch feeds it agent/features.py's load_aux_labels() alongside (X, y).",
+        "edge_type": "improve"
+      },
+      "edge_type": "improve",
+      "parent_id": "deepfm_regularized",
+      "status": "done",
+      "fidelity": "100pct",
+      "metrics": {
+        "n_seeds": 3,
+        "valid": {
+          "GAUC_mean": 0.6714589867017587,
+          "GAUC_std": 0.0005348599110513846,
+          "nDCG@5_mean": 0.5378198651958198,
+          "nDCG@5_std": 0.00012003777699511924,
+          "primary_mean": 0.6046394259487893,
+          "primary_std": 0.00032592523678136683
+        },
+        "test": {
+          "GAUC_mean": 0.6640764631664994,
+          "GAUC_std": 0.0007679000050932859,
+          "nDCG@5_mean": 0.5308004200226566,
+          "nDCG@5_std": 0.000402158442335165,
+          "primary_mean": 0.597438441594578,
+          "primary_std": 0.0005750394429934934
+        },
+        "delta_vs_baseline_test": {
+          "delta_GAUC": 0.0030764631664993436,
+          "delta_nDCG@5": 0.002600420022656591,
+          "delta_primary_mean": 0.0028384415945779673
+        },
+        "per_seed": [
+          {
+            "experiment_id": "deepfm_mtl_v1",
+            "seed": 0,
+            "best_epoch": 12,
+            "epochs_run": 17,
+            "valid": {
+              "GAUC": 0.6718893194079371,
+              "nDCG@5": 0.5378789515887021,
+              "primary": 0.6048841354983197
+            },
+            "test": {
+              "GAUC": 0.6647753464597194,
+              "nDCG@5": 0.530973502683808,
+              "primary": 0.5978744245717638
+            },
+            "wall_time_s": 432.84375,
+            "num_params": 703370,
+            "train_loss_curve": [
+              0.5815072796174459,
+              0.5132309707147734,
+              0.5090536615678243,
+              0.508308302291802,
+              0.5074363863893918,
+              0.5070041897041457,
+              0.5063159218856267,
+              0.5055934388722693,
+              0.5049380651542119,
+              0.504067297918456,
+              0.5031969949603081,
+              0.502378275351865,
+              0.5015938473599297,
+              0.5000995676432337,
+              0.49864113139254707,
+              0.49690004331724985,
+              0.49562155689511983
+            ],
+            "valid_primary_curve": [
+              0.5986131733431796,
+              0.601606193160384,
+              0.6026212548626035,
+              0.6021206042738645,
+              0.6028283177327283,
+              0.603064562710014,
+              0.6037925537868242,
+              0.6038882305994925,
+              0.6036344031013055,
+              0.6042712160146135,
+              0.6041311898017397,
+              0.6048841354983197,
+              0.6039600974071468,
+              0.6042547031087839,
+              0.6027841722895173,
+              0.6012897124571348,
+              0.6016220430099317
+            ],
+            "train_fraction": 1.0
+          },
+          {
+            "experiment_id": "deepfm_mtl_v1",
+            "seed": 1,
+            "best_epoch": 12,
+            "epochs_run": 17,
+            "valid": {
+              "GAUC": 0.6717825438474794,
+              "nDCG@5": 0.537928145076151,
+              "primary": 0.6048553444618152
+            },
+            "test": {
+              "GAUC": 0.6644468668043616,
+              "nDCG@5": 0.5311830576701039,
+              "primary": 0.5978149622372327
+            },
+            "wall_time_s": 325.734375,
+            "num_params": 703370,
+            "train_loss_curve": [
+              0.5850523088659559,
+              0.513908069900104,
+              0.509187693468162,
+              0.5078781428081649,
+              0.507236478797027,
+              0.5067932077816555,
+              0.5061501605170113,
+              0.5057347506284714,
+              0.5053086915186473,
+              0.5049080237746238,
+              0.5044755833489555,
+              0.5040497933115278,
+              0.5033753246068955,
+              0.5020923037614141,
+              0.5004577477063451,
+              0.4992052157010351,
+              0.49784500428608486
+            ],
+            "valid_primary_curve": [
+              0.5977588884865918,
+              0.6015300721323342,
+              0.6023999810454013,
+              0.6033407064130969,
+              0.6014816515134577,
+              0.6016772068967275,
+              0.603081491165459,
+              0.6022931918633163,
+              0.6036004599091409,
+              0.6026022721335793,
+              0.6040902336392822,
+              0.6048553444618152,
+              0.603722181241352,
+              0.6038018275340598,
+              0.6021353858318441,
+              0.6010893854297257,
+              0.6003767707778644
+            ],
+            "train_fraction": 1.0
+          },
+          {
+            "experiment_id": "deepfm_mtl_v1",
+            "seed": 2,
+            "best_epoch": 11,
+            "epochs_run": 16,
+            "valid": {
+              "GAUC": 0.6707050968498599,
+              "nDCG@5": 0.5376524989226062,
+              "primary": 0.6041787978862331
+            },
+            "test": {
+              "GAUC": 0.6630071762354172,
+              "nDCG@5": 0.5302446997140579,
+              "primary": 0.5966259379747375
+            },
+            "wall_time_s": 335.8125,
+            "num_params": 703370,
+            "train_loss_curve": [
+              0.5820934014660971,
+              0.5137342263545309,
+              0.5088509768247604,
+              0.5076368764042855,
+              0.5065900855830737,
+              0.5057559634957994,
+              0.5048951474683625,
+              0.5042294736419405,
+              0.5036937181438719,
+              0.5031923817736762,
+              0.5025239035487175,
+              0.5022677051169532,
+              0.5018460816570691,
+              0.5014535569718905,
+              0.5013743021658489,
+              0.5009232150656836
+            ],
+            "valid_primary_curve": [
+              0.5979075269654008,
+              0.6003147216920572,
+              0.6020970201005894,
+              0.6026890953291735,
+              0.6025058866692756,
+              0.6031313323471323,
+              0.6034624687410668,
+              0.6034752868528352,
+              0.6025277827369071,
+              0.6032861307003166,
+              0.6041787978862331,
+              0.6034656558069771,
+              0.6034947662332328,
+              0.6035055583776605,
+              0.6029516070580885,
+              0.6035526863300555
+            ],
+            "train_fraction": 1.0
+          }
+        ]
+      },
+      "insight": "Both GAUC (+0.0016) and nDCG@5 (+0.0008) improved over the parent -- a clean win (bar=0.0004).",
+      "diagnosis_tag": "clear_improvement",
+      "created_at": 1787895957.395145,
+      "updated_at": 1787897230.823363
     }
   }
 }

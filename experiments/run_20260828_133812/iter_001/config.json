@@ -1,0 +1,31 @@
+{
+  "id": "deepfm_mtl_v1",
+  "model": "deepfm_mtl",
+  "hypothesis": "Multi-task learning, not a hyperparameter or input-feature change: adds auxiliary is_like/is_follow/is_comment/is_forward sigmoid heads sharing 'deepfm_regularized's embedding table (valid primary 0.6034507203196051), a shared-bottom setup in the public ESMM/MMoE recsys line. Hypothesis: long_view and these other logged engagement signals share structure (all downstream of genuine enjoyment of the video), so their gradients can regularize the shared embeddings even though only long_view is ever scored. Same fields/k/hidden/lr/l2 as the parent, so any effect is attributable to the multi-task objective alone.",
+  "hyperparams": {
+    "k": 16,
+    "lr": 0.001,
+    "l2": 0.0001,
+    "batch": 8192,
+    "epochs": 20,
+    "patience": 5,
+    "hidden": [
+      128,
+      64
+    ],
+    "aux_weight": 0.2
+  },
+  "fields": [
+    "user_id",
+    "video_id",
+    "author_id",
+    "tab",
+    "dur_bucket"
+  ],
+  "parent_id": "deepfm_regularized",
+  "seeds": [
+    0
+  ],
+  "notes": "agent/model_zoo/deepfm_mtl.py -- first torch model in the Model Zoo; agent/experiment.py's is_mtl branch feeds it agent/features.py's load_aux_labels() alongside (X, y).",
+  "edge_type": "improve"
+}

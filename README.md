@@ -115,33 +115,35 @@ organizer's `submit.py --check` logic).
 
 ## Results (current project-best, 3-seed verified)
 
-Live numbers are always in `logs/analysis_report.md` / `logs/research_map.json`
-— this table is a snapshot of `deepfm_regularized`, found by Phase 4's LLM
-Research Strategist and 3-seed-verified with `tools/verify_multiseed.py`
-(full writeup: [`docs/PHASE4_RESULTS.md`](docs/PHASE4_RESULTS.md)). It
-improves on Phase 0's `deepfm_wider` (full writeup:
+Live numbers are always in `logs/analysis_report.md` / `logs/research_map.json`.
+Current best is `deepfm_mtl_v1` — DeepFM with auxiliary `is_like`/`is_follow`/
+`is_comment`/`is_forward` heads sharing the main embedding table (multi-task
+learning; see "Multi-task learning" below), 3-seed-verified with
+`tools/verify_multiseed.py`. It improves on `deepfm_regularized` (Phase 4's
+LLM find, full writeup: [`docs/PHASE4_RESULTS.md`](docs/PHASE4_RESULTS.md)),
+which itself improved on Phase 0's `deepfm_wider` (full writeup:
 [`docs/PHASE0_FEATURES_AND_IMPROVEMENTS.md`](docs/PHASE0_FEATURES_AND_IMPROVEMENTS.md#4-final-validated-phase-0-result)),
-which is itself still the reference for the earlier, larger jump over the
-official baseline.
+still the reference for the earliest, largest jump over the official baseline.
 
-Validation-best: `deepfm_regularized` — `deepfm_wider`'s architecture (hidden=[128,64]) with L2 raised 1e-5→1e-4, proposed by the LLM Research Strategist because both prior DeepFM nodes were flagged `overfitting_risk`.
+| Metric | Official FM baseline | `deepfm_wider` (Phase 0) | `deepfm_regularized` (Phase 4) | `deepfm_mtl_v1` (P2, torch) |
+|---|---|---|---|---|
+| GAUC (valid, 3-seed) | 0.6674 | 0.6691 | 0.6699 | **0.6715** |
+| primary (valid, 3-seed) | 0.6016 | 0.6028 | 0.6035 ± 0.0002 | **0.6046 ± 0.0003** |
+| primary (test, 3-seed mean) | 0.5946 | 0.5976 | 0.5977 | 0.5974 |
 
-| Metric | Official FM baseline (test) | `deepfm_wider` (Phase 0, 3-seed) | `deepfm_regularized` (Phase 4, 3-seed) |
-|---|---|---|---|
-| GAUC | 0.6610 | 0.6643 | **0.6646** (Δ **+0.0036**) |
-| nDCG@5 | 0.5282 | 0.5306 | **0.5308** (Δ **+0.0026**) |
-| primary | 0.5946 | 0.5976 | **0.5977** (Δ **+0.0031**) |
-
-`submission_valid.csv` / `submission_test.csv` reflect `deepfm_regularized`
+`submission_valid.csv` / `submission_test.csv` reflect `deepfm_mtl_v1`
 (regenerated via `python tools/generate_submission.py`, which resolves the
 Research Map's `best_confirmed_node()` — see "Engineered features" below for
-why that's not simply "the highest score in the map"). Both models converged
-on the validation split only — see
-`docs/PHASE4_RESULTS.md` §4 for the honest nuance that this improvement is
-clear and statistically real on **validation** (0.6035 vs. 0.6028, the
-split every decision here is allowed to read) while the **test**-split gap
-over `deepfm_wider` is much smaller, exactly what train/valid/test
-discipline predicts for a model that wasn't selected by peeking at test.
+why that's not simply "the highest score in the map"). Every model here was
+selected on **validation only** (the split every decision is allowed to
+read) — the honest nuance worth stating plainly: `deepfm_mtl_v1`'s 3-seed
+**test**-primary mean (0.5974) is actually marginally *below*
+`deepfm_regularized`'s (0.5977), even though its **validation** win is
+clear and real (+0.0011, both GAUC and nDCG@5 individually significant).
+Same pattern `deepfm_regularized` itself showed over `deepfm_wider` —
+exactly what train/valid/test discipline predicts for models that were
+never selected by peeking at test, and reported here rather than smoothed
+over.
 
 ## P1 results (three rounds — each acts on the previous round's own diagnosis)
 
@@ -222,7 +224,58 @@ unchanged.
   precisely because a curated "the LLM only ever proposes good ideas"
   writeup would be dishonest.
 
-This is now the project's best result — see the Results table above.
+This was the project's best result until the multi-task model below (P2) superseded it — still the reference for the LLM finding a real, non-obvious gap on its own.
+
+## Multi-task learning (torch) — the current project-best
+
+Full writeup, including the LightGBM comparison below: [`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md).
+
+`agent/model_zoo/deepfm_mtl.py`: the first genuine PyTorch model in this
+project. Same DeepFM architecture as `deepfm_regularized` (shared embedding
+table, FM 2nd-order term + deep MLP), plus four small auxiliary sigmoid
+heads reading the same pooled embeddings, trained jointly on TikTok's other
+logged engagement signals — `is_like`, `is_follow`, `is_comment`,
+`is_forward` — a shared-bottom setup in the public ESMM/MMoE multi-task
+recsys line. Only the main `long_view` logit is ever scored (GAUC/nDCG@5);
+the auxiliary heads exist purely to shape training via a combined loss
+(`main_loss + 0.2 * aux_loss`), never touch evaluation.
+
+Why torch here and nowhere else in the Model Zoo: FM/DeepFM/FM_BPR each
+have one clean backward pass, worth hand-deriving to keep the starter
+kit's numpy-only philosophy. A 5-headed shared-bottom network's backward
+pass — one shared trunk, five different loss gradients merging back into
+it — is exactly the case autograd is for, not a shortcut around it.
+
+`deepfm_mtl_v1` (`parent_id=deepfm_regularized`, same fields/k/hidden/lr/l2
+— the multi-task objective is the only variable) ran single-seed first
+(0.6049), then **3-seed-verified**: **0.6046 ± 0.0003** vs. parent's
+0.6035 ± 0.0002 — `clear_improvement` (both GAUC +0.0016 and nDCG@5 +0.0008
+individually significant, bar=0.0004). This is now the project's best
+result, and `submission_valid.csv`/`submission_test.csv` reflect it.
+
+Honest nuance, stated plainly rather than smoothed over: the 3-seed
+**test**-primary mean (0.5974) is marginally *below* `deepfm_regularized`'s
+(0.5977), even though the **validation** win (the only split any decision
+here is allowed to read) is clear and real. Same pattern
+`deepfm_regularized` itself showed over `deepfm_wider` — exactly what
+train/valid/test discipline predicts.
+
+**LightGBM — tried, and a real negative result with a structural reason,
+not just "didn't beat it."** A quick standalone check (same 5 base fields,
+`lgbm_baseline` in the Research Map, `parent_id=fm_baseline_repro`):
+valid primary 0.5995, test primary 0.5946 (exactly ties the official FM
+baseline, doesn't beat it) — trailing every DeepFM variant by a real
+margin. This isn't bad luck: gradient-boosted trees split on features,
+they don't learn dense embeddings, and this task's signal lives almost
+entirely in `user_id × video_id` crossing (~27K users × ~7.6K items) —
+exactly what FM/DeepFM's embedding tables are built for and what a tree
+can only crudely approximate at this cardinality. Full Model Zoo
+integration was deliberately not built (LightGBM manages its own
+boosting/early-stopping internally, a real interface mismatch with every
+other model's per-epoch SGD loop in `agent/experiment.py` — not worth that
+refactor risk once the standalone check showed a clear, structurally-
+explained loss). Extends the starter kit's own finding ("model
+architecture is the lowest-priority lever") to tree-based models too.
 
 ## Engineered features — a real negative result, and a real bug it surfaced
 
