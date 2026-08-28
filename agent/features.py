@@ -64,7 +64,8 @@ def _load_raw(data_dir: str) -> list[dict[str, Any]]:
         with open(os.path.join(data_dir, f), encoding="utf-8") as fh:
             for r in csv.DictReader(fh):
                 rows.append({
-                    "date": int(r["date"]), "user_id": r["user_id"], "video_id": r["video_id"],
+                    "date": int(r["date"]), "time_ms": int(r["time_ms"]),
+                    "user_id": r["user_id"], "video_id": r["video_id"],
                     "author_id": vid2author.get(r["video_id"], "UNK"), "tab": r["tab"],
                     "duration_ms": float(r["duration_ms"]), "play_time_ms": float(r["play_time_ms"]),
                     "label": 1 if r[LABEL] != "0" else 0,

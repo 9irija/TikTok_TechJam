@@ -182,6 +182,50 @@ def test_deepfm_mtl_forward_backward_reduces_loss():
     assert np.allclose(m.predict(X), m2.predict(X)), "get_state/set_state round-trip must reproduce predictions"
 
 
+def test_deepfm_din_forward_backward_reduces_loss():
+    """P2's sequence model (agent/model_zoo/deepfm_din.py): loss decreases
+    on synthetic data, predict/get_state/set_state behave, PLUS the two
+    things unique to it -- a fully-padded history (a brand-new user) must
+    never produce NaN (the whole reason the attention mask uses -1e9, not
+    -inf), and a real (non-padded) history must actually change the
+    prediction relative to an all-padding one (proving the attention path
+    is wired into the forward pass, not a dead branch)."""
+    from agent.model_zoo.deepfm_din import build
+
+    rng = np.random.default_rng(0)
+    n, n_fields, dim, seq_len, video_vocab_size = 2000, 5, 200, 10, 50
+    pad_idx = video_vocab_size - 1
+    X = rng.integers(0, dim, size=(n, n_fields)).astype(np.int32)
+    y = rng.integers(0, 2, size=n).astype(np.float32)
+    seq = rng.integers(0, video_vocab_size, size=(n, seq_len)).astype(np.int32)
+    cur_video = rng.integers(0, video_vocab_size, size=n).astype(np.int32)
+
+    m = build(dim=dim, n_fields=n_fields, k=8, hidden=[16, 8], lr=0.01, video_vocab_size=video_vocab_size, seed=0)
+    losses = [m.seq_step(X[i:i + 200], y[i:i + 200], seq[i:i + 200], cur_video[i:i + 200])
+              for i in range(0, n, 200) for _ in range(3)]
+    assert losses[-1] < losses[0], f"loss should decrease on synthetic data: {losses[0]} -> {losses[-1]}"
+
+    preds = m.predict_seq(X, seq, cur_video)
+    assert preds.shape == (n,), preds.shape
+    assert np.isfinite(preds).all(), "predictions must be finite"
+
+    # A fully-padded history (a brand-new user) must not produce NaN/inf.
+    all_pad_seq = np.full((n, seq_len), pad_idx, dtype=np.int32)
+    preds_no_hist = m.predict_seq(X, all_pad_seq, cur_video)
+    assert np.isfinite(preds_no_hist).all(), "an all-padding history must not produce NaN/inf"
+
+    # A real history must actually move the prediction vs. an all-padding one -- proves
+    # attention is wired into the forward pass, not silently a no-op.
+    assert not np.allclose(preds, preds_no_hist), \
+        "predictions with real history should differ from an all-padding history -- attention may be a dead branch"
+
+    state = m.get_state()
+    m2 = build(dim=dim, n_fields=n_fields, k=8, hidden=[16, 8], lr=0.01, video_vocab_size=video_vocab_size, seed=2)
+    m2.set_state(state)
+    assert np.allclose(m.predict_seq(X, seq, cur_video), m2.predict_seq(X, seq, cur_video)), \
+        "get_state/set_state round-trip must reproduce predictions"
+
+
 def test_research_map_basic():
     import tempfile
     from agent.research_map import ResearchMap
@@ -450,6 +494,134 @@ def test_features_extended_shape_and_no_leakage():
     )
 
 
+def test_sequences_recent_history_never_leaks_the_future():
+    """Synthetic, deterministic test of agent/sequences.py's core windowing
+    logic -- no data dependency, always runs. Three properties: (1) a
+    history never includes anything at or after the query timestamp (the
+    single most important property in this file -- a strict `<`, not
+    `<=`), (2) it returns exactly the `seq_len` most recent qualifying
+    events, most-recent-last, (3) left-padding with "" when history is
+    shorter than seq_len."""
+    from agent.sequences import _recent_history, _user_histories
+
+    rows = [
+        {"user_id": "u1", "time_ms": 100, "video_id": "a"},
+        {"user_id": "u1", "time_ms": 200, "video_id": "b"},
+        {"user_id": "u1", "time_ms": 300, "video_id": "c"},
+        {"user_id": "u1", "time_ms": 300, "video_id": "d"},  # same timestamp as "c" -- must never appear
+        # in a query made exactly AT time_ms=300 (strict '<'), only in one made after it.
+        {"user_id": "u2", "time_ms": 150, "video_id": "z"},
+    ]
+    hist = _user_histories(rows)
+
+    # Query exactly at the "c"/"d" timestamp: neither may appear (strict '<', not '<=').
+    got = _recent_history(hist, "u1", before_time_ms=300, seq_len=5)
+    assert "c" not in got and "d" not in got, f"history at time_ms=300 leaked an event AT time_ms=300: {got}"
+    assert got == ["", "", "", "a", "b"], f"unexpected history: {got}"
+
+    # Query after everything: all 4 prior events for u1, most-recent-last, left-padded to seq_len.
+    got_full = _recent_history(hist, "u1", before_time_ms=10_000, seq_len=6)
+    assert got_full == ["", "", "a", "b", "c", "d"], f"unexpected full history: {got_full}"
+
+    # seq_len shorter than available history: truncated to the most recent N, not the oldest N.
+    got_trunc = _recent_history(hist, "u1", before_time_ms=10_000, seq_len=2)
+    assert got_trunc == ["c", "d"], f"expected the 2 MOST RECENT events, got {got_trunc}"
+
+    # A user with no history at all before the query time: fully padded.
+    got_none = _recent_history(hist, "u1", before_time_ms=50, seq_len=3)
+    assert got_none == ["", "", ""], f"expected all-padding for a query before any history, got {got_none}"
+
+    # A different user's events never leak into u1's history.
+    got_cross = _recent_history(hist, "u1", before_time_ms=10_000, seq_len=10)
+    assert "z" not in got_cross, "u2's event leaked into u1's history"
+
+
+def test_sequences_video_vocab_matches_encode_extended():
+    """The real-data risk in agent/sequences.py: its own independently-built
+    video_id vocab (`_build_video_vocab`) MUST assign the exact same
+    integer code to the exact same video_id as agent/features.py's
+    `encode_extended` does internally for the video_id field -- otherwise a
+    shared embedding table would silently mix up unrelated videos. Verified
+    by recovering the video_id field's offset from encode_extended's own
+    output (its first train row is always assigned vocab code 0 by
+    construction, in both implementations, since both build a fresh
+    from-scratch dict over the identical row order) and checking every
+    train row's recovered code against _build_video_vocab's independent
+    computation.
+    """
+    from agent import features as feat
+    from agent import sequences as seq
+
+    data_dir = str(DEFAULT_DATA_DIR)
+    splits = feat.load_splits(data_dir)
+    enc, _dim = feat.encode_extended(data_dir, feat.BASE_5)
+    Xtr, _, _ = enc["train"]
+    video_col = feat.BASE_5.index("video_id")
+
+    offset_video = int(Xtr[0, video_col])  # first train row's video_id -> vocab code 0 -> X value == offset
+    my_vocab = seq._build_video_vocab(splits["train"])
+
+    recovered = Xtr[:, video_col].astype(np.int64) - offset_video
+    expected = np.array([my_vocab[x["video_id"]] for x in splits["train"]], dtype=np.int64)
+    assert np.array_equal(recovered, expected), (
+        "agent/sequences.py's video_id vocab diverges from encode_extended's own -- a shared "
+        "embedding table would silently mix up unrelated videos between the candidate-item field "
+        "and the history sequence."
+    )
+
+
+def test_sequences_encode_with_history_shape_and_no_future_leakage():
+    """Real-data integration test of encode_with_history: correct shapes,
+    and -- the property that matters most -- every row's history sequence
+    contains only video_ids that genuinely appear somewhere in the full
+    chronological log at a time_ms strictly before that row's own
+    time_ms (checked directly against the raw per-user event lists, not
+    re-derived from the same code path being tested)."""
+    from agent import features as feat
+    from agent import sequences as seq
+
+    data_dir = str(DEFAULT_DATA_DIR)
+    seq_len = 5
+    enc, dim, seqs, cur_video, video_vocab_size = seq.encode_with_history(data_dir, seq_len=seq_len)
+    Xva, yva, uva = enc["valid"]
+    assert seqs["valid"].shape == (len(Xva), seq_len)
+    assert cur_video["valid"].shape == (len(Xva),)
+    assert seqs["train"].shape[0] == enc["train"][0].shape[0]
+    assert seqs["valid"].max() < video_vocab_size and seqs["valid"].min() >= 0
+    assert cur_video["valid"].max() < video_vocab_size and cur_video["valid"].min() >= 0
+
+    splits = feat.load_splits(data_dir)
+    all_rows = splits["train"] + splits["valid"] + splits["test"]
+    histories = seq._user_histories(all_rows)
+    my_vocab = seq._build_video_vocab(splits["train"])
+    unk = len(my_vocab)
+    code_to_video = {c: v for v, c in my_vocab.items()}
+
+    rng = np.random.default_rng(0)
+    sample_idx = rng.choice(len(splits["valid"]), size=min(200, len(splits["valid"])), replace=False)
+    for i in sample_idx:
+        row = splits["valid"][i]
+        expected_cur = my_vocab.get(row["video_id"], unk)
+        assert cur_video["valid"][i] == expected_cur, (
+            f"row {i}: cur_video code {cur_video['valid'][i]} doesn't match the row's own video_id "
+            f"looked up through the same vocab ({expected_cur})"
+        )
+        times, vids = histories.get(row["user_id"], ([], []))
+        for code in seqs["valid"][i]:
+            if code == unk:
+                continue  # UNK covers both "padding" and "a video not in the train vocab" -- can't
+                          # distinguish those two cases from the code alone, so only check non-UNK codes
+            video_id = code_to_video[code]
+            # this exact video_id must appear in the user's real history at a time strictly
+            # before the row's own time_ms
+            matches = [t for t, v in zip(times, vids) if v == video_id and t < row["time_ms"]]
+            assert matches, (
+                f"row {i}: history contains video_id={video_id!r} (code={code}) but no matching "
+                f"event exists in user {row['user_id']!r}'s log strictly before time_ms={row['time_ms']} "
+                f"-- possible future leakage"
+            )
+
+
 class _FakeLLMResponse:
     """Duck-types agent.llm_client.LLMResponse without a real API call."""
     def __init__(self, total_tokens=50):
@@ -575,6 +747,7 @@ def main() -> int:
     try:
         import torch  # noqa: F401
         tests.append(test_deepfm_mtl_forward_backward_reduces_loss)
+        tests.append(test_deepfm_din_forward_backward_reduces_loss)
     except ImportError:
         pass
     tests += [
@@ -587,6 +760,7 @@ def main() -> int:
         test_research_strategist_accepts_a_valid_proposal,
         test_research_strategist_rejects_and_retries_an_invalid_proposal,
         test_multi_fidelity_time_saved_estimate,
+        test_sequences_recent_history_never_leaks_the_future,
     ]
     if data_dir_available():
         tests.insert(0, test_evaluator_self_check)
@@ -594,6 +768,8 @@ def main() -> int:
         tests.append(test_recovery_catches_a_genuine_oom)
         tests.append(test_multi_fidelity_kills_a_broken_config)
         tests.append(test_features_extended_shape_and_no_leakage)
+        tests.append(test_sequences_video_vocab_matches_encode_extended)
+        tests.append(test_sequences_encode_with_history_shape_and_no_future_leakage)
     else:
         print("  (data dir not found -- skipping self-check and recovery-subprocess tests)")
 
