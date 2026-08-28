@@ -107,36 +107,47 @@ recorded purely for our own tracking parity with `baseline.py`. Keep it that
 way in any change you make; it's the single easiest rule to accidentally
 break while iterating fast.
 
-## Architecture (Phase 0 -- what's built)
+## Architecture (Phase 0 + P1 -- what's built)
 
 ```
-run.py                     entry point: python run.py
+run.py                     Phase 0 entry point: python run.py
+run_p1.py                   P1 entry point: python run_p1.py (run Phase 0 first at least once)
 agent/
   paths.py                  sys.path wiring into kuairand-starter-kit/
   config.py                  Structured Experiment Interface (ExperimentConfig, diff_configs)
   evaluator.py                 wraps evaluate.py exactly + harness self-check (random -> ~0.4834 valid)
   convergence.py                epsilon/N read live from baseline_scores.json
+  cache.py                       disk cache for encoded training data (~66x faster on a cache hit)
   model_zoo/
     base.py                      RankingModel Protocol (step/predict/get_state/set_state/num_params)
     fm.py                         numerically identical to baseline.py's FM
     deepfm.py                      FM component + numpy MLP deep component, shared embeddings
+    fm_bpr.py                       [P1] FM + pairwise BPR loss instead of pointwise logloss
     registry.py                     config.model string -> builder
-  experiment.py               trains one config+seed, valid AND test metrics (test never drives decisions)
+  experiment.py               trains one config+seed, valid AND test metrics (test never drives decisions);
+                                supports train_fraction (P1 multi-fidelity) and BPR's pairwise training loop
   recovery.py                   subprocess isolation (real timeout kill) + retry + degraded fallback
   run_logger.py                   experiments/<run_id>/iter_NNN/{config.json,hypothesis.md,results.json,logs.txt}
                                     + append-only logs/run_log.jsonl + manual-intervention hook
-  orchestrator.py                   PREDEFINED_EXPERIMENTS (no LLM yet) + the loop tying it together
+  orchestrator.py                   Phase 0: PREDEFINED_EXPERIMENTS (no LLM yet) + the loop tying it together
   submission.py                      wraps submit.py's write/read exactly, never reimplements format rules
+  research_map.py              [P1] persistent, tree-structured Research Map (logs/research_map.json)
+  diagnosis.py                  [P1] Metric-Aware Diagnosis Engine, seed-aware significance (not flat epsilon)
+  multi_fidelity.py              [P1] 1%->10%->100% staged runner, kills clearly-broken candidates cheaply
+  selector.py                     [P1] Best-First Node Selector: gain x confidence x novelty / cost
+  p1_orchestrator.py               [P1] ties the above together; seeds the map from Phase 0's run_log.jsonl
 tools/
   generate_analysis.py         logs/run_log.jsonl -> logs/analysis_report.md (the Run & Iteration Log deliverable)
 tests/
   test_foundation.py            plain-assert smoke tests (no pytest in this env), run: python tests/test_foundation.py
 experiments/                  generated per run, run-scoped (<run_id>/iter_001/, <run_id>/iter_002/, ...)
-                                 -- a second `python run.py` gets its own subdirectory, never overwrites a prior one
-logs/                          generated per run (run_log.jsonl, run_summary.json, analysis_report.md)
+                                 -- a second run gets its own subdirectory, never overwrites a prior one
+logs/                          run_log.jsonl (shared, append-only, run_id per entry), run_summary.json,
+                                 analysis_report.md (Phase 0), research_map.json + p1_round_report.json (P1)
 kuairand-starter-kit/          organizer's code, UNMODIFIED (evaluate.py/data.py/submit.py/baseline.py)
   KuaiRand-Pure/data/            downloaded dataset (gitignored -- see Quick start)
-docs/                         the full PS + brainstorm doc, PDF, and its 2 extracted diagrams
+docs/                         the full PS + brainstorm doc, PDF, its 2 extracted diagrams, and both
+                                Phase 0 / P1 features+results writeups
 ```
 
 ### Design decisions worth knowing before you change anything
@@ -211,53 +222,70 @@ alias stub in this environment that fails with no interpreter installed).
 |---|---|
 | Technical Execution (35%) — primary metric | `agent/evaluator.py` (exact scoring), `agent/model_zoo/` |
 | Technical Execution — robustness | `agent/recovery.py` (subprocess isolation, retry, degraded fallback) |
-| Innovation & Problem Insight (20%) | Hypotheses in `PREDEFINED_EXPERIMENTS` (orchestrator.py) citing starter-kit headroom + prior work; P1 Research Map (not built yet) |
-| Impact & Relevance (20%) — autonomy | `RunLogger.manual_intervene()` -- every human nudge counted, logged, never silent |
+| Innovation & Problem Insight (20%) | Hypotheses in `PREDEFINED_EXPERIMENTS` (orchestrator.py) + `p1_candidate_pool()` citing starter-kit headroom + prior work; `agent/research_map.py` (persistent tree) + `agent/diagnosis.py` (why, not just what) |
+| Impact & Relevance (20%) — autonomy | `RunLogger.manual_intervene()` -- every human nudge counted, logged, never silent; `agent/selector.py`'s scored best-first order (not source order) is a real, if not yet LLM-driven, autonomy step |
 | Feasibility & Practicality (15%) | `Orchestrator.wall_time_total_s` / `llm_tokens_total` / `gpu_hours_total` in `run_summary.json` |
 | Presentation (10%, final only) | `tools/generate_analysis.py` report; dashboard artifact (P2, pulled forward per doc's own advice -- not built yet, see Roadmap) |
 | Deliverable: Run & Iteration Logs | `logs/run_log.jsonl` + `experiments/<run_id>/iter_*/` + `tools/generate_analysis.py` -> `logs/analysis_report.md` |
 | Deliverable: Final submission | `agent/submission.py` writes+validates `submission_valid.csv` / `submission_test.csv` |
 
-## Roadmap (from the brainstorm doc -- Phase 0 = the P0 tier below, DONE; this is what's next)
+## Roadmap (from the brainstorm doc -- Phase 0 + the two highest-ROI P1 items are DONE; this is what's next)
 
-- **Phase 0 (this repo, done, validated end-to-end against real data, 3-seed
+- **Phase 0 (done, validated end-to-end against real data, 3-seed
   robustness-checked):** all 8 P0 "Foundation" features -- Orchestrator,
   Model Zoo (FM+DeepFM), Evaluator Wrapper, Convergence Detector, Structured
   Experiment Interface, Structured Run Log, Failure Recovery, Submission
   Validator. A real run converges automatically (ε/N rule) and **beats the
   official baseline** (test primary +0.0029 on the submitted seed, +0.0030
   as a 3-seed mean, ~8.9σ above the measured noise floor -- GAUC +0.0033,
-  nDCG@5 +0.0024), 0 manual interventions. Full writeup, including real bugs
-  found + fixed and their measured impact (OpenBLAS threading, disk-cached
-  encoding, retrain avoidance, resource-total accuracy, run-scoped experiment
-  folders, and why the first single-seed "+0.0026 win" wasn't trusted until
-  re-validated on 3 seeds):
+  nDCG@5 +0.0024), 0 manual interventions. Full writeup:
   [`docs/PHASE0_FEATURES_AND_IMPROVEMENTS.md`](docs/PHASE0_FEATURES_AND_IMPROVEMENTS.md).
-  Read that before touching `agent/` performance-sensitive code again --
-  it documents *why* `agent/__init__.py` pins BLAS threads and why
-  `agent/cache.py` exists, so a "cleanup" pass doesn't undo either.
+- **P1 (done, one round, validated end-to-end):** the brainstorm doc's own
+  "highest-ROI pair" -- Research Map / Experiment Tree (persistent,
+  AIDE-style edges) + Multi-Fidelity Runner (1%→10%→100% staged) -- plus the
+  Best-First Node Selector and Metric-Aware Diagnosis Engine needed to make
+  them functional, plus one new algorithmic direction (FM_BPR, pairwise
+  loss). Real round result: **two honest negative results** (BPR
+  underperformed with unchanged pointwise hyperparameters, `k=32`
+  independently reproduces a documented dead end), each with a specific,
+  actionable diagnosis rather than just a lower number. Full writeup,
+  including two more real bugs found + fixed during this pass's own
+  validation (a 12h host-sleep wall-clock measurement bug, a
+  PYTHONHASHSEED reproducibility gap, and a Diagnosis Engine fix that
+  corrected a false "noise_floor" label on a real ~8.9σ effect):
+  [`docs/P1_FEATURES_AND_RESULTS.md`](docs/P1_FEATURES_AND_RESULTS.md).
+  Read both docs before touching `agent/` performance-sensitive or
+  statistics code again -- they document *why* several non-obvious things
+  are the way they are (`time.process_time()` not `time.time()`; `sorted()`
+  over a set of string keys; a seed-aware significance bar instead of a flat
+  epsilon) so a "cleanup" pass doesn't quietly reintroduce a fixed bug.
+- **Not yet built from the P1 tier:** Multi-Task Feature Exploitation,
+  TikTok-disclosed features (completion rate, rewatch flag, fast-skip,
+  creator aggregates), Per-Segment Metric Diagnosis. `DeepFM_BPR` (pairwise
+  loss + the deep component) is a natural, cheap extension of what's
+  already built. P1 is currently **one round**, not a loop -- the candidate
+  pool is a fixed 2-item list; extending it (more hand-authored "improve"
+  templates reacting to each round's diagnosis) is the natural next step
+  before Phase 4's LLM replaces hand-authoring entirely.
 - **Phase 3 (Model Zoo + tuning):** fill out DCNv2/Wide&Deep/LightGBM (needs
   torch/sklearn — currently absent from this env, install when this phase starts).
 - **Phase 4 (LLM research reasoning) -- the actual differentiator:** replace
-  `PREDEFINED_EXPERIMENTS` with an LLM-driven Research Strategist that reads
-  dataset summary + metric history + research map + budget remaining and
-  outputs `{hypothesis, experiment, reasoning, expected_effect, cost, priority}`.
-  This is also where `llm_tokens_total` in `run_summary.json` starts being
-  real instead of structurally zero.
-- **P1 differentiators, highest-ROI pair per the doc's own "Tips":** Research
-  Map / Experiment Tree (AIDE-style; `parent_id` already wired) + Multi-Fidelity
-  Runner (1%→10%→100% staged, kill weak ideas early -- biggest lever on
-  GPU-hours). Also: Metric-Aware Diagnosis Engine, Noise-Aware Convergence
-  Check (partially pulled into Phase 0 already via `fm_seed_variance`'s 3
-  seeds), Multi-Task Feature Exploitation, TikTok-disclosed features
-  (completion rate, rewatch flag, fast-skip, creator aggregates).
+  the hand-authored candidate pools (`PREDEFINED_EXPERIMENTS`,
+  `p1_candidate_pool()`) with an LLM-driven Research Strategist that reads
+  dataset summary + metric history + the Research Map + budget remaining and
+  outputs `{hypothesis, experiment, reasoning, expected_effect, cost, priority}`
+  -- `agent/selector.py`'s scoring formula and `agent/diagnosis.py`'s
+  insights are exactly the *input context* this strategist would consume;
+  neither needs to change shape when Phase 4 starts. This is also where
+  `llm_tokens_total` in `run_summary.json` starts being real instead of
+  structurally zero.
 - **P2 stretch, but the doc explicitly says pull the dashboard earlier:**
   *"Consider building the dashboard/log-replay earlier than its P2 slot
-  suggests -- it's cheap and it's your closing argument."* Once a real
-  multi-iteration run exists, generate an HTML dashboard from
-  `logs/run_log.jsonl` (Claude's `dataviz` skill covers chart/palette
-  conventions; `artifact-design` before publishing as an Artifact) — this is
-  a good next session's first task once Phase 0's own log has real content.
+  suggests -- it's cheap and it's your closing argument."* Generate an HTML
+  dashboard from `logs/run_log.jsonl` + `logs/research_map.json` (Claude's
+  `dataviz` skill covers chart/palette conventions; `artifact-design` before
+  publishing as an Artifact) — a good next session's first task now that
+  both logs have real, multi-node content.
 
 ## Open questions from the brainstorm doc, still open
 

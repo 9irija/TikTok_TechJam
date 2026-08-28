@@ -40,6 +40,7 @@ class ExperimentResult:
     num_params: int
     train_loss_curve: list[float] = field(default_factory=list)
     valid_primary_curve: list[float] = field(default_factory=list)
+    train_fraction: float = 1.0  # 1.0 = full data; <1.0 = a Multi-Fidelity Runner smoke stage
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -53,6 +54,7 @@ class ExperimentResult:
             "num_params": self.num_params,
             "train_loss_curve": self.train_loss_curve,
             "valid_primary_curve": self.valid_primary_curve,
+            "train_fraction": self.train_fraction,
         }
 
 
@@ -80,7 +82,7 @@ def _load_encoded(data_dir: str, fields: list[str]):
 
 def run_experiment(config: ExperimentConfig, data_dir: str, seed: int,
                     max_epochs_override: int | None = None, return_model: bool = False,
-                    save_predictions_to: str | None = None):
+                    save_predictions_to: str | None = None, train_fraction: float = 1.0):
     """Trains `config.model` and returns metrics.
 
     Test-split metrics are computed and logged here purely for parity with
@@ -101,6 +103,17 @@ def run_experiment(config: ExperimentConfig, data_dir: str, seed: int,
     from scratch purely to materialize a submission CSV (see Orchestrator:
     only `config.seeds[0]` gets this set, since that's the one seed run.py
     ever needs again).
+
+    `train_fraction` (P1's Multi-Fidelity Runner, agent/multi_fidelity.py):
+    trains on a random, seeded, deterministic subsample of the *training*
+    split only -- validation and test always stay full-size, so a low-
+    fidelity stage's score is a real (if noisier, smaller-N) read on
+    generalization, not a synthetic proxy metric.
+
+    Models exposing `bpr_step` instead of `step` (P1's FM_BPR -- see
+    agent/model_zoo/fm_bpr.py) are trained with the pairwise BPR sampling
+    loop instead of the pointwise loop below -- evaluation is identical
+    either way, only the training signal differs.
     """
     hp = dict(config.hyperparams)
     epochs = max_epochs_override or hp.get("epochs", 40)
@@ -109,9 +122,15 @@ def run_experiment(config: ExperimentConfig, data_dir: str, seed: int,
     verbose = hp.get("verbose", False)
 
     enc, dim = _load_encoded(data_dir, config.fields)
-    Xtr, ytr, _ = enc["train"]
+    Xtr, ytr, utr = enc["train"]
     Xva, yva, uva = enc["valid"]
     Xte, yte, ute = enc["test"]
+
+    if train_fraction < 1.0:
+        n = max(1, int(len(ytr) * train_fraction))
+        sub_idx = np.random.default_rng(seed).choice(len(ytr), size=n, replace=False)
+        Xtr, ytr = Xtr[sub_idx], ytr[sub_idx]
+        utr = [utr[i] for i in sub_idx]
 
     model = build_model(config.model, dim, n_fields=Xtr.shape[1],
                          **{k: v for k, v in hp.items() if k not in ("epochs", "batch", "patience", "verbose")},
@@ -121,11 +140,31 @@ def run_experiment(config: ExperimentConfig, data_dir: str, seed: int,
     best_primary, best_state, best_epoch, bad = -1.0, None, 0, 0
     loss_curve: list[float] = []
     valid_curve: list[float] = []
-    t0 = time.time()
+    # time.process_time(), not time.time(): this measures CPU time actually
+    # consumed by this process, not wall-clock elapsed. A host that suspends
+    # (sleep) mid-training would inflate a time.time() delta by the full
+    # suspended duration once resumed (observed once during P1 validation --
+    # a background run survived an ~12h host sleep and reported ~43,371s for
+    # what was really ~90s of actual compute); process_time() cannot be
+    # inflated this way since a suspended process accrues zero CPU time.
+    # This is also the more semantically correct choice for what Feasibility
+    # & Practicality resource reporting actually wants: real compute spent,
+    # not wall-clock time that might include the process sitting idle.
+    t0 = time.process_time()
+
+    is_bpr = hasattr(model, "bpr_step")
+    if is_bpr:
+        from .model_zoo.fm_bpr import build_user_pos_neg_index, sample_bpr_batches
+        user_index = build_user_pos_neg_index(utr, ytr)
+        n_batches_per_epoch = max(1, len(ytr) // bs)
 
     for ep in range(1, epochs + 1):
-        idx = rng.permutation(len(ytr))
-        losses = [model.step(Xtr[idx[i:i + bs]], ytr[idx[i:i + bs]]) for i in range(0, len(idx), bs)]
+        if is_bpr:
+            losses = [model.bpr_step(xp, xn) for xp, xn in
+                      sample_bpr_batches(rng, Xtr, user_index, n_batches_per_epoch, bs)]
+        else:
+            idx = rng.permutation(len(ytr))
+            losses = [model.step(Xtr[idx[i:i + bs]], ytr[idx[i:i + bs]]) for i in range(0, len(idx), bs)]
         mean_loss = float(np.mean(losses))
         loss_curve.append(mean_loss)
 
@@ -147,7 +186,7 @@ def run_experiment(config: ExperimentConfig, data_dir: str, seed: int,
     test_scores = model.predict(Xte)
     valid_final = score(uva, yva, valid_scores)
     test_final = score(ute, yte, test_scores)
-    wall = time.time() - t0
+    wall = time.process_time() - t0
 
     if save_predictions_to is not None:
         from pathlib import Path
@@ -158,7 +197,7 @@ def run_experiment(config: ExperimentConfig, data_dir: str, seed: int,
     result = ExperimentResult(
         experiment_id=config.id, seed=seed, best_epoch=best_epoch, epochs_run=len(loss_curve),
         valid=valid_final, test=test_final, wall_time_s=wall, num_params=model.num_params(),
-        train_loss_curve=loss_curve, valid_primary_curve=valid_curve,
+        train_loss_curve=loss_curve, valid_primary_curve=valid_curve, train_fraction=train_fraction,
     )
     if return_model:
         return result, model, enc

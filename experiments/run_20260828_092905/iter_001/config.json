@@ -1,0 +1,24 @@
+{
+  "id": "fm_bpr_default",
+  "model": "fm_bpr",
+  "hypothesis": "Starter kit README ranks a pairwise/listwise loss change as its #1 guess for untested headroom -- GAUC/nDCG are ranking metrics, but every model trained so far (FM, DeepFM) uses pointwise logloss. BPR directly optimizes P(positive item ranked above a negative item for the same user), which is exactly what GAUC measures. Same k=16 embedding size as the FM baseline, so any effect is attributable to the loss/objective change alone, not a confounded architecture change.",
+  "hyperparams": {
+    "k": 16,
+    "lr": 0.001,
+    "batch": 8192,
+    "epochs": 40,
+    "patience": 4
+  },
+  "fields": [
+    "user_id",
+    "video_id",
+    "author_id",
+    "tab",
+    "dur_bucket"
+  ],
+  "parent_id": "fm_baseline_repro",
+  "seeds": [
+    0
+  ],
+  "notes": "agent/model_zoo/fm_bpr.py -- P1's first new algorithmic direction (a training-objective change, not just a model/hyperparameter tweak)."
+}

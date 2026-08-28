@@ -1,0 +1,109 @@
+{
+  "run_id": "run_20260828_092905",
+  "iteration_id": "iter_002",
+  "timestamp": 1787880814.109284,
+  "status": "ok",
+  "config_id": "fm_wider_k32",
+  "model": "fm",
+  "hypothesis": "Direct replication check of the starter kit's own ablation (README: k=8/16/32 -> 0.5895/0.5902/0.5887 test primary; conclusion: 'capacity is not the bottleneck') against OUR harness, at k=32. If it also shows no gain here, that's independent confirmation of a documented dead end using our own pipeline -- worth recording in the Research Map so the Best-First Selector learns to deprioritize pure-capacity changes on future rounds, not just trusting the starter kit's separate ablation script.",
+  "parent_id": "fm_baseline_repro",
+  "code_diff": {
+    "hyperparams": {
+      "before": {
+        "k": 16,
+        "lr": 0.001,
+        "batch": 8192,
+        "epochs": 40,
+        "patience": 4
+      },
+      "after": {
+        "k": 32,
+        "lr": 0.001,
+        "batch": 8192,
+        "epochs": 40,
+        "patience": 4
+      }
+    },
+    "model": {
+      "before": "fm_bpr",
+      "after": "fm"
+    }
+  },
+  "hyperparams": {
+    "k": 32,
+    "lr": 0.001,
+    "batch": 8192,
+    "epochs": 40,
+    "patience": 4
+  },
+  "metrics": {
+    "n_seeds": 1,
+    "valid": {
+      "GAUC_mean": 0.6664291441817977,
+      "GAUC_std": 0.0,
+      "nDCG@5_mean": 0.5353871654449278,
+      "nDCG@5_std": 0.0,
+      "primary_mean": 0.6009081548133628,
+      "primary_std": 0.0
+    },
+    "test": {
+      "GAUC_mean": 0.6606667572715299,
+      "GAUC_std": 0.0,
+      "nDCG@5_mean": 0.5280839695532524,
+      "nDCG@5_std": 0.0,
+      "primary_mean": 0.5943753634123912,
+      "primary_std": 0.0
+    },
+    "delta_vs_baseline_test": {
+      "delta_GAUC": -0.0003332427284701289,
+      "delta_nDCG@5": -0.00011603044674757257,
+      "delta_primary_mean": -0.00022463658760885075
+    },
+    "per_seed": [
+      {
+        "experiment_id": "fm_wider_k32",
+        "seed": 0,
+        "best_epoch": 5,
+        "epochs_run": 9,
+        "valid": {
+          "GAUC": 0.6664291441817977,
+          "nDCG@5": 0.5353871654449278,
+          "primary": 0.6009081548133628
+        },
+        "test": {
+          "GAUC": 0.6606667572715299,
+          "nDCG@5": 0.5280839695532524,
+          "primary": 0.5943753634123912
+        },
+        "wall_time_s": 96.953125,
+        "num_params": 1328581,
+        "train_loss_curve": [
+          0.627554081593241,
+          0.5301183049167906,
+          0.5043512887188366,
+          0.4957448403750147,
+          0.48999748059681486,
+          0.48452988245657513,
+          0.47882005657468524,
+          0.47235585067953384,
+          0.46550787857600623
+        ],
+        "valid_primary_curve": [
+          0.5904647494574848,
+          0.5981593907943668,
+          0.6000267879275103,
+          0.6002177955570758,
+          0.6009081548133628,
+          0.6002611900722881,
+          0.6001242178074614,
+          0.599671879640193,
+          0.598417336194245
+        ],
+        "train_fraction": 1.0
+      }
+    ]
+  },
+  "wall_time_s": 122.921875,
+  "recovery_events": [],
+  "convergence": null
+}

@@ -16,17 +16,27 @@ metric, and error/recovery event it produces along the way.
 
 The challenge scores a **converged, autonomously-produced improvement** over
 a fixed baseline on a hidden test set, not a one-shot leaderboard score. This
-repo's current state is **Phase 0**: the foundation layer that has to be
-correct before any research reasoning gets layered on top of it —
+repo has two layers built so far:
+
+**Phase 0 — foundation** (all 8 P0 features from the brainstorm doc):
 
 - **Evaluator Wrapper** — imports the organizer's `evaluate.py` directly; never reimplements its pinned scoring conventions.
 - **Convergence Detector** — implements the organizer's ε=0.002 / N=3 rule, read live from `baseline_scores.json`.
-- **Model Zoo** — Factorization Machine (faithful port of the official baseline) + DeepFM (numpy-only MLP deep component over shared embeddings).
+- **Model Zoo (base)** — Factorization Machine (faithful port of the official baseline) + DeepFM (numpy-only MLP deep component over shared embeddings).
 - **Structured Experiment Interface** — a config schema an orchestrator fills in instead of an LLM writing training code from scratch.
 - **Orchestrator** — runs a fixed predefined experiment list end-to-end (no LLM reasoning yet — that's a later phase).
 - **Failure Recovery** — every experiment runs in an isolated subprocess with a real timeout kill switch, retry, and a degraded fallback so one bad run can never crash or stall the whole loop.
 - **Structured Run Log** — every iteration's hypothesis, config diff, metrics, and error/recovery events, both as per-experiment folders and one append-only JSONL.
 - **Submission Validator** — wraps the organizer's `submit.py` format checks exactly before anything is called "final."
+
+**P1 — differentiators** (`python run_p1.py`, see
+[`docs/P1_FEATURES_AND_RESULTS.md`](docs/P1_FEATURES_AND_RESULTS.md)):
+
+- **Research Map / Experiment Tree** — *persistent* across runs (unlike Phase 0's per-run log), tree-structured (draft/improve/debug edges, AIDE-style).
+- **Metric-Aware Diagnosis Engine** — classifies *why* a result looks the way it does (clear improvement / regression / ranking trade-off / noise floor), seed-aware (uses real per-seed std, not just a flat threshold on point estimates).
+- **Multi-Fidelity Runner** — 1%→10%→100% staged training, killing clearly-broken candidates cheaply instead of always training at full scale.
+- **Best-First Node Selector** — deterministic `expected_gain × confidence × novelty ÷ cost` scoring (no LLM yet — that's Phase 4) that decides which candidate to try next and why, with a logged reasoning string per candidate.
+- **FM_BPR** — a new model: pairwise BPR ranking loss instead of pointwise logloss, the starter kit README's own #1-ranked untested direction.
 
 See `CLAUDE.md` for the full architecture, the exact judging-criteria → code
 map, and — importantly — a **task-definition caveat**: the problem statement's
@@ -39,7 +49,7 @@ using label `long_view` and metrics `GAUC` / `nDCG@5`.
 - **Editor**: VS Code (via the Claude Code extension)
 - **Language / runtime**: Python 3.14, Windows 11
 - **Dev dependencies actually used**: `numpy` (all model/eval code), `pandas` (ad-hoc EDA only — never imported by `agent/`)
-- **No LLM API calls yet** — Phase 0 has no LLM in the loop by design (see roadmap); `run_summary.json`'s `llm_tokens_total` is structurally 0 until the Phase 4 Research Strategist is wired in.
+- **No LLM API calls yet** — neither Phase 0 nor P1 has an LLM in the loop by design (see roadmap); `run_summary.json`'s `llm_tokens_total` is structurally 0 until the Phase 4 Research Strategist is wired in.
 
 ## Datasets and assets used
 
@@ -74,6 +84,11 @@ python run.py
 
 # 3. Regenerate the Run & Iteration Log deliverable
 python tools/generate_analysis.py --stdout
+
+# 4. Run a P1 round: seeds the persistent Research Map from step 2's log,
+#    scores the candidate pool (Best-First Node Selector), runs each
+#    candidate through the Multi-Fidelity Runner in best-first order
+python run_p1.py
 ```
 
 Outputs: `experiments/<run_id>/iter_*/` (per-iteration hypothesis/config/results/logs;
@@ -108,6 +123,27 @@ only the validation split throughout — see
 `docs/PHASE0_FEATURES_AND_IMPROVEMENTS.md` §4 for the full per-seed
 breakdown and significance calculation.
 
+## P1 results (one round, both real outcomes reported)
+
+Full details, including two bugs found and fixed during this pass's own
+validation, in
+[`docs/P1_FEATURES_AND_RESULTS.md`](docs/P1_FEATURES_AND_RESULTS.md).
+
+The Best-First Selector ranked 2 candidates and ran both (best-first order,
+not declaration order) through the Multi-Fidelity Runner. **Neither beat the
+baseline** — reported here exactly as measured, because negative results
+with a specific diagnosis are legitimate output, not something to omit:
+
+| Candidate | Valid primary | vs. parent | Diagnosis |
+|---|---|---|---|
+| `fm_bpr_default` (pairwise BPR loss, k=16) | 0.5981 | −0.0034 | `mixed`, with an overfitting-risk flag (best epoch at ~33% of training length) — a specific, actionable lead for a next round, not a dead end |
+| `fm_wider_k32` (FM, k=32) | 0.6009 | −0.0006 | `noise_floor` — independently reproduces the starter kit's own documented "capacity isn't the bottleneck" finding, on this codebase's own harness |
+
+This is the "reflect → revise" loop working as intended: a real hypothesis
+(the starter kit's own #1-ranked untested direction) was tested, it didn't
+pay off, and the Diagnosis Engine produced a specific, actionable reason
+instead of just a lower number.
+
 ## Team / contributions
 
 _Solo participant / fill in team member contributions here per the
@@ -115,20 +151,24 @@ Deliverables requirement, if applicable._
 
 ## Limitations & what we'd improve with more time
 
-- **No LLM reasoning yet.** Phase 0's experiment list is fixed and human-written
-  (by design — see `CLAUDE.md` roadmap Phase 4). The Innovation & Autonomy
-  scores both depend heavily on the Research Strategist layer that isn't built yet.
-- **No Research Map / Experiment Tree.** Experiments are a flat predefined
-  list today; `ExperimentConfig.parent_id` is wired but unused for branching.
-  AIDE reports ~4x more MLE-Bench medals with tree search vs. linear iteration
-  — this is the highest-priority next build per the brainstorm doc's own analysis.
-- **No multi-fidelity runner.** Every experiment currently trains at full
-  scale; a 1%→10%→100% staged runner would meaningfully cut GPU-hours (the
-  P1 item the doc calls the "biggest single lever" on the Feasibility score).
-- **Model zoo is FM + DeepFM only.** DCNv2/Wide&Deep/LightGBM need
+- **No LLM reasoning yet.** Both Phase 0's and P1's candidate pools are
+  fixed and human-written (by design — see `CLAUDE.md` roadmap Phase 4).
+  The Innovation & Autonomy scores both depend heavily on the Research
+  Strategist layer that isn't built yet.
+- **P1 is one round, not a loop.** The candidate pool (`p1_candidate_pool()`)
+  is a fixed 2-item list; a second `python run_p1.py` finds nothing new to
+  run. A real iterative loop needs either more hand-authored "improve"
+  templates reacting to each round's diagnosis, or Phase 4's LLM.
+- **BPR direction not beaten yet.** `fm_bpr_default` underperformed the
+  baseline with pointwise-FM hyperparameters reused unchanged; the
+  Diagnosis Engine's overfitting flag suggests fewer epochs / different
+  learning rate as the natural next candidate, not that BPR itself is a
+  dead end. `DeepFM_BPR` (pairwise loss + the deep component) is also
+  untested.
+- **Model zoo**: FM, DeepFM, FM_BPR. DCNv2/Wide&Deep/LightGBM need
   torch/scikit-learn, not installed in the current dev environment.
 - **Bonus benchmarks (KuaiRand-1k/27k) not attempted** — deliberately
   deprioritized until the required KuaiRand-Pure path is fully hardened.
-- **Loss function still pointwise logloss** despite the starter kit's own
-  README ranking a pairwise/listwise loss change as the most promising
-  unexplored direction — a natural first Phase-3/4 experiment.
+- **Best-First Selector's cost/gain model is a simple heuristic**, not
+  learned or calibrated — reasonable with almost no historical data per
+  model family yet, worth revisiting once the Research Map has more nodes.

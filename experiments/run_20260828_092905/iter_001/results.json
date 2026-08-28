@@ -1,0 +1,84 @@
+{
+  "run_id": "run_20260828_092905",
+  "iteration_id": "iter_001",
+  "timestamp": 1787880687.0139823,
+  "status": "ok",
+  "config_id": "fm_bpr_default",
+  "model": "fm_bpr",
+  "hypothesis": "Starter kit README ranks a pairwise/listwise loss change as its #1 guess for untested headroom -- GAUC/nDCG are ranking metrics, but every model trained so far (FM, DeepFM) uses pointwise logloss. BPR directly optimizes P(positive item ranked above a negative item for the same user), which is exactly what GAUC measures. Same k=16 embedding size as the FM baseline, so any effect is attributable to the loss/objective change alone, not a confounded architecture change.",
+  "parent_id": "fm_baseline_repro",
+  "code_diff": {
+    "__root__": true
+  },
+  "hyperparams": {
+    "k": 16,
+    "lr": 0.001,
+    "batch": 8192,
+    "epochs": 40,
+    "patience": 4
+  },
+  "metrics": {
+    "n_seeds": 1,
+    "valid": {
+      "GAUC_mean": 0.6623448179553549,
+      "GAUC_std": 0.0,
+      "nDCG@5_mean": 0.5338766010694551,
+      "nDCG@5_std": 0.0,
+      "primary_mean": 0.598110709512405,
+      "primary_std": 0.0
+    },
+    "test": {
+      "GAUC_mean": 0.6576622359859795,
+      "GAUC_std": 0.0,
+      "nDCG@5_mean": 0.5274746342926903,
+      "nDCG@5_std": 0.0,
+      "primary_mean": 0.5925684351393349,
+      "primary_std": 0.0
+    },
+    "delta_vs_baseline_test": {
+      "delta_GAUC": -0.003337764014020528,
+      "delta_nDCG@5": -0.0007253657073097441,
+      "delta_primary_mean": -0.002031564860665136
+    },
+    "per_seed": [
+      {
+        "experiment_id": "fm_bpr_default",
+        "seed": 0,
+        "best_epoch": 2,
+        "epochs_run": 6,
+        "valid": {
+          "GAUC": 0.6623448179553549,
+          "nDCG@5": 0.5338766010694551,
+          "primary": 0.598110709512405
+        },
+        "test": {
+          "GAUC": 0.6576622359859795,
+          "nDCG@5": 0.5274746342926903,
+          "primary": 0.5925684351393349
+        },
+        "wall_time_s": 111.28125,
+        "num_params": 684421,
+        "train_loss_curve": [
+          0.6148937713328025,
+          0.5221338737354004,
+          0.48218610796997013,
+          0.44531560501606343,
+          0.4100598512793616,
+          0.37692355852332904
+        ],
+        "valid_primary_curve": [
+          0.5970753429298711,
+          0.598110709512405,
+          0.5961690283641234,
+          0.5941845903889159,
+          0.5904989599041978,
+          0.5886095018454076
+        ],
+        "train_fraction": 1.0
+      }
+    ]
+  },
+  "wall_time_s": 136.78125,
+  "recovery_events": [],
+  "convergence": null
+}

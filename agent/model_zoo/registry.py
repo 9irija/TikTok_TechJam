@@ -7,11 +7,12 @@ from __future__ import annotations
 
 from typing import Callable
 
-from . import deepfm, fm
+from . import deepfm, fm, fm_bpr
 
 MODELS: dict[str, Callable[..., object]] = {
     "fm": fm.build,
     "deepfm": deepfm.build,
+    "fm_bpr": fm_bpr.build,  # P1: pairwise BPR loss instead of pointwise logloss
 }
 
 
