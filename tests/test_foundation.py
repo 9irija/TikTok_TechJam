@@ -401,6 +401,24 @@ def test_recovery_catches_broken_config():
     assert any(e.kind == "abandoned" for e in events), "must end in 'abandoned', not raise or hang"
 
 
+def test_recovery_catches_a_genuine_oom():
+    """Not simulated -- k=10**9 makes the embedding table allocation
+    (dim x k floats) genuinely fail with a real numpy MemoryError (numpy
+    fails fast on an impossible shape; this never actually tries to
+    allocate real RAM, so the test is fast and safe to run anywhere)."""
+    from agent.recovery import run_with_recovery
+    oom_config = ExperimentConfig(
+        id="oom_smoke_test", model="fm", hypothesis="deliberately triggers a real MemoryError",
+        hyperparams={"k": 10 ** 9, "epochs": 1, "batch": 64}, seeds=[0],
+    )
+    result, events = run_with_recovery(oom_config, str(DEFAULT_DATA_DIR), seed=0,
+                                        timeout_s=60, max_retries=1, degrade_epochs=1)
+    assert result is None, "a genuine OOM must never silently succeed"
+    assert any("MemoryError" in e.message for e in events if e.kind == "error"), \
+        "the real MemoryError should be visible in the recovery events, not swallowed"
+    assert any(e.kind == "abandoned" for e in events), "must end in 'abandoned', not crash the parent process"
+
+
 def main() -> int:
     print("Phase 0 + P1 foundation smoke tests\n" + "=" * 40)
     tests = [
@@ -422,6 +440,7 @@ def main() -> int:
     if data_dir_available():
         tests.insert(0, test_evaluator_self_check)
         tests.append(test_recovery_catches_broken_config)
+        tests.append(test_recovery_catches_a_genuine_oom)
         tests.append(test_multi_fidelity_kills_a_broken_config)
     else:
         print("  (data dir not found -- skipping self-check and recovery-subprocess tests)")
