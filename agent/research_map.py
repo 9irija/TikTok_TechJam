@@ -148,31 +148,38 @@ class ResearchMap:
         """`best_node()`, but refuses to hand back a node whose own
         diagnosis says it isn't a *confirmed* improvement over what it was
         actually compared against (its parent, or the official baseline for
-        a root) -- walks up the parent chain past any run of
-        noise_floor/regression/mixed/ranking_tradeoff nodes until it lands
-        on one tagged `clear_improvement`/`baseline_beat` (or a node with no
-        eligible parent to fall back to, e.g. a root itself tagged
-        `baseline_match`). This is the "what should we actually build on/
-        ship" answer; `best_node()` is the raw leaderboard.
+        a root) -- i.e. the highest-scoring `done` node whose own
+        `diagnosis_tag` is NOT one of noise_floor/regression/mixed/
+        ranking_tradeoff (so `clear_improvement`/`baseline_beat`/
+        `baseline_match`/etc. all qualify). This is the "what should we
+        actually build on/ship" answer; `best_node()` is the raw
+        leaderboard.
 
-        Note this deliberately does NOT re-rank by score after unwinding --
-        it walks strictly up one lineage from the numeric leader, so it can
-        return a node that isn't the highest-scoring *confirmed* node
-        anywhere in the map if a different, unrelated lineage scored higher
-        but was never numerically on top. That's an accepted simplification
-        (the map has never actually had competing lineages this close in
-        practice); a full best-first search over confirmed nodes only would
-        replace this if that ever changes.
-        """
-        node = self.best_node(metric_path)
-        seen: set[str] = set()
-        while node is not None and node.node_id not in seen:
-            seen.add(node.node_id)
-            if node.diagnosis_tag in self._UNCONFIRMED_TAGS and node.parent_id in self.nodes:
-                node = self.nodes[node.parent_id]
-            else:
-                break
-        return node
+        An earlier version of this method walked strictly up one lineage
+        from the numeric leader (stopping at the first confirmed ancestor)
+        instead of searching every node -- with only one competitive
+        lineage in the map so far (deepfm_mtl_v1's), that always happened
+        to agree with a full search. It stopped being correct the moment
+        the tree grew a second, unrelated confirmed branch off the same
+        parent (deepfm_din_v1, a sibling of deepfm_mtl_v1 under
+        deepfm_regularized): the old walk could only ever consider nodes on
+        the numeric leader's own lineage, so a higher-scoring *confirmed*
+        node sitting on a different branch -- one that was never itself the
+        raw numeric leader -- would have been silently missed. Searching
+        every done node directly (not just one ancestor chain) fixes that
+        by construction."""
+        best, best_score = None, float("-inf")
+        for n in self.done_nodes():
+            if n.diagnosis_tag in self._UNCONFIRMED_TAGS:
+                continue
+            v: Any = n.metrics
+            for k in metric_path:
+                if v is None:
+                    break
+                v = v.get(k) if isinstance(v, dict) else None
+            if isinstance(v, (int, float)) and v > best_score:
+                best, best_score = n, v
+        return best
 
     def explored_summary(self) -> dict[str, Any]:
         """What the map already knows -- the input a Best-First Selector

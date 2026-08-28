@@ -299,6 +299,50 @@ def test_research_map_best_confirmed_node_skips_noise_floor():
         assert summary["raw_leaderboard_node_id"] == "fluke"
 
 
+def test_research_map_best_confirmed_node_searches_every_branch_not_just_one_lineage():
+    """Regression test for the gap the DIN sibling-branch scenario surfaced
+    live: `best_confirmed_node()` used to walk up only the numeric leader's
+    own parent chain, so a higher-scoring *confirmed* node on a completely
+    different branch -- one that was never itself the raw numeric leader --
+    could be silently missed. Two children of the same parent, one a lower-
+    scoring confirmed win and one a higher-scoring but unconfirmed sibling,
+    is exactly that shape (deepfm_mtl_v1 vs. deepfm_din_v1 under
+    deepfm_regularized in the real Research Map, just not close enough in
+    score yet to have actually triggered the bug there)."""
+    import tempfile
+    from agent.research_map import ResearchMap
+
+    with tempfile.TemporaryDirectory() as d:
+        rm = ResearchMap(Path(d) / "research_map.json")
+        root = ExperimentConfig(id="root", model="fm", hypothesis="h", parent_id=None)
+        rm.add_node(root, edge_type="draft")
+        rm.update_node("root", status="done", diagnosis_tag="baseline_beat",
+                        metrics={"valid": {"primary_mean": 0.60}})
+
+        # Branch A: a confirmed win over root, but the lower score of the two siblings.
+        branch_a = ExperimentConfig(id="branch_a", model="fm", hypothesis="h", parent_id="root")
+        rm.add_node(branch_a, edge_type="improve", parent_id="root")
+        rm.update_node("branch_a", status="done", diagnosis_tag="clear_improvement",
+                        metrics={"valid": {"primary_mean": 0.615}})
+
+        # Branch B: root's OTHER child -- higher raw score (the numeric leader),
+        # but unconfirmed vs. root, same as deepfm_din_v1 vs. deepfm_regularized.
+        branch_b = ExperimentConfig(id="branch_b", model="fm", hypothesis="h", parent_id="root")
+        rm.add_node(branch_b, edge_type="improve", parent_id="root")
+        rm.update_node("branch_b", status="done", diagnosis_tag="ranking_tradeoff",
+                        metrics={"valid": {"primary_mean": 0.62}})
+
+        assert rm.best_node().node_id == "branch_b", "raw leaderboard should surface the numeric top score"
+        confirmed = rm.best_confirmed_node()
+        # The old walk-one-lineage implementation would start at branch_b (the
+        # leader), see it's unconfirmed, walk to ITS parent (root, 0.60), and stop
+        # there -- never considering branch_a (0.615, confirmed, a HIGHER score
+        # than root but on a different branch than the leader).
+        assert confirmed is not None and confirmed.node_id == "branch_a", (
+            f"best_confirmed_node() must search every branch, not just the numeric leader's own "
+            f"lineage, got '{confirmed.node_id if confirmed else None}'")
+
+
 def test_research_map_save_merges_concurrent_writes():
     """Regression test for a real bug caught live during P2: `lgbm_baseline`
     was silently erased from logs/research_map.json because a long-running
@@ -753,6 +797,7 @@ def main() -> int:
     tests += [
         test_research_map_basic,
         test_research_map_best_confirmed_node_skips_noise_floor,
+        test_research_map_best_confirmed_node_searches_every_branch_not_just_one_lineage,
         test_research_map_save_merges_concurrent_writes,
         test_diagnosis_rules,
         test_selector_scores_candidates,

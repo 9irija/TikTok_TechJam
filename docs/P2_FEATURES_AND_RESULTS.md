@@ -59,12 +59,13 @@ distinguishable" means — anything reading it (the LLM Research
 Strategist's prompt, a new candidate's `parent_id`, submission generation)
 would have silently treated a coin flip as "the current best."
 
-Fixed with `ResearchMap.best_confirmed_node()`: walks the parent chain
-past any run of `noise_floor`/`regression`/`mixed`/`ranking_tradeoff`
-nodes to the nearest node actually tagged `clear_improvement`/
-`baseline_beat`. Now used everywhere a "what's best" decision is made.
+Fixed with `ResearchMap.best_confirmed_node()`: the highest-scoring `done`
+node whose own tag isn't `noise_floor`/`regression`/`mixed`/
+`ranking_tradeoff`. Now used everywhere a "what's best" decision is made.
 Regression-tested with a synthetic reproduction of the exact scenario
-(`test_research_map_best_confirmed_node_skips_noise_floor`).
+(`test_research_map_best_confirmed_node_skips_noise_floor`). (This method's
+implementation changed again in §7 below, once the tree grew a second
+competing branch — see that section for why.)
 
 ## 2. Multi-task DeepFM (`agent/model_zoo/deepfm_mtl.py`) — clear_improvement, new project-best
 
@@ -295,6 +296,35 @@ second embedding table + attention block. `deepfm_mtl_v1` remains the
 project-best. Logged as a proper Research Map node rather than left
 untested — the last item on the starter kit's own headroom list is now a
 real, reproducible number instead of an open question.
+
+## 7. `best_confirmed_node()` searches every branch now, not just one lineage
+
+A latent correctness gap, not something that ever produced a wrong answer
+in practice until now: `best_confirmed_node()` (§ above, the "what's
+actually best" answer used for submissions, the LLM's prompt, and new
+candidates' `parent_id`) used to start from the raw numeric leader
+(`best_node()`) and walk *up its own parent chain* to the nearest node
+tagged `clear_improvement`/`baseline_beat`, stopping there. That's only
+correct if the map has a single competitive lineage — true of every
+Research Map node up through `deepfm_mtl_v1_hpo`, but no longer true the
+moment `deepfm_din_v1` was added: it's a **sibling** of `deepfm_mtl_v1`
+(both `parent_id=deepfm_regularized`), not on its lineage at all. Had
+`deepfm_din_v1` scored higher than `deepfm_mtl_v1` (it doesn't — 0.6036 vs.
+0.6046), the old walk would still only ever consider nodes on *its own*
+lineage back to `deepfm_regularized`, silently missing `deepfm_mtl_v1`
+entirely, since it sits on a different branch than whichever node happened
+to be the raw numeric leader.
+
+Fixed by searching every `done` node directly for the highest-scoring one
+whose own tag isn't in the unconfirmed set, instead of walking one
+ancestor chain — strictly more correct, and simpler code besides.
+Regression-tested with a synthetic two-sibling scenario matching this
+exact shape
+(`test_research_map_best_confirmed_node_searches_every_branch_not_just_one_lineage`).
+No change on the real map: `best_confirmed_node()` still returns
+`deepfm_mtl_v1`, since it also happens to be the raw numeric leader today.
+This was fixed pre-emptively, before it ever produced a wrong answer, once
+the tree grew a second real branch worth taking seriously.
 
 ## Net effect on the project-best
 

@@ -331,13 +331,16 @@ numeric leaderboard with no concept of statistical significance, so once
 `features_v1` was 3-seed-verified it briefly *out-scored* `deepfm_regularized`
 by +0.0002 — enough to silently become "current best" everywhere that read
 `best_node()`, despite being diagnosed `noise_floor` in the same breath.
-Fixed with `ResearchMap.best_confirmed_node()` (walks the parent chain past
-any run of `noise_floor`/`regression`/`mixed`/`ranking_tradeoff` nodes to
-the nearest actual `clear_improvement`/`baseline_beat`), now used everywhere
-a decision is made from "current best" — the LLM Research Strategist's
-prompt, new candidates' `parent_id`, and `tools/generate_submission.py`.
-Regression-tested in `tests/test_foundation.py` with a synthetic case
-matching this exact scenario.
+Fixed with `ResearchMap.best_confirmed_node()` (the highest-scoring `done`
+node whose own tag isn't `noise_floor`/`regression`/`mixed`/
+`ranking_tradeoff`), now used everywhere a decision is made from "current
+best" — the LLM Research Strategist's prompt, new candidates' `parent_id`,
+and `tools/generate_submission.py`. Regression-tested in
+`tests/test_foundation.py` with a synthetic case matching this exact
+scenario. (An earlier version of this method only walked one lineage from
+the numeric leader rather than searching every node — fixed in P2 once the
+tree grew a second competing branch, `deepfm_din_v1`; see
+`docs/P2_FEATURES_AND_RESULTS.md` §7.)
 
 ## Team / contributions
 
