@@ -36,6 +36,8 @@ class ExperimentConfig:
     parent_id: str | None = None     # lineage -- None for a fresh/root config
     seeds: list[int] = dataclasses.field(default_factory=lambda: [0])
     notes: str = ""                  # free-text: prior evidence, paper citation, etc.
+    edge_type: str | None = None     # "draft"|"improve"|"debug" (AIDE); None -> P1 orchestrator infers
+                                      # draft/improve from parent_id, matching pre-P1 behavior
 
     def to_dict(self) -> dict[str, Any]:
         return dataclasses.asdict(self)

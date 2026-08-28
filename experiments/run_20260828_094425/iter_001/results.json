@@ -1,0 +1,85 @@
+{
+  "run_id": "run_20260828_094425",
+  "iteration_id": "iter_001",
+  "timestamp": 1787881642.0256836,
+  "status": "ok",
+  "config_id": "fm_bpr_regularized",
+  "model": "fm_bpr",
+  "hypothesis": "Directly acts on fm_bpr_default's own diagnosis, rather than treating BPR as a dead end: its overfitting_risk flag showed the best validation epoch landing at ~33% of training length, meaning later epochs kept improving pairwise training loss on sampled pairs with no validation benefit -- a regularization/schedule problem, not evidence the objective itself is wrong. Two changes that target exactly that: L2 raised 100x (1e-6 -> 1e-4) and early-stopping patience tightened (4 -> 2) to stop closer to where validation actually peaks instead of continuing to fit noise in the sampled positive/negative pairs.",
+  "parent_id": "fm_bpr_default",
+  "code_diff": {
+    "__root__": true
+  },
+  "hyperparams": {
+    "k": 16,
+    "lr": 0.001,
+    "l2": 0.0001,
+    "batch": 8192,
+    "epochs": 40,
+    "patience": 2
+  },
+  "metrics": {
+    "n_seeds": 1,
+    "valid": {
+      "GAUC_mean": 0.6634615193538895,
+      "GAUC_std": 0.0,
+      "nDCG@5_mean": 0.5343198377002176,
+      "nDCG@5_std": 0.0,
+      "primary_mean": 0.5988906785270536,
+      "primary_std": 0.0
+    },
+    "test": {
+      "GAUC_mean": 0.6566796022685373,
+      "GAUC_std": 0.0,
+      "nDCG@5_mean": 0.5268820024646369,
+      "nDCG@5_std": 0.0,
+      "primary_mean": 0.5917808023665871,
+      "primary_std": 0.0
+    },
+    "delta_vs_baseline_test": {
+      "delta_GAUC": -0.004320397731462755,
+      "delta_nDCG@5": -0.0013179975353631024,
+      "delta_primary_mean": -0.0028191976334129287
+    },
+    "per_seed": [
+      {
+        "experiment_id": "fm_bpr_regularized",
+        "seed": 0,
+        "best_epoch": 4,
+        "epochs_run": 6,
+        "valid": {
+          "GAUC": 0.6634615193538895,
+          "nDCG@5": 0.5343198377002176,
+          "primary": 0.5988906785270536
+        },
+        "test": {
+          "GAUC": 0.6566796022685373,
+          "nDCG@5": 0.5268820024646369,
+          "primary": 0.5917808023665871
+        },
+        "wall_time_s": 139.65625,
+        "num_params": 684421,
+        "train_loss_curve": [
+          0.6223253663495291,
+          0.550525864251226,
+          0.5394822299051628,
+          0.5338643694953095,
+          0.5282046366080964,
+          0.5209976816348892
+        ],
+        "valid_primary_curve": [
+          0.5965493905683186,
+          0.598368680538617,
+          0.5983169058483366,
+          0.5988906785270536,
+          0.5984077582352096,
+          0.5980657297037255
+        ],
+        "train_fraction": 1.0
+      }
+    ]
+  },
+  "wall_time_s": 165.5625,
+  "recovery_events": [],
+  "convergence": null
+}

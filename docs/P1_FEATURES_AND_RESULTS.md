@@ -185,10 +185,10 @@ hypothesis was tested, it didn't pay off, and the system produced a
 specific, actionable diagnosis instead of just a lower number. It's also
 the precise beat the brainstorm doc's own demo narrative calls out:
 *"Tested temporal features. Performance dropped. Agent recorded insight and
-avoided similar experiments."* — same shape, applied to a real result
-instead of a hypothetical one.
+avoided similar experiments."* — round 2 (below) goes one step further:
+*acting* on the insight, not just avoiding a repeat of the mistake.
 
-### Resource usage, this round
+### Resource usage, round 1
 
 | | Value |
 |---|---|
@@ -197,6 +197,54 @@ instead of a hypothetical one.
 | Wall-clock (CPU time, both candidates) | 259.7s (~4.3 min) |
 | LLM tokens | 0 (no LLM in the loop yet) |
 | GPU-hours | 0.0 (CPU-only numpy) |
+
+---
+
+## 3.5. Round 2 — closing the loop: acting on round 1's own diagnosis
+
+Round 1's `fm_bpr_default` insight wasn't "BPR is a dead end" — it was a
+specific, actionable diagnosis: overfitting, best epoch at ~33% of training
+length, "consider fewer epochs or stronger regularization." Round 1 never
+acted on it, because the candidate pool was a fixed, static list — closing
+that gap is what actually makes this a "reflect → revise" loop instead of a
+single "reflect" pass.
+
+**Fix.** `agent/p1_orchestrator.py`'s new `_diagnosis_driven_candidates()`:
+after the fixed 2-candidate pool, checks the Research Map for any node
+whose own `insight` string contains `overfitting_risk` with no debug-child
+yet, and if found, proposes a follow-up that directly targets that
+diagnosis — not a fresh guess. For `fm_bpr_default`: L2 raised 100x
+(1e-6 → 1e-4) and early-stopping patience tightened (4 → 2), specifically
+to stop closer to where validation already peaked rather than continuing
+to fit noise in the sampled pairs. Recorded as a `debug` edge (not
+`improve` — AIDE's distinction: a modification of a *failed* node aimed at
+fixing what broke it, not making an already-good thing better), which
+required adding an explicit `edge_type` field to `ExperimentConfig`
+(previously inferred purely from "has a parent" — draft vs. improve only,
+with no way to express debug).
+
+Ran with **zero manual intervention or re-invocation logic** — a second,
+unmodified `python run_p1.py` call found exactly one new candidate (the
+diagnosis-driven one; the original two were already in the map) and ran it,
+demonstrating genuine round-over-round behavior on the persistent map.
+
+**Result:**
+
+| Config | Valid primary | vs. `fm_bpr_default` | vs. FM baseline (0.6015) | Diagnosis |
+|---|---|---|---|---|
+| `fm_bpr_regularized` | 0.5989 | **+0.0008** (right direction) | still **−0.0026** | `noise_floor` (single-seed, flat-epsilon bar) |
+
+**Honest read.** The diagnosis was correct and the fix moved the number in
+the predicted direction — but only partially closed the gap, and the test
+split actually moved slightly the other way (0.5918 vs. `fm_bpr_default`'s
+0.5926, both still below FM's 0.5953). This isn't a clean win to report as
+one; it's confirmation that regularization was A real lever, not THE fix
+that makes BPR competitive here. A fair, complete read: either BPR needs
+more than a hyperparameter retune to work well on this dataset (e.g. a
+different negative-sampling ratio per positive, or the pairwise objective
+itself may simply suit this data's sparsity pattern worse than pointwise
+does), or a genuinely different learning rate (not just L2/patience) is
+still untested. Reported exactly as measured, not oversold.
 
 ---
 
@@ -249,20 +297,28 @@ evidence the mechanism works; this round simply didn't need it.
 
 ## 6. Honest limitations / what's next
 
-- **One round, not a loop.** `p1_candidate_pool()` is a fixed, hand-authored
-  list of 2 candidates; a second `python run_p1.py` invocation today finds
-  nothing new to run (both are already in the map). A real iterative loop
-  needs either more hand-authored "improve" templates reacting to each
-  round's diagnosis (e.g., automatically proposing a lower-epoch BPR variant
-  after §3's overfitting finding) or Phase 4's LLM to generate genuinely new
-  candidates from the accumulated insights — neither is built yet.
+**Resolved by round 2 (§3.5), not still open:** the "one round, not a loop"
+and "BPR hyperparameters unchanged" gaps from round 1 — `_diagnosis_driven_candidates()`
+now reacts to a node's own diagnosis, verified with a real (if only
+partial) recovery. What's still genuinely open:
+
+- **Diagnosis-driven candidate generation covers exactly one trigger**
+  (`overfitting_risk` on `fm_bpr_default` specifically) — a hardcoded
+  `if`, not a general "propose a fix for any diagnosis tag" mechanism.
+  Extending this to react to `regression`/`ranking_tradeoff`/etc. generically
+  (not per-node-id) is the natural next step before this looks like a real
+  loop rather than one demonstrated reaction.
+- **BPR still underperforms after the diagnosis-informed fix.** Round 2
+  confirmed the *direction* was right (+0.0008) but didn't close the gap to
+  baseline (still −0.0026). Untested remaining levers: a learning rate
+  actually tuned for BPR's gradient landscape (not just L2/patience), a
+  different positive:negative sampling ratio, or accepting BPR may need a
+  fundamentally different tweak (or may simply not suit this dataset as
+  well as pointwise loss does) — a legitimate possible outcome, not
+  something more retuning is guaranteed to fix.
 - **DeepFM_BPR not built.** Pairwise loss combined with the DeepFM
   architecture (rather than plain FM) is untested — a natural next
   candidate, and cheap to add given `fm_bpr.py`'s pattern.
-- **BPR hyperparameters were reused from pointwise FM unchanged**, per
-  §3's own diagnosis, likely not appropriate for BPR's different gradient
-  landscape — a natural, diagnosis-informed next candidate, not a dead end
-  for the BPR direction overall.
 - **Residual ~0.0001 nondeterminism** in full BPR runs, noted in §2.2, not
   fully root-caused given its immaterial size.
 - **The Best-First Selector's cost/gain model is a simple heuristic**, not
