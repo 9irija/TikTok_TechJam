@@ -88,8 +88,10 @@ def run_p4(data_dir: str | None = None, timeout_s: float = 240.0,
                          metrics=metrics, fidelity=mf_result.final_stage,
                          insight=d.insight, diagnosis_tag=d.tag)
 
+        fidelity_info = mf_result.to_fidelity_info(config)
         logger.log_iteration(iteration_id, config, metrics=metrics, wall_time_s=mf_result.total_wall_time_s,
-                              recovery_events=mf_result.all_events, convergence_point=None, status=status)
+                              recovery_events=mf_result.all_events, convergence_point=None, status=status,
+                              fidelity_info=fidelity_info)
 
         report["iterations"].append({
             "iteration": i, "config_id": config.id, "status": status,
@@ -100,12 +102,15 @@ def run_p4(data_dir: str | None = None, timeout_s: float = 240.0,
             "kill_reason": mf_result.kill_reason,
             "diagnosis": {"tag": d.tag, "insight": d.insight},
             "wall_time_s": mf_result.total_wall_time_s,
+            "estimated_time_saved_s": fidelity_info["estimated_time_saved_s"],
         })
 
+    total_time_saved = sum(it.get("estimated_time_saved_s") or 0.0 for it in report["iterations"])
     report["resource_totals"] = {
         "llm_tokens_total": total_llm_tokens,
         "wall_time_total_s": wall_time_total_s,
         "gpu_hours_total": 0.0,
+        "estimated_time_saved_by_early_termination_s": total_time_saved,
     }
     report["research_map_summary"] = map.explored_summary()
     (LOGS_DIR / "p4_run_report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")

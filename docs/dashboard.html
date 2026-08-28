@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Research Map — Autonomous ML Research Agent</title>
+<style>
+  :root {
+    --bg: #f5f3ee;
+    --surface: #fdfcf9;
+    --surface-raised: #ffffff;
+    --border: #e3ded2;
+    --border-strong: #d3ccbb;
+    --ink: #1c1a17;
+    --ink-secondary: #55524a;
+    --ink-muted: #8c8779;
+    --accent: #2a78d6;
+    --accent-ink: #ffffff;
+    --good: #008300;
+    --warning: #b85a10;
+    --critical: #c53b3a;
+    --info: #4a3aa7;
+    --neutral: #6b6f76;
+    --good-bg: rgba(0,131,0,0.09);
+    --warning-bg: rgba(184,90,16,0.10);
+    --critical-bg: rgba(197,59,58,0.09);
+    --info-bg: rgba(74,58,167,0.09);
+    --neutral-bg: rgba(107,111,118,0.08);
+    --shadow: 0 1px 2px rgba(28,26,23,0.06), 0 6px 20px -8px rgba(28,26,23,0.12);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14181c;
+      --surface: #1a2126;
+      --surface-raised: #1f2730;
+      --border: #2b333b;
+      --border-strong: #384049;
+      --ink: #eef1f3;
+      --ink-secondary: #aab2ba;
+      --ink-muted: #71797f;
+      --accent: #5c9eea;
+      --accent-ink: #0d1218;
+      --good: #4fb35a;
+      --warning: #e08a3f;
+      --critical: #e2685f;
+      --info: #9085e9;
+      --neutral: #9aa0a8;
+      --good-bg: rgba(79,179,90,0.12);
+      --warning-bg: rgba(224,138,63,0.13);
+      --critical-bg: rgba(226,104,95,0.12);
+      --info-bg: rgba(144,133,233,0.13);
+      --neutral-bg: rgba(154,160,168,0.10);
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 10px 28px -10px rgba(0,0,0,0.55);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14181c;
+    --surface: #1a2126;
+    --surface-raised: #1f2730;
+    --border: #2b333b;
+    --border-strong: #384049;
+    --ink: #eef1f3;
+    --ink-secondary: #aab2ba;
+    --ink-muted: #71797f;
+    --accent: #5c9eea;
+    --accent-ink: #0d1218;
+    --good: #4fb35a;
+    --warning: #e08a3f;
+    --critical: #e2685f;
+    --info: #9085e9;
+    --neutral: #9aa0a8;
+    --good-bg: rgba(79,179,90,0.12);
+    --warning-bg: rgba(224,138,63,0.13);
+    --critical-bg: rgba(226,104,95,0.12);
+    --info-bg: rgba(144,133,233,0.13);
+    --neutral-bg: rgba(154,160,168,0.10);
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 10px 28px -10px rgba(0,0,0,0.55);
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  .mono { font-family: "IBM Plex Mono", ui-monospace, "SF Mono", monospace; }
+  .tnum { font-variant-numeric: tabular-nums; }
+
+  h1, h2, h3 { font-family: "Archivo", system-ui, sans-serif; text-wrap: balance; margin: 0; }
+  a { color: var(--accent); }
+
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 48px 28px 80px; }
+
+  /* ---------- header ---------- */
+  .eyebrow {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12px;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 600;
+    margin-bottom: 14px;
+  }
+  h1.title { font-size: 40px; font-weight: 800; letter-spacing: -0.015em; margin-bottom: 10px; }
+  .subtitle { color: var(--ink-secondary); font-size: 16.5px; max-width: 62ch; margin-bottom: 30px; }
+
+  .headline-card {
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    flex-wrap: wrap;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px 28px;
+    box-shadow: var(--shadow);
+  }
+  .headline-metric { display: flex; flex-direction: column; gap: 4px; }
+  .headline-metric .label { font-size: 12px; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.07em; font-weight: 600; }
+  .headline-metric .value { font-family: "Archivo", sans-serif; font-size: 30px; font-weight: 800; line-height: 1; }
+  .headline-metric .value.good { color: var(--good); }
+  .headline-metric .delta { font-size: 13.5px; color: var(--ink-secondary); }
+  .headline-divider { width: 1px; align-self: stretch; background: var(--border-strong); }
+
+  /* ---------- stat tiles ---------- */
+  .section { margin-top: 56px; }
+  .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }
+  .section-head h2 { font-size: 21px; font-weight: 750; }
+  .section-note { font-size: 13.5px; color: var(--ink-muted); max-width: 46ch; }
+
+  .tiles { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+  .tile {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 16px 14px;
+  }
+  .tile .label { font-size: 11.5px; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; margin-bottom: 8px; }
+  .tile .value { font-family: "Archivo", sans-serif; font-size: 25px; font-weight: 800; }
+  .tile .unit { font-size: 13px; color: var(--ink-secondary); font-weight: 500; margin-left: 3px; }
+  .tile .sub { font-size: 12px; color: var(--ink-muted); margin-top: 4px; }
+
+  /* ---------- trajectory chart ---------- */
+  .chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px 20px 16px;
+  }
+  .chart-scroll { overflow-x: auto; }
+  .legend { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 6px; padding-left: 4px; }
+  .legend-item { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--ink-secondary); }
+  .legend-swatch { width: 11px; height: 11px; border-radius: 3px; flex-shrink: 0; }
+
+  #traj-tooltip {
+    position: fixed;
+    pointer-events: none;
+    background: var(--surface-raised);
+    border: 1px solid var(--border-strong);
+    border-radius: 9px;
+    padding: 10px 13px;
+    box-shadow: var(--shadow);
+    font-size: 12.5px;
+    max-width: 260px;
+    opacity: 0;
+    transition: opacity 0.1s ease;
+    z-index: 50;
+  }
+  #traj-tooltip.show { opacity: 1; }
+  #traj-tooltip .tt-id { font-family: "IBM Plex Mono", monospace; font-weight: 600; margin-bottom: 3px; }
+  #traj-tooltip .tt-meta { color: var(--ink-muted); }
+
+  /* ---------- tree ---------- */
+  .tree-scroll { overflow-x: auto; overflow-y: hidden; padding: 6px 4px 10px; }
+  .node-card { cursor: pointer; }
+  .node-card rect.card-bg { fill: var(--surface-raised); stroke: var(--border-strong); stroke-width: 1.3; transition: stroke 0.12s ease, filter 0.12s ease; }
+  .node-card:hover rect.card-bg { stroke: var(--accent); }
+  .node-card.best rect.card-bg { stroke: var(--good); stroke-width: 2; }
+  .node-id { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; font-weight: 600; fill: var(--ink); }
+  .node-model { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; fill: var(--ink-muted); letter-spacing: 0.02em; }
+  .node-metric { font-family: "Archivo", sans-serif; font-size: 19px; font-weight: 800; fill: var(--ink); }
+  .node-delta { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; }
+  .node-pill-text { font-family: "IBM Plex Sans", sans-serif; font-size: 10px; font-weight: 600; }
+  .edge-path { fill: none; stroke: var(--border-strong); stroke-width: 1.6; }
+  .edge-label {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 9.5px;
+    fill: var(--ink-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .edge-label-bg { fill: var(--bg); }
+  .best-badge {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    fill: var(--good);
+  }
+  .llm-badge-bg { fill: var(--accent); }
+  .llm-badge-text { font-family: "IBM Plex Mono", monospace; font-size: 8.5px; font-weight: 700; fill: var(--accent-ink); letter-spacing: 0.03em; }
+
+  .tree-legend { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+
+  /* ---------- view toggle ---------- */
+  .view-toggle { display: flex; gap: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 9px; padding: 3px; }
+  .view-toggle button {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: 12.5px;
+    font-weight: 600;
+    border: none;
+    background: transparent;
+    color: var(--ink-secondary);
+    padding: 6px 13px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .view-toggle button.active { background: var(--accent); color: var(--accent-ink); }
+  .view-toggle button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ---------- table view ---------- */
+  .table-scroll { overflow-x: auto; }
+  table.nodes-table { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 880px; }
+  table.nodes-table th {
+    text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--ink-muted); font-weight: 700; padding: 9px 12px; border-bottom: 1.5px solid var(--border-strong);
+  }
+  table.nodes-table td { padding: 11px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  table.nodes-table tr:last-child td { border-bottom: none; }
+  table.nodes-table tr.is-best { background: var(--good-bg); }
+  .id-cell { font-family: "IBM Plex Mono", monospace; font-weight: 600; }
+  .hyp-cell { color: var(--ink-secondary); max-width: 340px; font-size: 12.8px; }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-family: "IBM Plex Sans", sans-serif; font-size: 11.5px; font-weight: 650;
+    padding: 3px 9px 3px 7px; border-radius: 999px; white-space: nowrap;
+  }
+  .pill-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .pill.good { background: var(--good-bg); color: var(--good); }
+  .pill.warning { background: var(--warning-bg); color: var(--warning); }
+  .pill.critical { background: var(--critical-bg); color: var(--critical); }
+  .pill.info { background: var(--info-bg); color: var(--info); }
+  .pill.neutral { background: var(--neutral-bg); color: var(--neutral); }
+
+  .badge-phase {
+    font-family: "IBM Plex Mono", monospace; font-size: 10.5px; font-weight: 700;
+    color: var(--ink-muted); border: 1px solid var(--border-strong); border-radius: 5px; padding: 1px 6px;
+  }
+  .badge-llm {
+    font-family: "IBM Plex Mono", monospace; font-size: 10px; font-weight: 700;
+    color: var(--accent-ink); background: var(--accent); border-radius: 5px; padding: 1px 6px; letter-spacing: 0.03em;
+  }
+
+  /* ---------- detail panel ---------- */
+  #detail-panel {
+    margin-top: 18px;
+    background: var(--surface-raised);
+    border: 1px solid var(--border-strong);
+    border-radius: 12px;
+    padding: 22px 24px;
+    display: none;
+  }
+  #detail-panel.show { display: block; }
+  #detail-panel .dp-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+  #detail-panel .dp-id { font-family: "IBM Plex Mono", monospace; font-size: 16px; font-weight: 700; }
+  #detail-panel .dp-close { background: none; border: none; color: var(--ink-muted); font-size: 20px; cursor: pointer; line-height: 1; padding: 4px; }
+  #detail-panel .dp-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-muted); font-weight: 700; margin: 14px 0 5px; }
+  #detail-panel .dp-label:first-of-type { margin-top: 0; }
+  #detail-panel .dp-text { color: var(--ink-secondary); font-size: 14px; line-height: 1.6; }
+  #detail-panel .dp-metrics { display: flex; gap: 26px; flex-wrap: wrap; }
+  #detail-panel .dp-metric-value { font-family: "Archivo", sans-serif; font-size: 22px; font-weight: 800; }
+
+  /* ---------- footer ---------- */
+  footer { margin-top: 64px; padding-top: 22px; border-top: 1px solid var(--border); color: var(--ink-muted); font-size: 12.5px; }
+  footer a { color: var(--ink-secondary); }
+
+  @media (max-width: 880px) {
+    .tiles { grid-template-columns: repeat(2, 1fr); }
+    h1.title { font-size: 30px; }
+    .headline-card { flex-direction: column; align-items: flex-start; }
+    .headline-divider { display: none; }
+  }
+</style>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<div class="wrap">
+
+  <div class="eyebrow">Autonomous ML Research Agent · KuaiRand-Pure</div>
+  <h1 class="title">Research Map</h1>
+  <p class="subtitle">
+    Every experiment this agent has run, as a persistent tree — not a flat log. Ten nodes across
+    three build phases: Foundation (hand-authored), Differentiators (best-first selection + diagnosis-driven
+    iteration), and an LLM Research Strategist that reads this exact map to decide what to try next.
+  </p>
+
+  <div class="headline-card">
+    <div class="headline-metric">
+      <div class="label">Current best</div>
+      <div class="value good tnum">0.6035</div>
+      <div class="delta"><span class="mono">deepfm_regularized</span> — valid primary, 3-seed verified (±0.0002)</div>
+    </div>
+    <div class="headline-divider"></div>
+    <div class="headline-metric">
+      <div class="label">vs. official baseline (test)</div>
+      <div class="value tnum">+0.0031</div>
+      <div class="delta">0.5977 vs. 0.5946 · GAUC +0.0036 · nDCG@5 +0.0026</div>
+    </div>
+    <div class="headline-divider"></div>
+    <div class="headline-metric">
+      <div class="label">Found by</div>
+      <div class="value tnum" style="font-size:22px;">LLM Strategist</div>
+      <div class="delta">Gemini · read <span class="mono">overfitting_risk</span> on 2 prior nodes, proposed the fix</div>
+    </div>
+  </div>
+
+  <!-- ============================================================= STATS -->
+  <div class="section">
+    <div class="section-head"><h2>Run at a glance</h2></div>
+    <div class="tiles">
+      <div class="tile">
+        <div class="label">Nodes explored</div>
+        <div class="value tnum">10</div>
+        <div class="sub">4 Foundation · 4 Differentiators · 2 LLM-proposed</div>
+      </div>
+      <div class="tile">
+        <div class="label">Manual interventions</div>
+        <div class="value tnum">0</div>
+        <div class="sub">across every phase</div>
+      </div>
+      <div class="tile">
+        <div class="label">LLM tokens spent</div>
+        <div class="value tnum">4,947</div>
+        <div class="sub">Gemini free tier — $0 cost</div>
+      </div>
+      <div class="tile">
+        <div class="label">Wall-clock, total</div>
+        <div class="value tnum">34.3<span class="unit">min</span></div>
+        <div class="sub">CPU-only · 0.0 GPU-hours</div>
+      </div>
+      <div class="tile">
+        <div class="label">Convergence</div>
+        <div class="value tnum" style="font-size:20px;">Yes — 4 iters</div>
+        <div class="sub">ε=0.002, N=3 (Foundation run)</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================= TRAJECTORY -->
+  <div class="section">
+    <div class="section-head">
+      <h2>Validation-primary trajectory</h2>
+      <div class="section-note">Every node, in the order it was actually run. Dashed line marks the official FM baseline (0.6016).</div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-scroll">
+        <svg id="traj-svg" width="1100" height="330" viewBox="0 0 1100 330" role="img" aria-label="Validation primary score for each of the 10 experiment nodes, in run order, colored by outcome"></svg>
+      </div>
+      <div class="legend">
+        <div class="legend-item"><span class="legend-swatch" style="background:var(--good)"></span>Clear improvement</div>
+        <div class="legend-item"><span class="legend-swatch" style="background:var(--critical)"></span>Regression</div>
+        <div class="legend-item"><span class="legend-swatch" style="background:var(--neutral)"></span>Inconclusive / within noise</div>
+        <div class="legend-item"><span class="legend-swatch" style="background:var(--ink-muted);border-radius:0;height:2px;align-self:center;"></span>Official baseline</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================= TREE -->
+  <div class="section">
+    <div class="section-head">
+      <h2>Experiment tree</h2>
+      <div class="view-toggle" role="tablist" aria-label="View mode">
+        <button id="btn-tree" class="active" role="tab" aria-selected="true">Tree</button>
+        <button id="btn-table" role="tab" aria-selected="false">Table</button>
+      </div>
+    </div>
+    <div class="section-note" style="margin-bottom:14px;">
+      Click any node for its full hypothesis and diagnosis. Edges are labeled by how AIDE-style tree search
+      classifies the change: <span class="mono">draft</span> (fresh idea), <span class="mono">improve</span>
+      (make a working node better), <span class="mono">debug</span> (fix what broke a failed one).
+    </div>
+
+    <div id="view-tree" class="chart-card">
+      <div class="tree-scroll">
+        <svg id="tree-svg" width="1360" height="780" viewBox="0 0 1360 780" role="img" aria-label="Tree of ten experiment nodes with parent-child lineage"></svg>
+      </div>
+      <div class="tree-legend">
+        <div class="legend-item"><span class="pill good"><span class="pill-dot" style="background:var(--good)"></span>clear improvement</span></div>
+        <div class="legend-item"><span class="pill warning"><span class="pill-dot" style="background:var(--warning)"></span>mixed</span></div>
+        <div class="legend-item"><span class="pill critical"><span class="pill-dot" style="background:var(--critical)"></span>regression</span></div>
+        <div class="legend-item"><span class="pill neutral"><span class="pill-dot" style="background:var(--neutral)"></span>noise floor</span></div>
+        <div class="legend-item"><span class="pill info"><span class="pill-dot" style="background:var(--info)"></span>baseline match</span></div>
+        <div class="legend-item"><span class="badge-llm" style="padding:2px 7px;">LLM</span>proposed by the Research Strategist</div>
+      </div>
+    </div>
+
+    <div id="view-table" class="chart-card table-scroll" style="display:none;">
+      <table class="nodes-table" id="nodes-table"></table>
+    </div>
+
+    <div id="detail-panel">
+      <div class="dp-head">
+        <div class="dp-id" id="dp-id"></div>
+        <button class="dp-close" id="dp-close" aria-label="Close">×</button>
+      </div>
+      <div class="dp-metrics">
+        <div>
+          <div class="dp-label" style="margin-top:0;">Valid primary</div>
+          <div class="dp-metric-value tnum" id="dp-metric"></div>
+        </div>
+        <div>
+          <div class="dp-label" style="margin-top:0;">vs. parent</div>
+          <div class="dp-metric-value tnum" id="dp-delta"></div>
+        </div>
+        <div>
+          <div class="dp-label" style="margin-top:0;">Diagnosis</div>
+          <div id="dp-tag"></div>
+        </div>
+      </div>
+      <div class="dp-label">Hypothesis</div>
+      <div class="dp-text" id="dp-hyp"></div>
+      <div class="dp-label">Insight</div>
+      <div class="dp-text" id="dp-insight"></div>
+    </div>
+  </div>
+
+  <footer>
+    Generated from <span class="mono">logs/research_map.json</span> and <span class="mono">logs/run_log.jsonl</span> —
+    see <a href="#">docs/PHASE0_FEATURES_AND_IMPROVEMENTS.md</a>, <a href="#">docs/P1_FEATURES_AND_RESULTS.md</a>,
+    and <a href="#">docs/PHASE4_RESULTS.md</a> in the repository for the full narrative behind every node.
+  </footer>
+</div>
+
+<div id="traj-tooltip"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---- data (from logs/research_map.json + logs/run_log.jsonl, run order) ----
+  var NODES = [
+    { id:"fm_baseline_repro", model:"fm", edge:"draft", parent:null, phase:"P0", llm:false,
+      valid:0.6015, delta:null, tag:"info", tagLabel:"baseline match",
+      hyp:"Reproduce the official FM baseline exactly (k=16, lr=0.001, batch=8192, 5 fields, seed 0) before writing anything original.",
+      insight:"Root node matches the official FM baseline within noise (−0.0001, bar=0.0007)." },
+    { id:"fm_seed_variance", model:"fm", edge:"improve", parent:"fm_baseline_repro", phase:"P0", llm:false,
+      valid:0.6014, delta:-0.0001, tag:"neutral", tagLabel:"noise floor",
+      hyp:"Run the identical baseline config on 3 seeds to measure our own harness's noise floor before accepting any future result as a real improvement.",
+      insight:"Change vs. parent (−0.0000 primary) is within the significance bar (0.0003, seed-aware) — not distinguishable from run-to-run variance." },
+    { id:"deepfm_default", model:"deepfm", edge:"improve", parent:"fm_baseline_repro", phase:"P0", llm:false,
+      valid:0.6026, delta:0.0011, tag:"warning", tagLabel:"mixed",
+      hyp:"Test whether a deep MLP component over the same shared embeddings captures higher-order, nonlinear feature interactions the FM's pairwise term structurally can't.",
+      insight:"Mixed/inconclusive signal (GAUC +0.0017, nDCG@5 +0.0005, primary +0.0011, bar=0.0006). Overfitting risk: best epoch at ~40% of training length." },
+    { id:"deepfm_wider", model:"deepfm", edge:"improve", parent:"deepfm_default", phase:"P0", llm:false,
+      valid:0.6028, delta:0.0002, tag:"neutral", tagLabel:"noise floor",
+      hyp:"If deepfm_default improves on the FM baseline, test whether more MLP capacity (64,32 → 128,64) buys further gain.",
+      insight:"Change vs. parent (+0.0002 primary) is within the significance bar (0.0007, seed-aware) — not distinguishable from run-to-run variance." },
+    { id:"fm_bpr_default", model:"fm_bpr", edge:"improve", parent:"fm_baseline_repro", phase:"P1", llm:false,
+      valid:0.5981, delta:-0.0034, tag:"warning", tagLabel:"mixed",
+      hyp:"Starter kit README ranks a pairwise/listwise loss change as its #1 guess for untested headroom — GAUC/nDCG are ranking metrics, but every model so far uses pointwise logloss.",
+      insight:"Mixed/inconclusive (GAUC −0.0048, nDCG@5 −0.0019, primary −0.0034). Overfitting risk: best epoch at ~33% of training length." },
+    { id:"fm_wider_k32", model:"fm", edge:"improve", parent:"fm_baseline_repro", phase:"P1", llm:false,
+      valid:0.6009, delta:-0.0006, tag:"neutral", tagLabel:"noise floor",
+      hyp:"Direct replication check of the starter kit's own ablation (k=8/16/32 → no gain) against our own harness, at k=32.",
+      insight:"Change vs. parent (−0.0006 primary) within the significance bar (0.0020) — independently confirms a documented dead end." },
+    { id:"fm_bpr_regularized", model:"fm_bpr", edge:"debug", parent:"fm_bpr_default", phase:"P1", llm:false,
+      valid:0.5989, delta:0.0008, tag:"neutral", tagLabel:"noise floor",
+      hyp:"Directly acts on fm_bpr_default's own diagnosis: L2 raised 100x (1e-6→1e-4), patience tightened (4→2), to stop closer to where validation actually peaked.",
+      insight:"Change vs. parent (+0.0008 primary) within the significance bar — right direction, didn't close the gap to baseline." },
+    { id:"fm_bpr_slow_and_steady", model:"fm_bpr", edge:"debug", parent:"fm_bpr_regularized", phase:"P1", llm:false,
+      valid:0.5994, delta:0.0005, tag:"neutral", tagLabel:"noise floor",
+      hyp:"Manual curve-shape analysis: fm_baseline_repro climbs gradually for 7 epochs; both prior BPR attempts plateaued by epoch 2–4. lr cut ~3x for a more gradual trajectory.",
+      insight:"Curve now climbs gradually for 6 epochs, matching the baseline's healthy shape — training dynamics fixed, quality ceiling barely moved." },
+    { id:"deepfm_regularized", model:"deepfm", edge:"improve", parent:"deepfm_wider", phase:"P4", llm:true,
+      valid:0.6035, delta:0.0007, tag:"good", tagLabel:"clear improvement",
+      hyp:"Both deepfm_default and deepfm_wider were flagged overfitting_risk with peak performance at only ~33–40% of training epochs. Raise L2 (1e-5→1e-4) to directly target this.",
+      insight:"Both GAUC (+0.0007) and nDCG@5 (+0.0006) improved over the parent — a clean win. 3-seed verified: 0.6032 / 0.6035 / 0.6036." },
+    { id:"deepfm_higher_l2", model:"deepfm", edge:"improve", parent:"deepfm_regularized", phase:"P4", llm:true,
+      valid:0.5683, delta:-0.0352, tag:"critical", tagLabel:"regression",
+      hyp:"deepfm_regularized is the current best but still flagged overfitting_risk at ~38% of training length. Push L2 further and drop learning rate slightly on the proven architecture.",
+      insight:"Both GAUC (−0.0512) and nDCG@5 (−0.0191) got worse — over-regularizing broke the model. Correctly caught, not hidden." },
+  ];
+  var BASELINE = 0.6016;
+  var BEST_ID = "deepfm_regularized";
+  var byId = {};
+  NODES.forEach(function (n) { byId[n.id] = n; });
+
+  function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+  // =============================================================== TRAJECTORY
+  function trajColor(n) {
+    if (n.tag === "good") return cssVar("--good");
+    if (n.tag === "critical") return cssVar("--critical");
+    return cssVar("--neutral");
+  }
+  function trajShapePath(cx, cy, tag) {
+    // secondary encoding by shape, not color alone
+    if (tag === "good") { // upward triangle
+      return "M" + cx + "," + (cy - 7) + " L" + (cx + 7) + "," + (cy + 5) + " L" + (cx - 7) + "," + (cy + 5) + " Z";
+    }
+    if (tag === "critical") { // downward triangle
+      return "M" + cx + "," + (cy + 7) + " L" + (cx + 7) + "," + (cy - 5) + " L" + (cx - 7) + "," + (cy - 5) + " Z";
+    }
+    return null; // neutral -> circle, drawn separately
+  }
+
+  function renderTrajectory() {
+    var svg = document.getElementById("traj-svg");
+    var W = 1100, H = 330, padL = 56, padR = 24, padT = 20, padB = 40;
+    var plotW = W - padL - padR, plotH = H - padT - padB;
+    var yMin = 0.560, yMax = 0.610;
+    var n = NODES.length;
+    var stepX = plotW / (n - 1);
+
+    function xFor(i) { return padL + i * stepX; }
+    function yFor(v) { return padT + plotH - ((v - yMin) / (yMax - yMin)) * plotH; }
+
+    var svgns = "http://www.w3.org/2000/svg";
+    function el(tag, attrs) {
+      var e = document.createElementNS(svgns, tag);
+      for (var k in attrs) e.setAttribute(k, attrs[k]);
+      return e;
+    }
+
+    // gridlines + y labels
+    var yTicks = [0.56, 0.57, 0.58, 0.59, 0.60, 0.61];
+    yTicks.forEach(function (t) {
+      var y = yFor(t);
+      svg.appendChild(el("line", { x1: padL, x2: W - padR, y1: y, y2: y, stroke: cssVar("--border"), "stroke-width": 1 }));
+      var lbl = el("text", { x: padL - 10, y: y + 4, "text-anchor": "end", class: "mono tnum" });
+      lbl.setAttribute("font-size", "10.5"); lbl.setAttribute("fill", cssVar("--ink-muted"));
+      lbl.textContent = t.toFixed(2);
+      svg.appendChild(lbl);
+    });
+
+    // baseline dashed line
+    var by = yFor(BASELINE);
+    var baseLine = el("line", { x1: padL, x2: W - padR, y1: by, y2: by, stroke: cssVar("--ink-muted"), "stroke-width": 1.5, "stroke-dasharray": "4,4" });
+    svg.appendChild(baseLine);
+
+    // phase bands + labels
+    var phaseRanges = [{ p: "Foundation", from: 0, to: 3 }, { p: "Differentiators", from: 4, to: 7 }, { p: "LLM Strategist", from: 8, to: 9 }];
+    phaseRanges.forEach(function (pr) {
+      var x0 = xFor(pr.from) - stepX / 2, x1 = xFor(pr.to) + stepX / 2;
+      if (pr.from === 0) x0 = padL;
+      if (pr.to === n - 1) x1 = W - padR;
+      var lbl = el("text", { x: (x0 + x1) / 2, y: padT + 4, "text-anchor": "middle" });
+      lbl.setAttribute("font-family", "IBM Plex Mono, monospace"); lbl.setAttribute("font-size", "10");
+      lbl.setAttribute("fill", cssVar("--ink-muted")); lbl.setAttribute("letter-spacing", "0.05em");
+      lbl.textContent = pr.p.toUpperCase();
+      svg.appendChild(lbl);
+      if (pr.to < n - 1) {
+        var divX = xFor(pr.to) + stepX / 2;
+        svg.appendChild(el("line", { x1: divX, x2: divX, y1: padT + 12, y2: H - padB, stroke: cssVar("--border"), "stroke-width": 1, "stroke-dasharray": "2,3" }));
+      }
+    });
+
+    // connecting line
+    var d = NODES.map(function (node, i) { return (i === 0 ? "M" : "L") + xFor(i) + "," + yFor(node.valid); }).join(" ");
+    svg.appendChild(el("path", { d: d, fill: "none", stroke: cssVar("--ink-muted"), "stroke-width": 1.6, opacity: "0.55" }));
+
+    // points
+    NODES.forEach(function (node, i) {
+      var cx = xFor(i), cy = yFor(node.valid);
+      var color = trajColor(node);
+      var g = el("g", { style: "cursor:pointer" });
+      var hit = el("circle", { cx: cx, cy: cy, r: 14, fill: "transparent" });
+      g.appendChild(hit);
+
+      if (node.id === BEST_ID) {
+        g.appendChild(el("circle", { cx: cx, cy: cy, r: 11, fill: "none", stroke: color, "stroke-width": 1.6, opacity: "0.55" }));
+      }
+      var shapeD = trajShapePath(cx, cy, node.tag);
+      if (shapeD) {
+        g.appendChild(el("path", { d: shapeD, fill: color, stroke: cssVar("--surface"), "stroke-width": 1.5 }));
+      } else {
+        g.appendChild(el("circle", { cx: cx, cy: cy, r: 5.5, fill: color, stroke: cssVar("--surface"), "stroke-width": 1.5 }));
+      }
+
+      g.addEventListener("mousemove", function (evt) { showTooltip(evt, node); });
+      g.addEventListener("mouseleave", hideTooltip);
+      g.addEventListener("click", function () { openDetail(node.id); });
+      svg.appendChild(g);
+
+      // x labels (rotated-free short labels for every other node to avoid collision)
+      var lbl = el("text", { x: cx, y: H - padB + 18, "text-anchor": "middle" });
+      lbl.setAttribute("font-family", "IBM Plex Mono, monospace"); lbl.setAttribute("font-size", "9.5");
+      lbl.setAttribute("fill", cssVar("--ink-muted"));
+      lbl.textContent = String(i + 1);
+      svg.appendChild(lbl);
+    });
+  }
+
+  var tooltip = document.getElementById("traj-tooltip");
+  function showTooltip(evt, node) {
+    tooltip.innerHTML =
+      '<div class="tt-id">' + node.id + '</div>' +
+      '<div class="tt-meta">valid primary ' + node.valid.toFixed(4) + ' · ' + node.tagLabel + '</div>';
+    tooltip.style.left = (evt.clientX + 16) + "px";
+    tooltip.style.top = (evt.clientY - 12) + "px";
+    tooltip.classList.add("show");
+  }
+  function hideTooltip() { tooltip.classList.remove("show"); }
+
+  // =============================================================== TREE
+  var LEVELS = { fm_baseline_repro: 0, fm_seed_variance: 1, deepfm_default: 1, fm_bpr_default: 1, fm_wider_k32: 1,
+                 deepfm_wider: 2, fm_bpr_regularized: 2, deepfm_regularized: 3, fm_bpr_slow_and_steady: 3, deepfm_higher_l2: 4 };
+  var LANES = { fm_seed_variance: 0, deepfm_default: 1, deepfm_wider: 1, deepfm_regularized: 1, deepfm_higher_l2: 1,
+                fm_bpr_default: 2, fm_bpr_regularized: 2, fm_bpr_slow_and_steady: 2, fm_wider_k32: 3, fm_baseline_repro: 1.5 };
+  var COL_W = 260, ROW_H = 170, MARGIN_X = 30, MARGIN_Y = 65, CARD_W = 208, CARD_H = 140;
+
+  function tagColor(tag) {
+    return { good: cssVar("--good"), warning: cssVar("--warning"), critical: cssVar("--critical"),
+             info: cssVar("--info"), neutral: cssVar("--neutral") }[tag];
+  }
+  function tagBg(tag) {
+    return { good: cssVar("--good-bg"), warning: cssVar("--warning-bg"), critical: cssVar("--critical-bg"),
+             info: cssVar("--info-bg"), neutral: cssVar("--neutral-bg") }[tag];
+  }
+
+  function renderTree() {
+    var svg = document.getElementById("tree-svg");
+    svg.innerHTML = "";
+    var svgns = "http://www.w3.org/2000/svg";
+    function el(tag, attrs) {
+      var e = document.createElementNS(svgns, tag);
+      for (var k in attrs) e.setAttribute(k, attrs[k]);
+      return e;
+    }
+
+    function pos(id) {
+      var level = LEVELS[id], lane = LANES[id];
+      return { x: MARGIN_X + level * COL_W, y: MARGIN_Y + lane * ROW_H };
+    }
+
+    // edges first (under nodes)
+    NODES.forEach(function (node) {
+      if (!node.parent) return;
+      var p0 = pos(node.parent), p1 = pos(node.id);
+      var x0 = p0.x + CARD_W, y0 = p0.y + CARD_H / 2;
+      var x1 = p1.x, y1 = p1.y + CARD_H / 2;
+      var mx = (x0 + x1) / 2;
+      var d = "M" + x0 + "," + y0 + " C" + mx + "," + y0 + " " + mx + "," + y1 + " " + x1 + "," + y1;
+      svg.appendChild(el("path", { d: d, class: "edge-path" }));
+
+      var lx = (x0 + x1) / 2, ly = (y0 + y1) / 2;
+      var text = node.edge.toUpperCase();
+      var tw = text.length * 6.3 + 10;
+      svg.appendChild(el("rect", { x: lx - tw / 2, y: ly - 9, width: tw, height: 15, rx: 4, class: "edge-label-bg" }));
+      var lbl = el("text", { x: lx, y: ly + 2.5, "text-anchor": "middle", class: "edge-label" });
+      lbl.textContent = text;
+      svg.appendChild(lbl);
+    });
+
+    // nodes
+    NODES.forEach(function (node) {
+      var p = pos(node.id);
+      var isBest = node.id === BEST_ID;
+      var g = el("g", { class: "node-card" + (isBest ? " best" : ""), transform: "translate(" + p.x + "," + p.y + ")" });
+      g.appendChild(el("rect", { class: "card-bg", x: 0, y: 0, width: CARD_W, height: CARD_H, rx: 11 }));
+
+      // Row 1 (y=20): model (left) -- phase + LLM badge (right, LLM badge sits
+      // left of the phase label with a fixed gap so neither ever collides
+      // regardless of label length).
+      var model = el("text", { x: 14, y: 20, class: "node-model" });
+      model.textContent = node.model;
+      g.appendChild(model);
+
+      var phase = el("text", { x: CARD_W - 14, y: 20, "text-anchor": "end", class: "node-model" });
+      phase.textContent = node.phase;
+      g.appendChild(phase);
+
+      if (node.llm) {
+        var bw = 28, bx = CARD_W - 14 - 22 - 8 - bw; // 22px reserved for the 2-char phase label + 8px gap
+        g.appendChild(el("rect", { x: bx, y: 12, width: bw, height: 14, rx: 3.5, class: "llm-badge-bg" }));
+        var llmT = el("text", { x: bx + bw / 2, y: 21.5, "text-anchor": "middle", class: "llm-badge-text" });
+        llmT.textContent = "LLM";
+        g.appendChild(llmT);
+      }
+
+      // Row 2 (y=41): node id
+      var idT = el("text", { x: 14, y: 41, class: "node-id" });
+      idT.textContent = node.id.length > 22 ? node.id.slice(0, 21) + "…" : node.id;
+      g.appendChild(idT);
+
+      // Row 3 (y=66): metric, large
+      var mT = el("text", { x: 14, y: 66, class: "node-metric tnum" });
+      mT.textContent = node.valid.toFixed(4);
+      g.appendChild(mT);
+
+      // Row 4 (y=81, only if present): delta vs. parent
+      if (node.delta !== null) {
+        var dT = el("text", { x: 14, y: 81, class: "node-delta tnum" });
+        dT.setAttribute("fill", node.delta >= 0 ? tagColor("good") : tagColor("critical"));
+        dT.textContent = (node.delta >= 0 ? "+" : "") + node.delta.toFixed(4) + " vs parent";
+        g.appendChild(dT);
+      }
+
+      // Row 5 (y=94-113): status pill, own row -- never shares a row with
+      // delta text or the best-badge, so a long label (e.g. "clear improvement")
+      // can never collide with either regardless of which are present.
+      var pillLabel = node.tagLabel;
+      var pillW = pillLabel.length * 5.6 + 22;
+      var pillX = 14, pillY = 94;
+      g.appendChild(el("rect", { x: pillX, y: pillY, width: pillW, height: 19, rx: 9.5, fill: tagBg(node.tag) }));
+      g.appendChild(el("circle", { cx: pillX + 11, cy: pillY + 9.5, r: 3.3, fill: tagColor(node.tag) }));
+      var pillT = el("text", { x: pillX + 20, y: pillY + 13, class: "node-pill-text" });
+      pillT.setAttribute("fill", tagColor(node.tag));
+      pillT.textContent = pillLabel;
+      g.appendChild(pillT);
+
+      // Row 6 (y=128, only if best): its own row below the pill, always clear.
+      if (isBest) {
+        var bb = el("text", { x: 14, y: 128, class: "best-badge" });
+        bb.textContent = "★ CURRENT BEST";
+        g.appendChild(bb);
+      }
+
+      g.addEventListener("click", function () { openDetail(node.id); });
+      svg.appendChild(g);
+    });
+  }
+
+  // =============================================================== DETAIL PANEL
+  var panel = document.getElementById("detail-panel");
+  function openDetail(id) {
+    var n = byId[id];
+    document.getElementById("dp-id").textContent = n.id;
+    document.getElementById("dp-metric").textContent = n.valid.toFixed(4);
+    document.getElementById("dp-delta").textContent = n.delta === null ? "— (root)" : (n.delta >= 0 ? "+" : "") + n.delta.toFixed(4);
+    document.getElementById("dp-delta").style.color = n.delta === null ? "" : (n.delta >= 0 ? tagColor("good") : tagColor("critical"));
+    var tagEl = document.getElementById("dp-tag");
+    tagEl.innerHTML = '<span class="pill ' + n.tag + '"><span class="pill-dot" style="background:' + tagColor(n.tag) + '"></span>' + n.tagLabel + '</span>';
+    document.getElementById("dp-hyp").textContent = n.hyp;
+    document.getElementById("dp-insight").textContent = n.insight;
+    panel.classList.add("show");
+    panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+  document.getElementById("dp-close").addEventListener("click", function () { panel.classList.remove("show"); });
+
+  // =============================================================== TABLE VIEW
+  function renderTable() {
+    var table = document.getElementById("nodes-table");
+    var rows = ['<thead><tr><th>ID</th><th>Model</th><th>Phase</th><th>Edge</th><th>Valid primary</th><th>Δ parent</th><th>Diagnosis</th><th>Hypothesis</th></tr></thead><tbody>'];
+    NODES.forEach(function (n) {
+      rows.push(
+        '<tr' + (n.id === BEST_ID ? ' class="is-best"' : '') + '>' +
+        '<td class="id-cell">' + n.id + (n.llm ? ' <span class="badge-llm">LLM</span>' : '') + '</td>' +
+        '<td class="mono">' + n.model + '</td>' +
+        '<td><span class="badge-phase">' + n.phase + '</span></td>' +
+        '<td class="mono">' + n.edge + '</td>' +
+        '<td class="mono tnum">' + n.valid.toFixed(4) + '</td>' +
+        '<td class="mono tnum">' + (n.delta === null ? '—' : (n.delta >= 0 ? '+' : '') + n.delta.toFixed(4)) + '</td>' +
+        '<td><span class="pill ' + n.tag + '"><span class="pill-dot" style="background:' + tagColor(n.tag) + '"></span>' + n.tagLabel + '</span></td>' +
+        '<td class="hyp-cell">' + n.hyp + '</td>' +
+        '</tr>'
+      );
+    });
+    rows.push('</tbody>');
+    table.innerHTML = rows.join("");
+  }
+
+  // =============================================================== VIEW TOGGLE
+  var btnTree = document.getElementById("btn-tree"), btnTable = document.getElementById("btn-table");
+  var viewTree = document.getElementById("view-tree"), viewTable = document.getElementById("view-table");
+  btnTree.addEventListener("click", function () {
+    btnTree.classList.add("active"); btnTree.setAttribute("aria-selected", "true");
+    btnTable.classList.remove("active"); btnTable.setAttribute("aria-selected", "false");
+    viewTree.style.display = ""; viewTable.style.display = "none";
+  });
+  btnTable.addEventListener("click", function () {
+    btnTable.classList.add("active"); btnTable.setAttribute("aria-selected", "true");
+    btnTree.classList.remove("active"); btnTree.setAttribute("aria-selected", "false");
+    viewTable.style.display = ""; viewTree.style.display = "none";
+  });
+
+  renderTrajectory();
+  renderTree();
+  renderTable();
+})();
+</script>
+</body>
+</html>

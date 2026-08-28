@@ -57,7 +57,17 @@ class RunLogger:
     def log_iteration(self, iteration_id: str, config: ExperimentConfig,
                        metrics: dict[str, Any] | None, wall_time_s: float,
                        recovery_events: list[RecoveryEvent],
-                       convergence_point: ConvergencePoint | None, status: str) -> dict:
+                       convergence_point: ConvergencePoint | None, status: str,
+                       fidelity_info: dict[str, Any] | None = None) -> dict:
+        """`fidelity_info` (P1's Multi-Fidelity Runner -- see
+        agent/multi_fidelity.py's MultiFidelityResult): per-stage wall
+        times and, if the candidate was killed early, the estimated
+        wall-clock saved by not running the remaining stages. Without this,
+        every stage below the one that survives (the 1%/10% smoke tests)
+        would compute a real kill/escalate decision but leave zero
+        persisted record of what that decision cost or saved -- Phase 5's
+        "log GPU saved" requirement was silently unmet until this was added.
+        """
         code_diff = diff_configs(self._prev_config, config)
         self._prev_config = config
 
@@ -76,6 +86,7 @@ class RunLogger:
             "wall_time_s": wall_time_s,
             "recovery_events": [e.to_dict() for e in recovery_events],
             "convergence": (asdict(convergence_point) if convergence_point else None),
+            "fidelity_info": fidelity_info,
         }
 
         exp_dir = self.experiments_dir / iteration_id

@@ -207,16 +207,24 @@ def run_p1(data_dir: str | None = None, timeout_s: float = 240.0) -> dict[str, A
                          metrics=metrics, fidelity=mf_result.final_stage,
                          insight=d.insight, diagnosis_tag=d.tag)
 
+        fidelity_info = mf_result.to_fidelity_info(config)
         logger.log_iteration(iteration_id, config, metrics=metrics, wall_time_s=mf_result.total_wall_time_s,
-                              recovery_events=mf_result.all_events, convergence_point=None, status=status)
+                              recovery_events=mf_result.all_events, convergence_point=None, status=status,
+                              fidelity_info=fidelity_info)
 
         report["results"].append({
             "rank": rank_i, "config_id": config.id, "status": status,
             "final_stage": mf_result.final_stage, "killed_at": mf_result.killed_at,
             "kill_reason": mf_result.kill_reason, "diagnosis": {"tag": d.tag, "insight": d.insight},
             "wall_time_s": mf_result.total_wall_time_s,
+            "estimated_time_saved_s": fidelity_info["estimated_time_saved_s"],
         })
 
+    total_time_saved = sum(r["estimated_time_saved_s"] or 0.0 for r in report["results"])
+    report["resource_totals"] = {
+        "wall_time_total_s": sum(r["wall_time_s"] for r in report["results"]),
+        "estimated_time_saved_by_early_termination_s": total_time_saved,
+    }
     report["research_map_summary"] = map.explored_summary()
     (LOGS_DIR / "p1_round_report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
     return report

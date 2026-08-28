@@ -53,6 +53,7 @@ class MultiFidelityResult:
     killed_at: str | None = None       # stage name if killed, else None (survived to 100pct)
     kill_reason: str | None = None
     stage_results: dict[str, dict[str, Any]] = field(default_factory=dict)  # stage -> aggregated metrics dict
+    stage_wall_times_s: dict[str, float] = field(default_factory=dict)      # stage -> actual wall time spent
     all_events: list[RecoveryEvent] = field(default_factory=list)
     total_wall_time_s: float = 0.0
 
@@ -61,6 +62,55 @@ class MultiFidelityResult:
 
     def final_metrics(self) -> dict[str, Any] | None:
         return self.stage_results.get(self.final_stage)
+
+    def estimated_time_saved_s(self, config: ExperimentConfig) -> float | None:
+        """If killed before 100pct, a rough, order-of-magnitude estimate of
+        the wall-clock that would have been spent reaching 100pct had this
+        candidate run to completion instead. Assumes cost scales with
+        train_fraction x epoch-cap -- a reasonable proxy, but an imperfect
+        one (it ignores that early stopping usually cuts a stage short of
+        its epoch cap, so this over-estimates the remaining stages' cost
+        slightly -- a deliberately conservative/upper-bound estimate of
+        savings, not a precise prediction). Returns None if nothing was
+        killed (survived to 100pct -- nothing was "saved") or if no stage
+        was ever reached (can't extrapolate from zero data).
+        """
+        if self.survived() or not self.stage_wall_times_s:
+            return None
+        last_stage = self.final_stage
+        last_cost_s = self.stage_wall_times_s.get(last_stage)
+        last_unit = _stage_cost_unit(last_stage, config)
+        if not last_cost_s or not last_unit:
+            return None
+        cost_per_unit = last_cost_s / last_unit
+        reached_idx = next(i for i, (name, _, _) in enumerate(STAGES) if name == last_stage)
+        remaining_units = sum(_stage_cost_unit(name, config) for name, _, _ in STAGES[reached_idx + 1:])
+        return cost_per_unit * remaining_units
+
+    def to_fidelity_info(self, config: ExperimentConfig) -> dict[str, Any]:
+        """The dict `agent.run_logger.RunLogger.log_iteration`'s
+        `fidelity_info` parameter expects -- one place that builds it, so
+        every caller (P1's and Phase 4's orchestrators) logs it identically."""
+        return {
+            "final_stage": self.final_stage,
+            "killed_at": self.killed_at,
+            "kill_reason": self.kill_reason,
+            "stage_wall_times_s": dict(self.stage_wall_times_s),
+            "estimated_time_saved_s": self.estimated_time_saved_s(config),
+        }
+
+
+def _stage_cost_unit(stage_name: str, config: ExperimentConfig) -> float:
+    """Rough proportional cost unit for one stage: train_fraction x epoch
+    cap (an upper bound on batches processed, since early stopping usually
+    cuts a run short of its cap) -- used only for the conservative "time
+    saved" estimate above, not for the actual kill/escalate decision, which
+    only ever looks at real measured scores."""
+    stage_map = {name: (frac, cap) for name, frac, cap in STAGES}
+    frac, cap = stage_map[stage_name]
+    if cap is None:
+        cap = config.hyperparams.get("epochs", 40)
+    return frac * cap
 
 
 def _floor_for_stage(stage: str) -> float:
@@ -98,6 +148,7 @@ def run_multi_fidelity(config: ExperimentConfig, data_dir: str, timeout_s: float
             return result
 
         result.total_wall_time_s += r["wall_time_s"]
+        result.stage_wall_times_s[stage_name] = r["wall_time_s"]
         agg = _aggregate_seed_results([r])
         result.stage_results[stage_name] = agg
         result.final_stage = stage_name

@@ -55,12 +55,17 @@ def main() -> int:
               f"(priority={it['llm_priority']}, est. cost={it['llm_estimated_cost_s']}s)")
         if it["status"] == "failed":
             print(f"    KILLED at {it['killed_at']}: {it['kill_reason']}")
+            if it.get("estimated_time_saved_s"):
+                print(f"    estimated time saved by not continuing to 100pct: "
+                      f"{it['estimated_time_saved_s']:.1f}s")
         print(f"    diagnosis [{it['diagnosis']['tag']}]: {it['diagnosis']['insight']}")
 
     rt = report["resource_totals"]
     s = report["research_map_summary"]
     print(f"\nResource usage this run -- LLM tokens: {rt['llm_tokens_total']} | "
-          f"wall-clock: {rt['wall_time_total_s']:.1f}s | GPU-hours: {rt['gpu_hours_total']}")
+          f"wall-clock: {rt['wall_time_total_s']:.1f}s | GPU-hours: {rt['gpu_hours_total']} | "
+          f"estimated time saved by early termination: "
+          f"{rt['estimated_time_saved_by_early_termination_s']:.1f}s")
     print(f"Research Map now has {s['total_nodes']} total node(s). Best known: "
           f"{s['best_node_id']} (valid primary={s['best_valid_primary']})")
 

@@ -249,6 +249,28 @@ def test_multi_fidelity_kills_a_broken_config():
     assert result.killed_at == "1pct", f"should be killed at the first (cheapest) stage, got {result.killed_at}"
 
 
+def test_multi_fidelity_time_saved_estimate():
+    from agent.multi_fidelity import MultiFidelityResult
+
+    config = ExperimentConfig(id="t", model="fm", hypothesis="h", hyperparams={"epochs": 40})
+
+    killed_early = MultiFidelityResult(node_id="t", final_stage="1pct", killed_at="1pct", kill_reason="test")
+    killed_early.stage_results = {"1pct": {"valid": {"primary_mean": 0.1}}}
+    killed_early.stage_wall_times_s = {"1pct": 5.0}
+    saved = killed_early.estimated_time_saved_s(config)
+    assert saved is not None and saved > 0, f"a candidate killed at the cheapest stage should have a positive savings estimate, got {saved}"
+
+    survived = MultiFidelityResult(node_id="t2", final_stage="100pct")
+    survived.stage_results = {"1pct": {}, "10pct": {}, "100pct": {}}
+    survived.stage_wall_times_s = {"1pct": 5.0, "10pct": 15.0, "100pct": 90.0}
+    assert survived.estimated_time_saved_s(config) is None, "a survived candidate has nothing to 'save'"
+
+    info = killed_early.to_fidelity_info(config)
+    assert info["estimated_time_saved_s"] == saved
+    assert info["stage_wall_times_s"] == {"1pct": 5.0}
+    assert info["killed_at"] == "1pct"
+
+
 class _FakeLLMResponse:
     """Duck-types agent.llm_client.LLMResponse without a real API call."""
     def __init__(self, total_tokens=50):
@@ -357,6 +379,7 @@ def main() -> int:
         test_selector_scores_candidates,
         test_research_strategist_accepts_a_valid_proposal,
         test_research_strategist_rejects_and_retries_an_invalid_proposal,
+        test_multi_fidelity_time_saved_estimate,
     ]
     if data_dir_available():
         tests.insert(0, test_evaluator_self_check)

@@ -51,7 +51,15 @@ def main() -> int:
               f"reached fidelity={r['final_stage']}, wall_time={r['wall_time_s']:.1f}s")
         if r["status"] == "failed":
             print(f"      KILLED at {r['killed_at']}: {r['kill_reason']}")
+            if r.get("estimated_time_saved_s"):
+                print(f"      estimated time saved by not continuing to 100pct: "
+                      f"{r['estimated_time_saved_s']:.1f}s")
         print(f"      diagnosis [{r['diagnosis']['tag']}]: {r['diagnosis']['insight']}")
+
+    rt = report["resource_totals"]
+    print(f"\nResource usage this round -- wall-clock: {rt['wall_time_total_s']:.1f}s | "
+          f"estimated time saved by early termination: "
+          f"{rt['estimated_time_saved_by_early_termination_s']:.1f}s")
 
     s = report["research_map_summary"]
     print(f"\nResearch Map now has {s['total_nodes']} total node(s). Best known: "
