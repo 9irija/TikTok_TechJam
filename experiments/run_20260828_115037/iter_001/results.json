@@ -1,0 +1,106 @@
+{
+  "run_id": "run_20260828_115037",
+  "iteration_id": "iter_001",
+  "timestamp": 1787889318.1217537,
+  "status": "ok",
+  "config_id": "features_v1",
+  "model": "deepfm",
+  "hypothesis": "Tests TikTok's own disclosed strong signals as train-only aggregate features on top of the current best architecture ('deepfm_regularized', valid primary 0.6034507203196051), so any effect is attributable to the new fields alone: video_completion_bucket, video_rewatch_bucket, video_fast_skip_bucket (all TRAIN-split video-level aggregates), and author_engagement_bucket (creator-level, per the P1 table's 'creator quality is part of TikTok's real ranking story'). Not the same-row play_time_ms ratio, which would leak the long_view label directly.",
+  "parent_id": "deepfm_regularized",
+  "code_diff": {
+    "__root__": true
+  },
+  "hyperparams": {
+    "k": 16,
+    "lr": 0.001,
+    "l2": 0.0001,
+    "batch": 8192,
+    "epochs": 20,
+    "patience": 5,
+    "hidden": [
+      128,
+      64
+    ]
+  },
+  "metrics": {
+    "n_seeds": 1,
+    "valid": {
+      "GAUC_mean": 0.669171185922338,
+      "GAUC_std": 0.0,
+      "nDCG@5_mean": 0.5368170022635949,
+      "nDCG@5_std": 0.0,
+      "primary_mean": 0.6029940940929664,
+      "primary_std": 0.0
+    },
+    "test": {
+      "GAUC_mean": 0.6644753492632792,
+      "GAUC_std": 0.0,
+      "nDCG@5_mean": 0.5299495926173063,
+      "nDCG@5_std": 0.0,
+      "primary_mean": 0.5972124709402928,
+      "primary_std": 0.0
+    },
+    "delta_vs_baseline_test": {
+      "delta_GAUC": 0.0034753492632791927,
+      "delta_nDCG@5": 0.0017495926173063392,
+      "delta_primary_mean": 0.002612470940292766
+    },
+    "per_seed": [
+      {
+        "experiment_id": "features_v1",
+        "seed": 0,
+        "best_epoch": 4,
+        "epochs_run": 9,
+        "valid": {
+          "GAUC": 0.669171185922338,
+          "nDCG@5": 0.5368170022635949,
+          "primary": 0.6029940940929664
+        },
+        "test": {
+          "GAUC": 0.6644753492632792,
+          "nDCG@5": 0.5299495926173063,
+          "primary": 0.5972124709402928
+        },
+        "wall_time_s": 168.984375,
+        "num_params": 711608,
+        "train_loss_curve": [
+          0.5542817950248718,
+          0.5100090344037328,
+          0.5066560289689472,
+          0.5055667813335146,
+          0.5036304433430944,
+          0.5009967250483377,
+          0.4975645786949566,
+          0.49411104215042934,
+          0.49054367265530996
+        ],
+        "valid_primary_curve": [
+          0.6006576606080042,
+          0.6026282065715072,
+          0.6023503115736797,
+          0.6029940940929664,
+          0.6028330217039269,
+          0.6025449813423649,
+          0.6018817838805032,
+          0.5997741941063175,
+          0.5979284935309173
+        ],
+        "train_fraction": 1.0
+      }
+    ]
+  },
+  "wall_time_s": 203.296875,
+  "recovery_events": [],
+  "convergence": null,
+  "fidelity_info": {
+    "final_stage": "100pct",
+    "killed_at": null,
+    "kill_reason": null,
+    "stage_wall_times_s": {
+      "1pct": 7.0,
+      "10pct": 27.3125,
+      "100pct": 168.984375
+    },
+    "estimated_time_saved_s": null
+  }
+}

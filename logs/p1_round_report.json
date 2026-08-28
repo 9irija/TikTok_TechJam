@@ -1,31 +1,36 @@
 {
-  "run_id": "run_20260828_100406",
+  "run_id": "run_20260828_115037",
   "seeded_from_phase0": 0,
   "candidates_considered": 1,
   "ranking": [
     {
-      "id": "fm_bpr_slow_and_steady",
-      "score": 6.216440465443444e-07,
-      "reasoning": "gain=+0.0004 (Extrapolated at half of parent's own gain over its parent (+0.0008 -> projected +0.0004), diminishing-returns prior.) | confidence=0.60 (based on 2 prior scored node(s) in this family) | novelty=0.33 ('fm_bpr' already has 2 node(s) in the Research Map -- novelty discounted.) | cost~=125s (1 seed(s))"
+      "id": "features_v1",
+      "score": 4.936749608865941e-07,
+      "reasoning": "gain=+0.0003 (Extrapolated at half of parent's own gain over its parent (+0.0007 -> projected +0.0003), diminishing-returns prior.) | confidence=0.90 (based on 4 prior scored node(s) in this family) | novelty=0.20 ('deepfm' already has 4 node(s) in the Research Map -- novelty discounted.) | cost~=126s (1 seed(s))"
     }
   ],
   "results": [
     {
       "rank": 1,
-      "config_id": "fm_bpr_slow_and_steady",
+      "config_id": "features_v1",
       "status": "ok",
       "final_stage": "100pct",
       "killed_at": null,
       "kill_reason": null,
       "diagnosis": {
-        "tag": "noise_floor",
-        "insight": "Change vs. parent (+0.0005 primary) is within the significance bar (0.0020, flat epsilon, single-seed) -- not distinguishable from run-to-run variance."
+        "tag": "regression",
+        "insight": "Both GAUC (-0.0007) and nDCG@5 (-0.0002) got worse -- the change likely hurt (bar=0.0002)."
       },
-      "wall_time_s": 300.53125
+      "wall_time_s": 203.296875,
+      "estimated_time_saved_s": null
     }
   ],
+  "resource_totals": {
+    "wall_time_total_s": 203.296875,
+    "estimated_time_saved_by_early_termination_s": 0.0
+  },
   "research_map_summary": {
-    "total_nodes": 8,
+    "total_nodes": 11,
     "by_model": {
       "fm": {
         "count": 3,
@@ -34,8 +39,8 @@
         "killed": 0
       },
       "deepfm": {
-        "count": 2,
-        "done": 2,
+        "count": 5,
+        "done": 5,
         "failed": 0,
         "killed": 0
       },
@@ -48,15 +53,17 @@
     },
     "by_edge_type": {
       "draft": 1,
-      "improve": 5,
+      "improve": 8,
       "debug": 2
     },
-    "best_node_id": "deepfm_wider",
-    "best_valid_primary": 0.602760493952577,
+    "best_node_id": "deepfm_regularized",
+    "best_valid_primary": 0.6034507203196051,
     "diagnosis_tags_seen": [
       "baseline_match",
+      "clear_improvement",
       "mixed",
-      "noise_floor"
+      "noise_floor",
+      "regression"
     ]
   }
 }

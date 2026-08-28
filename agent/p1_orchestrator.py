@@ -108,8 +108,48 @@ def p1_candidate_pool(map: ResearchMap) -> list[ExperimentConfig]:
             notes="",
         ),
     ]
+    candidates.extend(_engineered_feature_candidates(map))
     candidates.extend(_diagnosis_driven_candidates(map))
     return [c for c in candidates if c.id not in map.nodes]
+
+
+def _engineered_feature_candidates(map: ResearchMap) -> list[ExperimentConfig]:
+    """Tests the brainstorm doc's TikTok-disclosed feature ideas (completion
+    rate, rewatch, fast-skip, creator-level engagement -- P1 table, "Data &
+    Features") as TRAIN-ONLY AGGREGATE fields (agent/features.py) on top of
+    whatever the current best architecture is, so any effect is attributable
+    to the new fields alone, not a confounded architecture change.
+
+    Deliberately NOT `completion_rate = play_time_ms / duration_ms` computed
+    on the row being predicted -- that would leak `long_view` (empirically
+    ~85% correlated with a naive reconstruction of it from play_time_ms,
+    checked directly against the raw log before any of this was built, see
+    agent/features.py's module docstring). Every field here is a video's or
+    author's *historical* average from the training split only.
+    """
+    best = map.best_confirmed_node()  # not best_node(): don't build on a numeric leader
+    # that isn't actually a confirmed win (see ResearchMap.best_confirmed_node docstring).
+    if best is None or best.status != "done" or "features_v1" in map.nodes:
+        return []
+    from .features import BASE_5, EXTRA_FIELDS
+    base_hp = dict(best.config.hyperparams)
+    return [ExperimentConfig(
+        id="features_v1", model=best.config.model,
+        hypothesis=(
+            f"Tests TikTok's own disclosed strong signals as train-only aggregate features on top "
+            f"of the current best architecture ('{best.node_id}', valid primary "
+            f"{(best.metrics or {}).get('valid', {}).get('primary_mean')}), so any effect is "
+            f"attributable to the new fields alone: video_completion_bucket, video_rewatch_bucket, "
+            f"video_fast_skip_bucket (all TRAIN-split video-level aggregates), and "
+            f"author_engagement_bucket (creator-level, per the P1 table's 'creator quality is part "
+            f"of TikTok's real ranking story'). Not the same-row play_time_ms ratio, which would "
+            f"leak the long_view label directly."
+        ),
+        hyperparams=base_hp, fields=BASE_5 + EXTRA_FIELDS, parent_id=best.node_id, seeds=[0],
+        edge_type="improve",
+        notes="agent/features.py -- first use of ExperimentConfig.fields actually affecting "
+              "encoding (previously vestigial, see agent/experiment.py's _load_encoded fix).",
+    )]
 
 
 def _diagnosis_driven_candidates(map: ResearchMap) -> list[ExperimentConfig]:

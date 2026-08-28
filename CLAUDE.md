@@ -254,6 +254,11 @@ python run_p4.py --max_iterations 2
 
 # 7. Promote a promising single-seed result to 3-seed-verified
 python tools/verify_multiseed.py <node_id>
+
+# 8. Regenerate submission_valid.csv / submission_test.csv from the Research
+#    Map's confirmed best (ResearchMap.best_confirmed_node(), not the raw
+#    numeric leaderboard -- see the "Engineered features" note in README.md)
+python tools/generate_submission.py
 ```
 
 Windows notes: use `python`, not `python3` (the latter is a Microsoft Store
@@ -266,12 +271,12 @@ alias stub in this environment that fails with no interpreter installed).
 |---|---|
 | Technical Execution (35%) — primary metric | `agent/evaluator.py` (exact scoring), `agent/model_zoo/` |
 | Technical Execution — robustness | `agent/recovery.py` (subprocess isolation, retry, degraded fallback) |
-| Innovation & Problem Insight (20%) | Hypotheses in `PREDEFINED_EXPERIMENTS`/`p1_candidate_pool()` citing starter-kit headroom + prior work; `agent/research_map.py` (persistent tree) + `agent/diagnosis.py` (why, not just what); Phase 4's LLM finding a gap (DeepFM overfitting) the hand-authored logic missed -- see `docs/PHASE4_RESULTS.md` |
+| Innovation & Problem Insight (20%) | Hypotheses in `PREDEFINED_EXPERIMENTS`/`p1_candidate_pool()` citing starter-kit headroom + prior work; `agent/research_map.py` (persistent tree) + `agent/diagnosis.py` (why, not just what); Phase 4's LLM finding a gap (DeepFM overfitting) the hand-authored logic missed -- see `docs/PHASE4_RESULTS.md`; `agent/features.py` (TikTok-disclosed, leakage-safe train-only-aggregate features -- honest `noise_floor` result, see README "Engineered features") |
 | Impact & Relevance (20%) — autonomy | `RunLogger.manual_intervene()` -- every human nudge counted, logged, never silent; Phase 4's full run (propose -> validate -> execute -> diagnose -> record) with 0 manual interventions is the real autonomy story, not `agent/selector.py`'s heuristic (still useful, but not LLM-driven) |
 | Feasibility & Practicality (15%) | `wall_time_total_s` / `gpu_hours_total` throughout; `llm_tokens_total` is real (not structurally zero) only in `logs/p4_run_report.json` -- Gemini free tier means it's also genuinely $0, not an estimate |
 | Presentation (10%, final only) | `tools/generate_analysis.py` report; dashboard artifact (P2, pulled forward per doc's own advice -- not built yet, see Roadmap) |
 | Deliverable: Run & Iteration Logs | `logs/run_log.jsonl` + `experiments/<run_id>/iter_*/` + `tools/generate_analysis.py` -> `logs/analysis_report.md` |
-| Deliverable: Final submission | `agent/submission.py` writes+validates `submission_valid.csv` / `submission_test.csv` -- currently `deepfm_regularized` (Phase 4), 3-seed verified |
+| Deliverable: Final submission | `tools/generate_submission.py` resolves the Research Map's confirmed best (`ResearchMap.best_confirmed_node()`) and calls `agent/submission.py` to write+validate `submission_valid.csv` / `submission_test.csv` -- currently `deepfm_regularized` (Phase 4), 3-seed verified |
 
 ## Roadmap (Phase 0 + P1 + Phase 4 + Phase 5 are DONE; Phase 6 + P2 substantially closed; what's left below)
 

@@ -19,7 +19,7 @@ from typing import Any
 import numpy as np
 
 from . import cache as _cache
-from .config import ExperimentConfig
+from .config import BASE_FIELDS, ExperimentConfig
 from .evaluator import EvalResult, score
 from .model_zoo import build as build_model
 from .paths import ensure_starter_kit_on_path
@@ -68,14 +68,28 @@ def _load_encoded(data_dir: str, fields: list[str]):
     is the common case under Failure Recovery's one-subprocess-per-experiment
     isolation). Without the disk layer, every experiment attempt re-parses
     the 1.14M-row CSVs from scratch (~10.6s) purely as spawn overhead.
+
+    Bug fixed in this pass: `fields` used to be accepted here and used as
+    the *cache key* only -- never actually passed to an encoder, so every
+    experiment silently got the starter kit's fixed 5 fields regardless of
+    what `ExperimentConfig.fields` said. `agent/features.py` (this pass)
+    is the first thing that actually needs more than 5 fields, which is
+    what surfaced it. The base-5 case still goes through the organizer's
+    own `data.encode()` unchanged (so the already-validated baseline-
+    reproduction path is untouched); anything requesting extra fields goes
+    through `agent.features.encode_extended` instead.
     """
     key = (data_dir, tuple(fields))
     if key not in _ENCODED_CACHE:
-        def _build():
-            splits = load(data_dir)
-            # data.encode() currently always builds the 5 base FIELDS; custom
-            # field subsets are a P1 feature (agent/features.py, not built yet).
-            return encode(splits)
+        if list(fields) == list(BASE_FIELDS):
+            def _build():
+                splits = load(data_dir)
+                return encode(splits)
+        else:
+            from . import features as _features
+
+            def _build():
+                return _features.encode_extended(data_dir, fields)
         _ENCODED_CACHE[key] = _cache.load_or_build(data_dir, fields, _build)
     return _ENCODED_CACHE[key]
 

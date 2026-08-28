@@ -37,6 +37,7 @@ repo has two layers built so far:
 - **Multi-Fidelity Runner** — 1%→10%→100% staged training, killing clearly-broken candidates cheaply instead of always training at full scale.
 - **Best-First Node Selector** — deterministic `expected_gain × confidence × novelty ÷ cost` scoring (no LLM yet — that's Phase 4) that decides which candidate to try next and why, with a logged reasoning string per candidate.
 - **FM_BPR** — a new model: pairwise BPR ranking loss instead of pointwise logloss, the starter kit README's own #1-ranked untested direction.
+- **Engineered features** (`agent/features.py`) — TikTok-disclosed signals (completion rate, rewatch, fast-skip, creator engagement) added as TRAIN-SPLIT-ONLY AGGREGATE fields, never a same-row `play_time_ms` ratio (which would leak the `long_view` label directly — confirmed ~85% correlated with it before writing any of this code). Result: `features_v1`, 3-seed verified, landed at `noise_floor` vs. `deepfm_regularized` — reported plainly as a real negative-ish result, not omitted.
 
 See `CLAUDE.md` for the full architecture, the exact judging-criteria → code
 map, and — importantly — a **task-definition caveat**: the problem statement's
@@ -97,6 +98,12 @@ python run_p4.py --max_iterations 2
 
 # 6. Promote a promising single-seed result to a 3-seed-verified one
 python tools/verify_multiseed.py <node_id>
+
+# 7. Regenerate submission_valid.csv / submission_test.csv from whatever the
+#    Research Map currently considers a *confirmed* best (not just the raw
+#    numeric leader -- see ResearchMap.best_confirmed_node()). Re-runnable
+#    any time the map changes; reuses cached predictions when they exist.
+python tools/generate_submission.py
 ```
 
 Outputs: `experiments/<run_id>/iter_*/` (per-iteration hypothesis/config/results/logs;
@@ -125,8 +132,11 @@ Validation-best: `deepfm_regularized` — `deepfm_wider`'s architecture (hidden=
 | nDCG@5 | 0.5282 | 0.5306 | **0.5308** (Δ **+0.0026**) |
 | primary | 0.5946 | 0.5976 | **0.5977** (Δ **+0.0031**) |
 
-`submission_valid.csv` / `submission_test.csv` reflect `deepfm_regularized`.
-Both models converged on the validation split only — see
+`submission_valid.csv` / `submission_test.csv` reflect `deepfm_regularized`
+(regenerated via `python tools/generate_submission.py`, which resolves the
+Research Map's `best_confirmed_node()` — see "Engineered features" below for
+why that's not simply "the highest score in the map"). Both models converged
+on the validation split only — see
 `docs/PHASE4_RESULTS.md` §4 for the honest nuance that this improvement is
 clear and statistically real on **validation** (0.6035 vs. 0.6028, the
 split every decision here is allowed to read) while the **test**-split gap
@@ -214,6 +224,40 @@ unchanged.
 
 This is now the project's best result — see the Results table above.
 
+## Engineered features — a real negative result, and a real bug it surfaced
+
+`agent/features.py` adds 4 new fields on top of the starter kit's base 5:
+`video_completion_bucket`, `video_rewatch_bucket`, `video_fast_skip_bucket`,
+`author_engagement_bucket` — all TikTok-disclosed strong signals (per the
+brainstorm doc's P1 table), each computed strictly as a TRAIN-SPLIT-ONLY
+AGGREGATE (a video's or author's *historical* average, looked up per row —
+never that row's own `play_time_ms`, which is ~85% correlated with the
+`long_view` label itself, confirmed directly against the raw log before any
+of this was written). A leakage-check test (`test_features_extended_shape_and_no_leakage`)
+asserts every row sharing a `video_id` gets an identical bucket.
+
+`features_v1` (these 4 fields + `deepfm_regularized`'s architecture,
+`parent_id=deepfm_regularized`) ran 1-seed first (valid primary 0.6030,
+*below* the parent), then 3-seed-verified per this project's standard
+discipline: **0.6037 ± 0.0006**, vs. parent's 0.6035 ± 0.0002 —
+`noise_floor`, not a real win. Reported exactly as measured: TikTok's own
+disclosed signals didn't move this benchmark's specific held-out split
+beyond noise, at least not via this bucketing/architecture combination.
+
+That single-seed-vs-3-seed swing (0.6030 → 0.6037, crossing the parent's
+score both ways) surfaced a real gap: `ResearchMap.best_node()` is a raw
+numeric leaderboard with no concept of statistical significance, so once
+`features_v1` was 3-seed-verified it briefly *out-scored* `deepfm_regularized`
+by +0.0002 — enough to silently become "current best" everywhere that read
+`best_node()`, despite being diagnosed `noise_floor` in the same breath.
+Fixed with `ResearchMap.best_confirmed_node()` (walks the parent chain past
+any run of `noise_floor`/`regression`/`mixed`/`ranking_tradeoff` nodes to
+the nearest actual `clear_improvement`/`baseline_beat`), now used everywhere
+a decision is made from "current best" — the LLM Research Strategist's
+prompt, new candidates' `parent_id`, and `tools/generate_submission.py`.
+Regression-tested in `tests/test_foundation.py` with a synthetic case
+matching this exact scenario.
+
 ## Team / contributions
 
 _Solo participant / fill in team member contributions here per the
@@ -237,7 +281,11 @@ Critic Gate + dashboard):
   count; the `budget` dict shown to the LLM in its prompt is informational
   only — nothing makes it change behavior as budget depletes.
 - **`tools/verify_multiseed.py` is a manual step**, not auto-triggered when
-  a new best node appears.
+  a new best node appears. (`tools/generate_submission.py`, added this pass,
+  closes the *next* step in that chain — regenerating the submission CSVs
+  from the Research Map's confirmed best is now a real, re-runnable script,
+  not a manual/undocumented one — but promoting a fresh single-seed result
+  to 3-seed-verified is still something a human has to remember to run.)
 - **Research Critic Gate has exactly two rules** (duplicate; confirmed
   pure-capacity dead end) — both grounded in real project data, but a
   general "veto any candidate matching any prior `regression`-tagged

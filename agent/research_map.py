@@ -115,7 +115,22 @@ class ResearchMap:
 
     def best_node(self, metric_path: tuple[str, ...] = ("valid", "primary_mean")) -> ExperimentNode | None:
         """Highest metric among `done` nodes (defaults to valid primary --
-        the only metric any P0/P1 selection logic is allowed to read)."""
+        the only metric any P0/P1 selection logic is allowed to read).
+
+        Deliberately a *raw* numeric leader, nothing more: two nodes 0.0006
+        apart on a single-digit-seed comparison are indistinguishable from
+        noise (agent/diagnosis.py's own significance bar said so, in
+        `features_v1`'s case, the exact scenario that surfaced this gap --
+        it out-scored `deepfm_regularized` by +0.0002 valid primary, 3-seed,
+        and was still tagged `noise_floor`), so treating this method's
+        return value as "the model to ship" would silently launder a coin
+        flip into a claimed improvement. Use `best_confirmed_node()` for
+        anything downstream of that decision (final submission, what a new
+        candidate's `parent_id` should be, what gets reported as "current
+        best" to the LLM Research Strategist); this method stays raw/simple
+        for exploration bookkeeping (e.g. the Best-First Selector's novelty
+        scoring, which *should* see every point estimate, not just
+        confirmed ones)."""
         best, best_score = None, float("-inf")
         for n in self.done_nodes():
             v: Any = n.metrics
@@ -127,6 +142,38 @@ class ResearchMap:
                 best, best_score = n, v
         return best
 
+    _UNCONFIRMED_TAGS = frozenset({"noise_floor", "regression", "mixed", "ranking_tradeoff"})
+
+    def best_confirmed_node(self, metric_path: tuple[str, ...] = ("valid", "primary_mean")) -> ExperimentNode | None:
+        """`best_node()`, but refuses to hand back a node whose own
+        diagnosis says it isn't a *confirmed* improvement over what it was
+        actually compared against (its parent, or the official baseline for
+        a root) -- walks up the parent chain past any run of
+        noise_floor/regression/mixed/ranking_tradeoff nodes until it lands
+        on one tagged `clear_improvement`/`baseline_beat` (or a node with no
+        eligible parent to fall back to, e.g. a root itself tagged
+        `baseline_match`). This is the "what should we actually build on/
+        ship" answer; `best_node()` is the raw leaderboard.
+
+        Note this deliberately does NOT re-rank by score after unwinding --
+        it walks strictly up one lineage from the numeric leader, so it can
+        return a node that isn't the highest-scoring *confirmed* node
+        anywhere in the map if a different, unrelated lineage scored higher
+        but was never numerically on top. That's an accepted simplification
+        (the map has never actually had competing lineages this close in
+        practice); a full best-first search over confirmed nodes only would
+        replace this if that ever changes.
+        """
+        node = self.best_node(metric_path)
+        seen: set[str] = set()
+        while node is not None and node.node_id not in seen:
+            seen.add(node.node_id)
+            if node.diagnosis_tag in self._UNCONFIRMED_TAGS and node.parent_id in self.nodes:
+                node = self.nodes[node.parent_id]
+            else:
+                break
+        return node
+
     def explored_summary(self) -> dict[str, Any]:
         """What the map already knows -- the input a Best-First Selector
         (or, in Phase 4, an LLM) needs to answer "what haven't we tried yet"
@@ -137,7 +184,9 @@ class ResearchMap:
         for n in self.nodes.values():
             by_model.setdefault(n.config.model, []).append(n.status)
             by_edge[n.edge_type] = by_edge.get(n.edge_type, 0) + 1
-        best = self.best_node()
+        best = self.best_confirmed_node()  # not best_node(): a numeric leader tagged
+        # noise_floor/regression isn't a real "best" -- see best_confirmed_node's docstring.
+        raw_best = self.best_node()
         return {
             "total_nodes": len(self.nodes),
             "by_model": {m: {"count": len(s), "done": s.count("done"), "failed": s.count("failed"),
@@ -145,6 +194,7 @@ class ResearchMap:
             "by_edge_type": by_edge,
             "best_node_id": best.node_id if best else None,
             "best_valid_primary": (best.metrics or {}).get("valid", {}).get("primary_mean") if best else None,
+            "raw_leaderboard_node_id": raw_best.node_id if raw_best else None,
             "diagnosis_tags_seen": sorted({n.diagnosis_tag for n in self.nodes.values() if n.diagnosis_tag}),
         }
 

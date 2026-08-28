@@ -1,0 +1,14 @@
+# iter_001 -- features_v1
+
+## Hypothesis
+Tests TikTok's own disclosed strong signals as train-only aggregate features on top of the current best architecture ('deepfm_regularized', valid primary 0.6034507203196051), so any effect is attributable to the new fields alone: video_completion_bucket, video_rewatch_bucket, video_fast_skip_bucket (all TRAIN-split video-level aggregates), and author_engagement_bucket (creator-level, per the P1 table's 'creator quality is part of TikTok's real ranking story'). Not the same-row play_time_ms ratio, which would leak the long_view label directly.
+
+## Notes
+agent/features.py -- first use of ExperimentConfig.fields actually affecting encoding (previously vestigial, see agent/experiment.py's _load_encoded fix).
+
+## Diff vs previous iteration
+```json
+{
+  "__root__": true
+}
+```

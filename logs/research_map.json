@@ -1327,6 +1327,202 @@
       "diagnosis_tag": "regression",
       "created_at": 1787884287.7117069,
       "updated_at": 1787884287.7151437
+    },
+    "features_v1": {
+      "node_id": "features_v1",
+      "config": {
+        "id": "features_v1",
+        "model": "deepfm",
+        "hypothesis": "Tests TikTok's own disclosed strong signals as train-only aggregate features on top of the current best architecture ('deepfm_regularized', valid primary 0.6034507203196051), so any effect is attributable to the new fields alone: video_completion_bucket, video_rewatch_bucket, video_fast_skip_bucket (all TRAIN-split video-level aggregates), and author_engagement_bucket (creator-level, per the P1 table's 'creator quality is part of TikTok's real ranking story'). Not the same-row play_time_ms ratio, which would leak the long_view label directly.",
+        "hyperparams": {
+          "k": 16,
+          "lr": 0.001,
+          "l2": 0.0001,
+          "batch": 8192,
+          "epochs": 20,
+          "patience": 5,
+          "hidden": [
+            128,
+            64
+          ]
+        },
+        "fields": [
+          "user_id",
+          "video_id",
+          "author_id",
+          "tab",
+          "dur_bucket",
+          "video_completion_bucket",
+          "video_rewatch_bucket",
+          "video_fast_skip_bucket",
+          "author_engagement_bucket"
+        ],
+        "parent_id": "deepfm_regularized",
+        "seeds": [
+          0
+        ],
+        "notes": "agent/features.py -- first use of ExperimentConfig.fields actually affecting encoding (previously vestigial, see agent/experiment.py's _load_encoded fix).",
+        "edge_type": "improve"
+      },
+      "edge_type": "improve",
+      "parent_id": "deepfm_regularized",
+      "status": "done",
+      "fidelity": "100pct",
+      "metrics": {
+        "n_seeds": 3,
+        "valid": {
+          "GAUC_mean": 0.6700666874145927,
+          "GAUC_std": 0.0006696929586262881,
+          "nDCG@5_mean": 0.5373212775241727,
+          "nDCG@5_std": 0.0004531850271062933,
+          "primary_mean": 0.6036939824693827,
+          "primary_std": 0.000553939565999293
+        },
+        "test": {
+          "GAUC_mean": 0.6646943767384985,
+          "GAUC_std": 0.0005128427849352283,
+          "nDCG@5_mean": 0.5300930931061867,
+          "nDCG@5_std": 0.00025714602657428903,
+          "primary_mean": 0.5973937349223427,
+          "primary_std": 0.00038457614069535356
+        },
+        "delta_vs_baseline_test": {
+          "delta_GAUC": 0.003694376738498484,
+          "delta_nDCG@5": 0.001893093106186683,
+          "delta_primary_mean": 0.0027937349223425834
+        },
+        "per_seed": [
+          {
+            "experiment_id": "features_v1",
+            "seed": 0,
+            "best_epoch": 4,
+            "epochs_run": 9,
+            "valid": {
+              "GAUC": 0.669171185922338,
+              "nDCG@5": 0.5368170022635949,
+              "primary": 0.6029940940929664
+            },
+            "test": {
+              "GAUC": 0.6644753492632792,
+              "nDCG@5": 0.5299495926173063,
+              "primary": 0.5972124709402928
+            },
+            "wall_time_s": 182.96875,
+            "num_params": 711608,
+            "train_loss_curve": [
+              0.5542817950248718,
+              0.5100090344037328,
+              0.5066560289689472,
+              0.5055667813335146,
+              0.5036304433430944,
+              0.5009967250483377,
+              0.4975645786949566,
+              0.49411104215042934,
+              0.49054367265530996
+            ],
+            "valid_primary_curve": [
+              0.6006576606080042,
+              0.6026282065715072,
+              0.6023503115736797,
+              0.6029940940929664,
+              0.6028330217039269,
+              0.6025449813423649,
+              0.6018817838805032,
+              0.5997741941063175,
+              0.5979284935309173
+            ],
+            "train_fraction": 1.0
+          },
+          {
+            "experiment_id": "features_v1",
+            "seed": 1,
+            "best_epoch": 4,
+            "epochs_run": 9,
+            "valid": {
+              "GAUC": 0.6702474347969256,
+              "nDCG@5": 0.5372308588096555,
+              "primary": 0.6037391468032905
+            },
+            "test": {
+              "GAUC": 0.6654026657318716,
+              "nDCG@5": 0.5304542251498865,
+              "primary": 0.5979284454408791
+            },
+            "wall_time_s": 172.53125,
+            "num_params": 711608,
+            "train_loss_curve": [
+              0.5547404297760554,
+              0.5098648084061487,
+              0.5066585334283965,
+              0.5052619463631085,
+              0.5038868953074728,
+              0.5018510452338627,
+              0.49861888055290493,
+              0.49556051471403667,
+              0.4923789162720953
+            ],
+            "valid_primary_curve": [
+              0.6007753423667712,
+              0.602808407604352,
+              0.6024527499771182,
+              0.6037391468032905,
+              0.6026869404199359,
+              0.6018872874560044,
+              0.6018625285041312,
+              0.6000645228931112,
+              0.5981790977311178
+            ],
+            "train_fraction": 1.0
+          },
+          {
+            "experiment_id": "features_v1",
+            "seed": 2,
+            "best_epoch": 5,
+            "epochs_run": 10,
+            "valid": {
+              "GAUC": 0.6707814415245147,
+              "nDCG@5": 0.5379159714992676,
+              "primary": 0.6043487065118911
+            },
+            "test": {
+              "GAUC": 0.6642051152203449,
+              "nDCG@5": 0.5298754615513672,
+              "primary": 0.5970402883858561
+            },
+            "wall_time_s": 205.359375,
+            "num_params": 711608,
+            "train_loss_curve": [
+              0.5555815309286117,
+              0.5101179661495345,
+              0.5070297153932708,
+              0.505801372230053,
+              0.5046974588717733,
+              0.5027053705283574,
+              0.49982008763722013,
+              0.49732290995972495,
+              0.4945269757083484,
+              0.49132408180407117
+            ],
+            "valid_primary_curve": [
+              0.6005660931900687,
+              0.6018451889982057,
+              0.6033844281290618,
+              0.6030900910104904,
+              0.6043487065118911,
+              0.6024392871395096,
+              0.6023867228428477,
+              0.6018914347155475,
+              0.6005459515672134,
+              0.5984221019169783
+            ],
+            "train_fraction": 1.0
+          }
+        ]
+      },
+      "insight": "Change vs. parent (+0.0002 primary) is within the significance bar (0.0007, seed-aware) -- not distinguishable from run-to-run variance.",
+      "diagnosis_tag": "noise_floor",
+      "created_at": 1787889318.109951,
+      "updated_at": 1787894021.8797128
     }
   }
 }

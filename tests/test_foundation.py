@@ -186,6 +186,48 @@ def test_research_map_basic():
         assert summary["best_node_id"] == "child"
 
 
+def test_research_map_best_confirmed_node_skips_noise_floor():
+    """Regression test for the gap `features_v1` surfaced live: a node that
+    numerically out-scores its parent by less than the significance bar
+    still gets tagged `noise_floor` by agent/diagnosis.py, but
+    `ResearchMap.best_node()` (a raw numeric leaderboard) doesn't know
+    that -- it would hand back the noise-floor node as "best". Anything
+    that decides what to build on or ship must use `best_confirmed_node()`
+    instead, which walks past unconfirmed nodes to the nearest real win."""
+    import tempfile
+    from agent.research_map import ResearchMap
+
+    with tempfile.TemporaryDirectory() as d:
+        rm = ResearchMap(Path(d) / "research_map.json")
+        root = ExperimentConfig(id="root", model="fm", hypothesis="h", parent_id=None)
+        rm.add_node(root, edge_type="draft")
+        rm.update_node("root", status="done", diagnosis_tag="baseline_beat",
+                        metrics={"valid": {"primary_mean": 0.60}})
+
+        # A confirmed win over root.
+        good = ExperimentConfig(id="good", model="fm", hypothesis="h", parent_id="root")
+        rm.add_node(good, edge_type="improve", parent_id="root")
+        rm.update_node("good", status="done", diagnosis_tag="clear_improvement",
+                        metrics={"valid": {"primary_mean": 0.61}})
+
+        # Numerically higher than 'good', but tagged noise_floor vs its parent --
+        # exactly features_v1's real situation vs deepfm_regularized.
+        fluke = ExperimentConfig(id="fluke", model="fm", hypothesis="h", parent_id="good")
+        rm.add_node(fluke, edge_type="improve", parent_id="good")
+        rm.update_node("fluke", status="done", diagnosis_tag="noise_floor",
+                        metrics={"valid": {"primary_mean": 0.6103}})
+
+        assert rm.best_node().node_id == "fluke", "raw leaderboard should still surface the numeric top score"
+        confirmed = rm.best_confirmed_node()
+        assert confirmed is not None and confirmed.node_id == "good", (
+            f"best_confirmed_node() should walk past the noise_floor node to the nearest confirmed "
+            f"win, got '{confirmed.node_id if confirmed else None}'")
+
+        summary = rm.explored_summary()
+        assert summary["best_node_id"] == "good"
+        assert summary["raw_leaderboard_node_id"] == "fluke"
+
+
 def test_diagnosis_rules():
     from agent.diagnosis import diagnose
 
@@ -306,6 +348,44 @@ def test_multi_fidelity_time_saved_estimate():
     assert info["estimated_time_saved_s"] == saved
     assert info["stage_wall_times_s"] == {"1pct": 5.0}
     assert info["killed_at"] == "1pct"
+
+
+def test_features_extended_shape_and_no_leakage():
+    """One test, real data, checked once (agent/features.py's encode_extended
+    re-parses the raw CSVs with no disk cache, so this is deliberately not
+    split into multiple tests that would each pay that cost separately).
+
+    Two properties: (1) adding fields doesn't change row count and does
+    grow the vocab dimension: (2) the actual leakage-safety property --
+    a video's engineered bucket must be IDENTICAL across every row that
+    references it, proving it's a train-only aggregate (a property of the
+    video), never derived from that specific row's own play_time_ms.
+    """
+    from agent import features as feat
+
+    data_dir = str(DEFAULT_DATA_DIR)
+    fields = feat.BASE_5 + feat.EXTRA_FIELDS
+    enc, dim = feat.encode_extended(data_dir, fields)
+    Xtr, ytr, utr = enc["train"]
+    assert Xtr.shape[1] == len(feat.BASE_5) + len(feat.EXTRA_FIELDS) == 9
+
+    enc_base, dim_base = feat.encode_extended(data_dir, feat.BASE_5)
+    Xtr_base, _, _ = enc_base["train"]
+    assert Xtr_base.shape[0] == Xtr.shape[0], "row count must be unchanged by adding fields"
+    assert dim > dim_base, "extended encoding must have a larger total vocab dimension"
+
+    Xva, yva, uva = enc["valid"]
+    video_col = fields.index("video_id")
+    completion_col = fields.index("video_completion_bucket")
+    by_video: dict[int, set] = {}
+    for i in range(len(Xva)):
+        by_video.setdefault(int(Xva[i, video_col]), set()).add(int(Xva[i, completion_col]))
+    inconsistent = [v for v, buckets in by_video.items() if len(buckets) > 1]
+    assert not inconsistent, (
+        f"a video's completion bucket must be identical across every row referencing it (a "
+        f"train-only aggregate, never derived from each row's own outcome) -- found "
+        f"{len(inconsistent)} video(s) with inconsistent buckets, which would mean leakage"
+    )
 
 
 class _FakeLLMResponse:
@@ -430,6 +510,7 @@ def main() -> int:
         test_deepfm_forward_backward_reduces_loss,
         test_fm_bpr_forward_backward_reduces_loss,
         test_research_map_basic,
+        test_research_map_best_confirmed_node_skips_noise_floor,
         test_diagnosis_rules,
         test_selector_scores_candidates,
         test_research_critic_rejects_duplicate_and_confirmed_dead_end,
@@ -442,6 +523,7 @@ def main() -> int:
         tests.append(test_recovery_catches_broken_config)
         tests.append(test_recovery_catches_a_genuine_oom)
         tests.append(test_multi_fidelity_kills_a_broken_config)
+        tests.append(test_features_extended_shape_and_no_leakage)
     else:
         print("  (data dir not found -- skipping self-check and recovery-subprocess tests)")
 
