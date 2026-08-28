@@ -1839,6 +1839,88 @@
       "diagnosis_tag": "noise_floor",
       "created_at": 1787899309.5856118,
       "updated_at": 1787899309.5918198
+    },
+    "deepfm_mtl_v1_hpo": {
+      "node_id": "deepfm_mtl_v1_hpo",
+      "config": {
+        "id": "deepfm_mtl_v1_hpo",
+        "model": "deepfm_mtl",
+        "hypothesis": "Optuna search (agent/hpo.py) around 'deepfm_mtl_v1''s hyperparameters, 15 trials at reduced fidelity (train_fraction=0.15, 8 epochs) -- winner ({'k': 16, 'lr': 0.0022319714240418083, 'l2': 0.0009751103055468681, 'batch': 8192, 'epochs': 20, 'patience': 5, 'hidden': [128, 64], 'aux_weight': 0.3330384922384841}) beat the base config's own reduced-fidelity score (0.5909 vs 0.5904), now run at full fidelity to see if the gain holds.",
+        "hyperparams": {
+          "k": 16,
+          "lr": 0.0022319714240418083,
+          "l2": 0.0009751103055468681,
+          "batch": 8192,
+          "epochs": 20,
+          "patience": 5,
+          "hidden": [
+            128,
+            64
+          ],
+          "aux_weight": 0.3330384922384841
+        },
+        "fields": [
+          "user_id",
+          "video_id",
+          "author_id",
+          "tab",
+          "dur_bucket"
+        ],
+        "parent_id": "deepfm_mtl_v1",
+        "seeds": [
+          0
+        ],
+        "notes": "agent/hpo.py Optuna search, 15 trials @ train_fraction=0.15.",
+        "edge_type": "improve"
+      },
+      "edge_type": "improve",
+      "parent_id": "deepfm_mtl_v1",
+      "status": "done",
+      "fidelity": "100pct",
+      "metrics": {
+        "n_seeds": 1,
+        "valid": {
+          "GAUC_mean": 0.6675938284299591,
+          "GAUC_std": 0.0,
+          "nDCG@5_mean": 0.535432464730215,
+          "nDCG@5_std": 0.0,
+          "primary_mean": 0.601513146580087,
+          "primary_std": 0.0
+        },
+        "test": {
+          "GAUC_mean": 0.6589627372282205,
+          "GAUC_std": 0.0,
+          "nDCG@5_mean": 0.5284809226250098,
+          "nDCG@5_std": 0.0,
+          "primary_mean": 0.5937218299266152,
+          "primary_std": 0.0
+        },
+        "per_seed": [
+          {
+            "experiment_id": "deepfm_mtl_v1_hpo",
+            "seed": 0,
+            "best_epoch": 12,
+            "epochs_run": 17,
+            "valid": {
+              "GAUC": 0.6675938284299591,
+              "nDCG@5": 0.535432464730215,
+              "primary": 0.601513146580087
+            },
+            "test": {
+              "GAUC": 0.6589627372282205,
+              "nDCG@5": 0.5284809226250098,
+              "primary": 0.5937218299266152
+            },
+            "wall_time_s": 378.84375,
+            "num_params": 703370,
+            "train_fraction": 1.0
+          }
+        ]
+      },
+      "insight": "Both GAUC (-0.0039) and nDCG@5 (-0.0024) got worse -- the change likely hurt (bar=0.0004).",
+      "diagnosis_tag": "regression",
+      "created_at": 1787900600.7236865,
+      "updated_at": 1787900600.733838
     }
   }
 }

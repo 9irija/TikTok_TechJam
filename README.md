@@ -277,6 +277,18 @@ refactor risk once the standalone check showed a clear, structurally-
 explained loss). Extends the starter kit's own finding ("model
 architecture is the lowest-priority lever") to tree-based models too.
 
+**Hyperparameter search (`agent/hpo.py`, Optuna)** — the one place in this
+project's own limitations list where reaching for an existing tool over
+hand-rolling was unambiguously correct (it sits entirely outside the
+modeling/scoring logic, still only ever reads `.valid.primary` via the
+same `run_experiment` every other candidate uses). 15 trials at reduced
+fidelity around `deepfm_mtl_v1`'s hyperparameters found nothing that beat
+it at full fidelity — the current hyperparameters already look close to a
+local optimum. Also caught and fixed a real concurrency bug along the way
+(`ResearchMap.save()` was silently clobbering concurrent writes from
+another background process — this project runs several at once by
+design). Full detail: [`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §4.
+
 ## Engineered features — a real negative result, and a real bug it surfaced
 
 `agent/features.py` adds 4 new fields on top of the starter kit's base 5:

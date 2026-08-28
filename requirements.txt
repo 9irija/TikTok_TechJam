@@ -39,13 +39,22 @@ torch>=2.0
 lightgbm>=4.0
 
 # ---------------------------------------------------------------------------
+# P2 Hyperparameter Search (agent/hpo.py, tools/run_hyperparameter_search.py).
+# Sits entirely outside the modeling/scoring logic -- Optuna only ever picks
+# which hyperparameters agent/experiment.py's run_experiment (the same
+# function every other candidate in this project runs through) should try
+# next; it never sees .test, same train/valid/test discipline as everywhere
+# else. The one place in this project's own limitations list where reaching
+# for an existing tool was unambiguously correct instead of hand-rolling.
+optuna>=3.0
+
+# ---------------------------------------------------------------------------
 # Not yet installed / not yet required. Uncomment as later phases need them
 # (see CLAUDE.md roadmap). Keep this list honest -- an unused heavy
 # dependency here is a Feasibility & Practicality red flag, not a convenience.
 #
 # scikit-learn>=1.3      # only if a future model actually needs its API --
                           # lightgbm's own native API above needed no sklearn
-# optuna>=3.0             # P2 Hyperparameter Search -- still genuinely open
 # matplotlib>=3.7          # only if a static PNG chart is ever needed instead
                           # of the HTML dashboard (tools/generate_dashboard.py
                           # is self-contained, no plotting library required)

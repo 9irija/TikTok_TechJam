@@ -1,11 +1,14 @@
-# P2 — Engineered Features, Multi-Task Learning, LightGBM
+# P2 — Engineered Features, Multi-Task Learning, LightGBM, Hyperparameter Search
 
-Three experiments closing real gaps left open by CLAUDE.md's roadmap
+Four experiments closing real gaps left open by CLAUDE.md's roadmap
 ("Multi-Task Feature Exploitation", "TikTok-disclosed features", "Extended
-Model Zoo"), run and 3-seed-verified where the result warranted it. Two of
-three are negative results, reported exactly as measured — the honest
-signal here is which levers this specific benchmark actually responds to,
-not a scoreboard of wins.
+Model Zoo", "Hyperparameter Search"), run and 3-seed-verified where the
+result warranted it. Three of four are negative results, reported exactly
+as measured — the honest signal here is which levers this specific
+benchmark actually responds to, not a scoreboard of wins. One of those
+negative results (the hyperparameter search) also surfaced and fixed a
+real concurrency bug in the Research Map's persistence layer, unrelated to
+modeling but a genuine reliability gap worth having found.
 
 ## 1. Engineered features (`agent/features.py`) — noise_floor
 
@@ -159,6 +162,62 @@ justified — a deliberate decision, not a shortcut taken to save time.
 Still logged as a proper Research Map node (`lgbm_baseline`,
 `parent_id=fm_baseline_repro`) for the audit trail, even though no
 reusable pipeline code was added.
+
+## 4. Hyperparameter search (`agent/hpo.py`, Optuna) — a real bug caught, then a real negative result
+
+The one place in this project's own limitations list where reaching for an
+existing tool over hand-rolling is unambiguously correct: unlike a heavier
+*modeling* framework (RecBole/TorchRec, declined — see README "Would an
+existing framework have gotten better results"), a search *orchestrator*
+sits entirely outside the modeling/scoring logic. Optuna decides which
+hyperparameters to try; `agent/experiment.py`'s `run_experiment` — the same
+function every other candidate in this project runs through — still does
+the actual training and still only ever reads `.valid.primary`. Runs at
+reduced fidelity (`train_fraction`, capped epochs — the same principle as
+`agent/multi_fidelity.py`'s staging), and a winner is only trusted after a
+full-fidelity confirmation run.
+
+**A smoke test at deliberately aggressive settings (5% data, 3 epochs)
+caught its own failure mode working as intended**, not as a bug: the
+"winning" trial looked clearly better at that tiny scale (0.5796 vs.
+0.5496) but was a clear regression at full scale (0.5977 vs. 0.6046) — the
+full-fidelity confirmation step is exactly what stopped that from ever
+being trusted or registered as a real result.
+
+**Cleaning that up surfaced an actual, separate bug**: `lgbm_baseline` had
+silently vanished from the Research Map. Root cause — a genuine
+concurrency race, not user error: `lgbm_baseline` was added via a
+short-lived script while `tools/verify_multiseed.py` was still running in
+the background holding a stale in-memory snapshot from *before* that
+addition; when it finished and called `save()`, it silently overwrote the
+whole file with its own stale copy. `ResearchMap.save()` had no merge
+logic — last writer wins for the entire file, not per-node. This project
+runs many background experiments concurrently by design (this pass alone
+had 3+ background processes touching the map at overlapping times), so
+this was a real, not-hypothetical gap. **Fixed**: `save()` now merges with
+whatever's on disk first, per-node, newest `updated_at` wins.
+Regression-tested (`test_research_map_save_merges_concurrent_writes`) by
+reproducing the exact scenario. `lgbm_baseline` restored.
+
+**The real search** (15 trials, `train_fraction=0.15`, 8 epochs, patience
+3 — searching `k`, `hidden`, `lr`, `l2`, `aux_weight` around
+`deepfm_mtl_v1`'s own values):
+
+| | Valid primary @ reduced fidelity | Valid primary @ full fidelity |
+|---|---|---|
+| Base config (`deepfm_mtl_v1`'s hyperparameters) | 0.5904 | 0.6046 (3-seed) |
+| Best trial found (`lr=0.0022`, `l2=0.00098`, `aux_weight=0.33`) | 0.5909 (+0.0005) | 0.6015 (**−0.0031**, `regression`) |
+
+The winning trial's margin at reduced fidelity (+0.0005) was already tiny
+— close to the noise floor this project has repeatedly measured at this
+scale — and did not survive full-fidelity confirmation: both GAUC (−0.0039)
+and nDCG@5 (−0.0024) came back worse, a real regression, not noise.
+**Honest conclusion: 15 trials found nothing that beats `deepfm_mtl_v1`'s
+current hyperparameters.** They already look close to a local optimum for
+this search space, at least at this trial budget. Logged as a proper
+Research Map node (`deepfm_mtl_v1_hpo`, tagged `regression`) rather than
+discarded — a real, reportable negative result, same standard as
+`features_v1` and `lgbm_baseline` above.
 
 ## Net effect on the project-best
 

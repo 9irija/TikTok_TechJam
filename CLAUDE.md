@@ -284,6 +284,10 @@ python tools/verify_multiseed.py <node_id>
 #    Map's confirmed best (ResearchMap.best_confirmed_node(), not the raw
 #    numeric leaderboard -- see the "Engineered features" note in README.md)
 python tools/generate_submission.py
+
+# 9. Optuna hyperparameter search around the confirmed best (P2) -- reduced
+#    fidelity trials, full-fidelity confirmation before trusting a winner
+python tools/run_hyperparameter_search.py --n_trials 15
 ```
 
 Windows notes: use `python`, not `python3` (the latter is a Microsoft Store
@@ -361,12 +365,17 @@ alias stub in this environment that fails with no interpreter installed).
   appears, generating the prompt's "dead ends" section from the Research
   Map's own tags instead of a hand-maintained string. See
   `docs/PHASE4_RESULTS.md` §6 for the complete list.
-- **Phase 3 (Model Zoo + tuning) -- partially covered:** FM/DeepFM/FM_BPR
+- **Phase 3 (Model Zoo + tuning) -- mostly covered:** FM/DeepFM/FM_BPR
   (numpy) + DeepFM_MTL (torch, P2) done; LightGBM tried standalone (not
   integrated -- real interface mismatch with the per-epoch SGD loop, not
   worth the refactor given the result); DCNv2/Wide&Deep still not started.
-  Hyperparameter search (Optuna) not started -- genuinely the one place an
-  existing tool would be a clear win over anything hand-rolled, still open.
+  **Hyperparameter search (Optuna) done (P2):** `agent/hpo.py` +
+  `tools/run_hyperparameter_search.py`, reduced-fidelity search with a
+  full-fidelity confirmation gate. 15 trials around `deepfm_mtl_v1`'s
+  hyperparameters found nothing that beat it (`deepfm_mtl_v1_hpo`, tagged
+  `regression`) -- current hyperparameters already look close to a local
+  optimum for this search space. Also caught and fixed a real concurrency
+  bug in `ResearchMap.save()` along the way (see `docs/P2_FEATURES_AND_RESULTS.md` §4).
 - **Phase 5 (multi-fidelity + early termination) -- done, including the
   "log GPU saved" requirement that was initially missed:** built as part
   of P1 (`agent/multi_fidelity.py`), but per-stage costs were computed for
@@ -394,11 +403,10 @@ alias stub in this environment that fails with no interpreter installed).
     exactly the failure mode this project avoids everywhere else. Full
     reasoning: `docs/POLISH_PASS_RESULTS.md` §6.
   - Full writeup: [`docs/POLISH_PASS_RESULTS.md`](docs/POLISH_PASS_RESULTS.md).
-- **P2 stretch -- Research Critic Gate and the dashboard done (pulled
-  forward per the doc's own *"cheap and it's your closing argument"*
-  advice); still open:** Extended Model Zoo (needs torch), Hyperparameter
-  Search (Optuna), Config-Driven Scale-Up (blocked on the bonus-benchmark
-  finding above). `docs/dashboard.html`: validated palette (dataviz skill),
+- **P2 stretch -- Research Critic Gate, the dashboard, Extended Model Zoo
+  (DeepFM_MTL, torch), and Hyperparameter Search (Optuna) all done; still
+  open:** Config-Driven Scale-Up (blocked on the bonus-benchmark finding
+  above). `docs/dashboard.html`: validated palette (dataviz skill),
   built per artifact-design principles, screenshot-verified with headless
   Edge (caught and fixed a real card-layout collision bug before shipping)
   -- generated once by hand from a Research Map snapshot, not auto-regenerated
