@@ -255,6 +255,41 @@ def test_research_map_best_confirmed_node_skips_noise_floor():
         assert summary["raw_leaderboard_node_id"] == "fluke"
 
 
+def test_research_map_save_merges_concurrent_writes():
+    """Regression test for a real bug caught live during P2: `lgbm_baseline`
+    was silently erased from logs/research_map.json because a long-running
+    background process (tools/verify_multiseed.py) held a stale in-memory
+    snapshot from before that node was added, and its own later save()
+    overwrote the whole file. Simulates the same scenario: two ResearchMap
+    instances over the same path, one adds a node the other never saw,
+    and confirms both nodes survive after both have saved."""
+    import tempfile
+    from agent.research_map import ResearchMap
+
+    with tempfile.TemporaryDirectory() as d:
+        path = Path(d) / "research_map.json"
+
+        # Two independent processes both start from an empty/nonexistent map.
+        rm1 = ResearchMap(path)
+        rm2 = ResearchMap(path)
+
+        # rm1 (like the short-lived "add lgbm_baseline" script) adds a node and saves first.
+        cfg_a = ExperimentConfig(id="node_a", model="fm", hypothesis="h", parent_id=None)
+        rm1.add_node(cfg_a, edge_type="draft")
+        rm1.update_node("node_a", status="done", metrics={"valid": {"primary_mean": 0.60}})
+
+        # rm2 (like the long-running verify_multiseed.py that started earlier and knows
+        # nothing about node_a) adds a *different* node and saves after rm1 did.
+        cfg_b = ExperimentConfig(id="node_b", model="fm", hypothesis="h", parent_id=None)
+        rm2.add_node(cfg_b, edge_type="draft")
+        rm2.update_node("node_b", status="done", metrics={"valid": {"primary_mean": 0.61}})
+
+        # Without the merge-on-save fix, rm2's save would have silently erased node_a.
+        rm3 = ResearchMap(path)  # fresh instance, reads whatever actually ended up on disk
+        assert set(rm3.nodes.keys()) == {"node_a", "node_b"}, (
+            f"both concurrently-added nodes should survive, got {sorted(rm3.nodes.keys())}")
+
+
 def test_diagnosis_rules():
     from agent.diagnosis import diagnose
 
@@ -545,6 +580,7 @@ def main() -> int:
     tests += [
         test_research_map_basic,
         test_research_map_best_confirmed_node_skips_noise_floor,
+        test_research_map_save_merges_concurrent_writes,
         test_diagnosis_rules,
         test_selector_scores_candidates,
         test_research_critic_rejects_duplicate_and_confirmed_dead_end,

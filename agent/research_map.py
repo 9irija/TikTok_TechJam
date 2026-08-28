@@ -200,6 +200,49 @@ class ResearchMap:
 
     # ----------------------------------------------------------- persistence
     def save(self) -> None:
+        """Atomic write, but merges with whatever is currently on disk
+        first -- NOT a plain overwrite. Two processes each holding their
+        own in-memory snapshot (this project runs many background
+        experiments concurrently by design -- multiple `run_p1.py`/
+        `tools/verify_multiseed.py`/one-off scripts in flight at once) would
+        otherwise silently clobber each other: whichever saves last
+        overwrites the *entire* file with its own, possibly-stale,
+        in-memory node dict, discarding any node a different process added
+        or updated in the meantime.
+
+        This happened for real during this project's own P2 pass:
+        `lgbm_baseline` was added by a short-lived script while a
+        long-running `tools/verify_multiseed.py` process (already holding
+        an older in-memory snapshot without that node) was still running in
+        the background; when it finished and called `update_node` ->
+        `save()`, it silently erased `lgbm_baseline` from the persisted
+        file. Caught by noticing the Research Map had fewer nodes than
+        expected, not by any test -- see
+        `test_research_map_save_merges_concurrent_writes` for the
+        regression test this added.
+
+        Fix: per-node, last-writer-wins by `updated_at`, not per-file.
+        Before writing, re-read the current on-disk state (if any) and
+        merge it with this instance's in-memory `self.nodes`: a node
+        present on disk but not in memory is kept (someone else added it);
+        a node present in both keeps whichever copy has the later
+        `updated_at`. This isn't a true lock -- two saves at the exact same
+        instant touching the exact same node_id could still race -- but it
+        closes the actual failure mode above, which was one process adding
+        a *new* node while another, unrelated update was in flight.
+        """
+        merged = dict(self.nodes)
+        if self.path.exists():
+            try:
+                on_disk = json.loads(self.path.read_text(encoding="utf-8"))
+                for nid, d in on_disk.get("nodes", {}).items():
+                    disk_node = ExperimentNode.from_dict(d)
+                    if nid not in merged or disk_node.updated_at > merged[nid].updated_at:
+                        merged[nid] = disk_node
+            except (json.JSONDecodeError, OSError, KeyError):
+                pass  # disk file unreadable/corrupt -- fall back to this instance's own in-memory state
+        self.nodes = merged
+
         self.path.parent.mkdir(parents=True, exist_ok=True)
         payload = {"nodes": {nid: n.to_dict() for nid, n in self.nodes.items()}}
         tmp = self.path.with_suffix(".tmp")

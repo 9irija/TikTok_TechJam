@@ -1760,6 +1760,85 @@
       "diagnosis_tag": "clear_improvement",
       "created_at": 1787895957.395145,
       "updated_at": 1787897230.823363
+    },
+    "lgbm_baseline": {
+      "node_id": "lgbm_baseline",
+      "config": {
+        "id": "lgbm_baseline",
+        "model": "lgbm",
+        "hypothesis": "Genuinely different model family (gradient-boosted trees, not learned embeddings), per the user explicit request to consider any open-source framework (LightGBM named directly). Same 5 base fields as fm_baseline_repro for a like-for-like architecture-only comparison. Structural concern going in: this task's signal lives almost entirely in high-cardinality user_id x video_id crossing (~27K users x ~7.6K items) -- exactly what FM/DeepFM's learned embeddings are built for and what tree splits can only crudely approximate at this cardinality. Quick standalone check (not full Model Zoo integration -- LightGBM manages its own boosting/early-stopping internally, a real interface mismatch with every other model's per-epoch SGD loop in agent/experiment.py, not worth the refactor risk unless the result justified it).",
+        "hyperparams": {
+          "objective": "binary",
+          "num_leaves": 63,
+          "learning_rate": 0.05,
+          "min_data_in_leaf": 50,
+          "feature_fraction": 0.9,
+          "bagging_fraction": 0.9,
+          "num_boost_round": 500,
+          "early_stopping_rounds": 30
+        },
+        "fields": [
+          "user_id",
+          "video_id",
+          "author_id",
+          "tab",
+          "dur_bucket"
+        ],
+        "parent_id": "fm_baseline_repro",
+        "seeds": [
+          0
+        ],
+        "notes": "Standalone diagnostic (lightgbm 4.7.0, native API, categorical_feature on all 5 base columns) -- not wired into agent/model_zoo/ or agent/experiment.py's training loop; result recorded here for the audit trail even though no reusable code was added.",
+        "edge_type": "draft"
+      },
+      "edge_type": "draft",
+      "parent_id": "fm_baseline_repro",
+      "status": "done",
+      "fidelity": "100pct",
+      "metrics": {
+        "n_seeds": 1,
+        "valid": {
+          "GAUC_mean": 0.6641,
+          "GAUC_std": 0.0,
+          "nDCG@5_mean": 0.535,
+          "nDCG@5_std": 0.0,
+          "primary_mean": 0.5995,
+          "primary_std": 0.0
+        },
+        "test": {
+          "GAUC_mean": 0.6603,
+          "GAUC_std": 0.0,
+          "nDCG@5_mean": 0.5288,
+          "nDCG@5_std": 0.0,
+          "primary_mean": 0.5946,
+          "primary_std": 0.0
+        },
+        "per_seed": [
+          {
+            "experiment_id": "lgbm_baseline",
+            "seed": 0,
+            "best_epoch": 222,
+            "epochs_run": 222,
+            "valid": {
+              "GAUC": 0.6641,
+              "nDCG@5": 0.535,
+              "primary": 0.5995
+            },
+            "test": {
+              "GAUC": 0.6603,
+              "nDCG@5": 0.5288,
+              "primary": 0.5946
+            },
+            "wall_time_s": 141.9,
+            "num_params": null,
+            "train_fraction": 1.0
+          }
+        ]
+      },
+      "insight": "Change vs. parent (-0.0020 primary) is within the significance bar (0.0020, flat epsilon, single-seed) -- not distinguishable from run-to-run variance.",
+      "diagnosis_tag": "noise_floor",
+      "created_at": 1787899309.5856118,
+      "updated_at": 1787899309.5918198
     }
   }
 }
