@@ -238,6 +238,43 @@ def test_selector_scores_candidates():
         assert already_in_map is None, "a config already in the map must not be re-offered as a candidate"
 
 
+def test_research_critic_rejects_duplicate_and_confirmed_dead_end():
+    import tempfile
+    from agent.research_critic import review
+    from agent.research_map import ResearchMap
+
+    with tempfile.TemporaryDirectory() as d:
+        rm = ResearchMap(Path(d) / "map.json")
+        root = ExperimentConfig(id="fm_baseline_repro", model="fm", hypothesis="h",
+                                 hyperparams={"k": 16, "lr": 0.001})
+        rm.add_node(root, edge_type="draft")
+        rm.update_node("fm_baseline_repro", status="done", metrics={"valid": {"primary_mean": 0.60}})
+
+        # Duplicate: identical id already in the map.
+        dup_verdict = review(rm, root)
+        assert not dup_verdict.approved, "an already-present config must be rejected as a duplicate"
+
+        # A pure-k change confirmed noise_floor -- the exact dead end pattern.
+        k32 = ExperimentConfig(id="fm_wider_k32", model="fm", hypothesis="h",
+                                hyperparams={"k": 32, "lr": 0.001}, parent_id="fm_baseline_repro")
+        rm.add_node(k32, edge_type="improve", parent_id="fm_baseline_repro")
+        rm.update_node("fm_wider_k32", status="done", diagnosis_tag="noise_floor",
+                        metrics={"valid": {"primary_mean": 0.599}})
+
+        # A second, NEW pure-k change on the same family -- must be caught.
+        k64 = ExperimentConfig(id="fm_even_wider_k64", model="fm", hypothesis="h",
+                                hyperparams={"k": 64, "lr": 0.001}, parent_id="fm_baseline_repro")
+        dead_end_verdict = review(rm, k64)
+        assert not dead_end_verdict.approved, "a repeated pure-capacity change on a confirmed dead-end family must be rejected"
+        assert "fm_wider_k32" in dead_end_verdict.reason, "the rejection must cite the specific prior node, not just assert a rule"
+
+        # A legitimately different change (not pure-k) on the same family must NOT be rejected by this rule.
+        different_change = ExperimentConfig(id="fm_different_lr", model="fm", hypothesis="h",
+                                             hyperparams={"k": 16, "lr": 0.01}, parent_id="fm_baseline_repro")
+        ok_verdict = review(rm, different_change)
+        assert ok_verdict.approved, "a change on a different axis (lr, not k) must not be caught by the capacity dead-end rule"
+
+
 def test_multi_fidelity_kills_a_broken_config():
     from agent.multi_fidelity import run_multi_fidelity
     bad_config = ExperimentConfig(
@@ -377,6 +414,7 @@ def main() -> int:
         test_research_map_basic,
         test_diagnosis_rules,
         test_selector_scores_candidates,
+        test_research_critic_rejects_duplicate_and_confirmed_dead_end,
         test_research_strategist_accepts_a_valid_proposal,
         test_research_strategist_rejects_and_retries_an_invalid_proposal,
         test_multi_fidelity_time_saved_estimate,

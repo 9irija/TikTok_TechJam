@@ -29,6 +29,7 @@ from .llm_client import GeminiClient
 from .multi_fidelity import run_multi_fidelity
 from .p1_orchestrator import seed_from_phase0
 from .paths import DEFAULT_DATA_DIR, EXPERIMENTS_DIR, LOGS_DIR
+from .research_critic import review as critic_review
 from .research_map import ResearchMap
 from .research_strategist import propose_next_experiment
 from .run_logger import RunLogger
@@ -71,6 +72,24 @@ def run_p4(data_dir: str | None = None, timeout_s: float = 240.0,
             break
 
         config = proposal.config
+
+        verdict = critic_review(map, config)
+        if not verdict.approved:
+            # The LLM's own prompt already lists confirmed dead ends
+            # (agent/research_strategist.py's _MODEL_HYPERPARAM_DOCS), but
+            # the critic is the hard backstop for when it proposes one
+            # anyway -- rejected before spending any compute, and the
+            # rejection itself is logged (audit trail: the agent declined
+            # to waste budget, it didn't fail to have the idea).
+            report["iterations"].append({
+                "iteration": i, "config_id": config.id, "status": "critic_rejected",
+                "llm_reasoning": proposal.reasoning, "llm_tokens_this_call": meta.get("tokens", 0),
+                "final_stage": None, "killed_at": None, "kill_reason": None,
+                "diagnosis": {"tag": "critic_rejected", "insight": verdict.reason},
+                "wall_time_s": 0.0, "estimated_time_saved_s": None,
+            })
+            continue
+
         iteration_id = logger.next_iteration_id()
         predictions_path = str(logger.experiments_dir / iteration_id / "predictions.npz")
 

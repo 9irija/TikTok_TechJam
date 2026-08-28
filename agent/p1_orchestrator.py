@@ -33,6 +33,7 @@ from .config import BASE_FIELDS, ExperimentConfig
 from .diagnosis import diagnose
 from .multi_fidelity import run_multi_fidelity
 from .paths import DEFAULT_DATA_DIR, EXPERIMENTS_DIR, LOGS_DIR
+from .research_critic import review as critic_review
 from .research_map import ResearchMap
 from .run_logger import RunLogger
 from .selector import select_next
@@ -190,6 +191,21 @@ def run_p1(data_dir: str | None = None, timeout_s: float = 240.0) -> dict[str, A
 
     for rank_i, s in enumerate(ranked, start=1):
         config = s.config
+
+        verdict = critic_review(map, config)
+        if not verdict.approved:
+            # Rejected before spending any compute -- logged as its own
+            # status (not "failed") so the rejection itself is part of the
+            # audit trail: the agent declined to waste budget, it didn't
+            # fail to have the idea.
+            report["results"].append({
+                "rank": rank_i, "config_id": config.id, "status": "critic_rejected",
+                "final_stage": None, "killed_at": None, "kill_reason": None,
+                "diagnosis": {"tag": "critic_rejected", "insight": verdict.reason},
+                "wall_time_s": 0.0, "estimated_time_saved_s": None,
+            })
+            continue
+
         iteration_id = logger.next_iteration_id()
         predictions_path = str(logger.experiments_dir / iteration_id / "predictions.npz")
 
