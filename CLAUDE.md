@@ -142,9 +142,13 @@ agent/
                                        proposed ExperimentConfig against the model registry before executing it
   p4_orchestrator.py                  [Phase 4] swaps P1's candidate source for the Strategist; reuses P1's
                                         Multi-Fidelity Runner + Diagnosis Engine completely unchanged
+  research_critic.py                   [P2] deterministic pre-flight veto (duplicate / confirmed dead end),
+                                         runs before Multi-Fidelity Runner ever sees a candidate
 tools/
   generate_analysis.py         logs/run_log.jsonl -> logs/analysis_report.md (the Run & Iteration Log deliverable)
   verify_multiseed.py            [Phase 4] promotes a single-seed Research Map node to a 3-seed-verified one
+docs/dashboard.html            [P2] self-contained Research Map dashboard (tree + trajectory chart); generated
+                                 once by hand from a map snapshot, not auto-regenerated from the live JSON
 tests/
   test_foundation.py            plain-assert smoke tests (no pytest in this env), run: python tests/test_foundation.py
                                   -- Phase 4's LLM calls are tested via a mock client, never a real API call
@@ -269,7 +273,7 @@ alias stub in this environment that fails with no interpreter installed).
 | Deliverable: Run & Iteration Logs | `logs/run_log.jsonl` + `experiments/<run_id>/iter_*/` + `tools/generate_analysis.py` -> `logs/analysis_report.md` |
 | Deliverable: Final submission | `agent/submission.py` writes+validates `submission_valid.csv` / `submission_test.csv` -- currently `deepfm_regularized` (Phase 4), 3-seed verified |
 
-## Roadmap (Phase 0 + P1 + Phase 4 are DONE; P2 and the numbered Phase 3/5/6 items are what's left)
+## Roadmap (Phase 0 + P1 + Phase 4 + Phase 5 are DONE; Phase 6 + P2 substantially closed; what's left below)
 
 - **Phase 0 (done):** all 8 P0 "Foundation" features. Converges
   automatically, **beat the official baseline** (test primary +0.0029 on
@@ -318,21 +322,42 @@ alias stub in this environment that fails with no interpreter installed).
   done; DCNv2/Wide&Deep/LightGBM need torch/sklearn (not installed in this
   env, install when this phase starts). Hyperparameter search (Optuna) not
   started.
-- **Phase 5 (multi-fidelity + early termination) -- done**, built as part
-  of the P1 tier (`agent/multi_fidelity.py`) rather than as a separate
-  numbered phase; nothing further needed here specifically.
-- **Phase 6 (recovery, polish & bonus) -- partially covered:** Failure
-  Recovery (OOM/timeout/crash handling) done as part of P0. Not done:
-  bonus benchmarks (KuaiRand-1k/27k), a Research Critic Gate.
-- **P2 stretch (the last tier, per the brainstorm doc's own P0/P1/P2
-  framing):** Research Critic Gate, Extended Model Zoo (needs torch),
-  Hyperparameter Search (Optuna), Live Dashboard, Checkpointing,
-  Config-Driven Scale-Up for bonus benchmarks. The doc explicitly flags the
-  dashboard as worth pulling forward -- *"cheap and it's your closing
-  argument"* -- generate one from `logs/run_log.jsonl` +
-  `logs/research_map.json` (now with real, multi-node, multi-phase content
-  including an actual LLM-vs-hand-authored comparison to show) using
-  Claude's `dataviz`/`artifact-design` skills.
+- **Phase 5 (multi-fidelity + early termination) -- done, including the
+  "log GPU saved" requirement that was initially missed:** built as part
+  of P1 (`agent/multi_fidelity.py`), but per-stage costs were computed for
+  kill/escalate decisions and then discarded, never persisted. Closed:
+  `MultiFidelityResult.stage_wall_times_s` + `.estimated_time_saved_s()`,
+  threaded through `RunLogger.log_iteration()`'s new `fidelity_info`
+  parameter. Full writeup: [`docs/POLISH_PASS_RESULTS.md`](docs/POLISH_PASS_RESULTS.md) §2.
+- **Phase 6 (recovery, polish & bonus) -- robustness claims now verified,
+  not just asserted; Research Critic Gate done; bonus benchmarks assessed
+  and declined with a specific reason:**
+  - OOM handling: tested against a **real** MemoryError (`k=10**9`, a
+    genuine 293 TiB allocation request numpy fails fast on), not simulated
+    -- `test_recovery_catches_a_genuine_oom`.
+  - Checkpointing: verified already satisfied by `agent/research_map.py`'s
+    existing `save()`-on-every-mutation design -- no new code needed.
+  - Research Critic Gate: `agent/research_critic.py`, deterministic-only
+    (duplicate check + confirmed-dead-end veto), wired into both
+    orchestrators before any candidate reaches the Multi-Fidelity Runner.
+    Verified against the real, committed `research_map.json`.
+  - Bonus benchmarks (KuaiRand-1k/27k): investigated, not attempted --
+    `kuairand-starter-kit/data.py` hardcodes `_pure` filenames, so this is
+    NOT the "config change only" scale-up the brainstorm doc's P2 entry
+    assumed. Supporting 1k/27k needs a new, unvalidated loader against an
+    uninspected schema with no organizer reference scores to self-check --
+    exactly the failure mode this project avoids everywhere else. Full
+    reasoning: `docs/POLISH_PASS_RESULTS.md` §6.
+  - Full writeup: [`docs/POLISH_PASS_RESULTS.md`](docs/POLISH_PASS_RESULTS.md).
+- **P2 stretch -- Research Critic Gate and the dashboard done (pulled
+  forward per the doc's own *"cheap and it's your closing argument"*
+  advice); still open:** Extended Model Zoo (needs torch), Hyperparameter
+  Search (Optuna), Config-Driven Scale-Up (blocked on the bonus-benchmark
+  finding above). `docs/dashboard.html`: validated palette (dataviz skill),
+  built per artifact-design principles, screenshot-verified with headless
+  Edge (caught and fixed a real card-layout collision bug before shipping)
+  -- generated once by hand from a Research Map snapshot, not auto-regenerated
+  from the live JSON (a real next step, not done here).
 
 ## Open questions from the brainstorm doc, still open
 

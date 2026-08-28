@@ -221,6 +221,11 @@ Deliverables requirement, if applicable._
 
 ## Limitations & what we'd improve with more time
 
+Full narrative for the most recent pass (Phase 5/6 closure + Research
+Critic Gate + dashboard):
+[`docs/POLISH_PASS_RESULTS.md`](docs/POLISH_PASS_RESULTS.md).
+
+**Research loop:**
 - **Phase 4 has only run 2 iterations.** A longer run would show whether
   the LLM keeps finding real improvements or converges to marginal/
   regressive tweaks — genuinely unknown from this much data.
@@ -233,14 +238,41 @@ Deliverables requirement, if applicable._
   only — nothing makes it change behavior as budget depletes.
 - **`tools/verify_multiseed.py` is a manual step**, not auto-triggered when
   a new best node appears.
+- **Research Critic Gate has exactly two rules** (duplicate; confirmed
+  pure-capacity dead end) — both grounded in real project data, but a
+  general "veto any candidate matching any prior `regression`-tagged
+  pattern" rule would generalize this well beyond the one case it
+  currently catches.
 - **BPR direction plateaued after 3 diagnosis-driven rounds** (see the P1
   results above) — training dynamics fixed, but a ~0.002 quality gap to
   baseline looks structural, not a hyperparameter away. `DeepFM_BPR`
   (pairwise loss + the deep component) is untested and the natural next angle.
+
+**Scope not attempted, with specific reasons (not just "ran out of time"):**
+- **Bonus benchmarks (KuaiRand-1k/27k) — investigated, then declined.**
+  The starter kit's own `data.py` hardcodes `_pure`-suffixed filenames; it
+  is not the config-driven, benchmark-agnostic loader the brainstorm doc's
+  P2 entry assumed. Supporting 1k/27k would mean writing a new loader
+  against an uninspected dataset schema with no organizer-provided
+  reference scores to self-check it against — the exact failure mode
+  (silently-wrong reimplementation of pinned logic) this project has been
+  careful to avoid everywhere else. Full reasoning in
+  `docs/POLISH_PASS_RESULTS.md` §6.
 - **Model zoo**: FM, DeepFM, FM_BPR. DCNv2/Wide&Deep/LightGBM need
   torch/scikit-learn, not installed in the current dev environment.
-- **Bonus benchmarks (KuaiRand-1k/27k) not attempted** — deliberately
-  deprioritized until the required KuaiRand-Pure path is fully hardened.
 - **Best-First Selector's cost/gain model is a simple heuristic**, not
   learned or calibrated — reasonable with almost no historical data per
   model family yet, worth revisiting once the Research Map has more nodes.
+- **`docs/dashboard.html` is generated once, by hand**, from a snapshot of
+  the Research Map at the time it was written — not regenerated
+  automatically from `logs/research_map.json` on every run. A real next
+  step: a small script that re-emits the `NODES` array from the live JSON
+  instead of the current hand-transcribed data block.
+
+**Verified, not just claimed** (worth stating plainly, since this is
+exactly the kind of thing that's easy to assert and never check): OOM
+handling was tested against a real 293 TiB allocation failure, not a
+simulated one; checkpointing was confirmed by reading `agent/research_map.py`'s
+actual save-on-every-mutation behavior, not assumed from design intent;
+the dashboard was rendered headlessly and screenshotted, which caught and
+fixed a real layout bug before it shipped.
