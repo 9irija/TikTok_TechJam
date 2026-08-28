@@ -1,15 +1,15 @@
-# P2 — Engineered Features, Multi-Task Learning, LightGBM, Hyperparameter Search, Ensembling
+# P2 — Engineered Features, Multi-Task Learning, LightGBM, Hyperparameter Search, Ensembling, DIN Sequence Modeling
 
-Five experiments closing real gaps left open by CLAUDE.md's roadmap
+Six experiments closing real gaps left open by CLAUDE.md's roadmap
 ("Multi-Task Feature Exploitation", "TikTok-disclosed features", "Extended
-Model Zoo", "Hyperparameter Search") plus one more tried on the user's
-explicit "optimise further" request, run and 3-seed-verified where the
-result warranted it. Four of five are negative results, reported exactly
-as measured — the honest signal here is which levers this specific
-benchmark actually responds to, not a scoreboard of wins. One of those
-negative results (the hyperparameter search) also surfaced and fixed a
-real concurrency bug in the Research Map's persistence layer, unrelated to
-modeling but a genuine reliability gap worth having found.
+Model Zoo", "Hyperparameter Search", sequence modeling) plus one more tried
+on the user's explicit "optimise further" request, run and 3-seed-verified
+where the result warranted it. Five of six are negative or mixed results,
+reported exactly as measured — the honest signal here is which levers this
+specific benchmark actually responds to, not a scoreboard of wins. One of
+those negative results (the hyperparameter search) also surfaced and fixed
+a real concurrency bug in the Research Map's persistence layer, unrelated
+to modeling but a genuine reliability gap worth having found.
 
 ## 1. Engineered features (`agent/features.py`) — noise_floor
 
@@ -238,6 +238,63 @@ patterns. `deepfm_mtl_v1` is meaningfully stronger than everything else in
 this Research Map, so averaging it with a weaker model pulls the blend
 toward the weaker model's mistakes rather than correcting `deepfm_mtl_v1`'s
 own. `deepfm_mtl_v1` alone remains the right call.
+
+## 6. DIN sequence modeling (`deepfm_din_v1`) — a ranking tradeoff, not a clean win
+
+The starter kit README's own #2-ranked untested headroom item, and the last
+genuinely different, structurally untested lever after the four above all
+came back negative: attention over each user's recent watch history
+(Zhou et al. 2018, "Deep Interest Network"), on top of `deepfm_regularized`'s
+backbone. Built and unit-tested (`agent/model_zoo/deepfm_din.py`,
+`agent/sequences.py` — leakage-safe history construction, checked by
+`test_sequences_recent_history_never_leaks_the_future`) well before it was
+ever run against real data. Standalone check
+(`tools/check_sequence_model.py`), same treatment as `lgbm_baseline` —
+not wired into `agent/model_zoo/registry.py` or `agent/experiment.py`.
+
+First pass, `seq_len=10` (3 seeds, not itself logged as a Research Map
+node — superseded by the `seq_len=20` run below before either was
+committed to the map):
+
+| seed | valid primary | test primary |
+|---|---|---|
+| 0 | 0.6024 | 0.5963 |
+| 1 | 0.6033 | 0.5972 |
+| 2 | 0.6031 | 0.5959 |
+
+A small but consistent regression — worse than `deepfm_regularized`
+(valid 0.6035, test 0.5977) in all 3 of 3 runs, on both splits, every
+time. That one-directional consistency is the tell that this is a real
+(if mild) effect rather than noise: 10 videos of history apparently isn't
+enough context for the attention block to weigh usefully.
+
+Doubling the window to `seq_len=20` (3 seeds, logged as `deepfm_din_v1`,
+`parent_id=deepfm_regularized`) tests whether window length was the real
+limiting factor:
+
+| seed | valid primary | test primary |
+|---|---|---|
+| 0 | 0.6036 | 0.5974 |
+| 1 | 0.6034 | 0.5976 |
+| 2 | 0.6037 | 0.5969 |
+| **3-seed mean** | **0.6036 ± 0.0001** | **0.5973 ± 0.0003** |
+
+The regression disappears — but the automated Diagnosis Engine's read is
+more precise than "it's a tie": combining both sides' seed variance (not
+just eyeballing the point estimate), it tags this **`ranking_tradeoff`**:
+nDCG@5 improved (+0.0005, a real effect) while GAUC dropped (-0.0003, also
+real) — top-5 precision got slightly better, broader within-user ordering
+got slightly worse. Not a clean win, not a clean loss, and not noise
+either; a genuine mixed signal.
+
+**Honest conclusion:** DIN needs a long-enough history window to stop
+actively hurting (10 videos: consistent regression; 20 videos: the
+regression resolves into a trade-off), but even at `seq_len=20` it doesn't
+clear the bar to justify the added complexity and inference cost of a
+second embedding table + attention block. `deepfm_mtl_v1` remains the
+project-best. Logged as a proper Research Map node rather than left
+untested — the last item on the starter kit's own headroom list is now a
+real, reproducible number instead of an open question.
 
 ## Net effect on the project-best
 

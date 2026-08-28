@@ -80,10 +80,17 @@ From the Starter Kit README, tested and **no gain**:
    pairwise (BPR) or listwise (per-user softmax) is their top guess.
    **Done (P1):** `fm_bpr` -- 3 diagnosis-driven rounds, real but plateaued
    ~0.002 below baseline, see P1_FEATURES_AND_RESULTS.md.
-2. **User history / sequences**: zero sequential modeling currently exists
-   (DIN/SIM-style interest modeling is untouched). **Still open** -- the
-   next natural PyTorch target (attention backward pass is a genuinely
-   good autograd use case, same reasoning as deepfm_mtl below).
+2. **User history / sequences**: **Done (P2):**
+   `agent/model_zoo/deepfm_din.py` + `agent/sequences.py` -- DIN-style
+   attention (Zhou et al. 2018) over each user's recent watch history on
+   top of deepfm_regularized's backbone. Standalone check (same treatment
+   as lgbm_baseline), not wired into the Model Zoo registry.
+   `seq_len=10` (3 seeds): small, consistent regression (worse in 3/3
+   runs, both splits). `seq_len=20` (`deepfm_din_v1`, 3-seed verified):
+   valid 0.6036 +/- 0.0001, test 0.5973 +/- 0.0003 -- the regression
+   resolves, but the Diagnosis Engine tags it `ranking_tradeoff`, not a
+   win: nDCG@5 +0.0005 (real) vs. GAUC -0.0003 (real). deepfm_mtl_v1
+   remains project-best. See P2_FEATURES_AND_RESULTS.md §6.
 3. **Multi-task**: `is_click, is_like, is_follow, is_comment, is_forward,
    play_time_ms` all exist in the logs, unused as auxiliary signals.
    **Done (P2):** `agent/model_zoo/deepfm_mtl.py` -- first torch model in
@@ -351,14 +358,17 @@ alias stub in this environment that fails with no interpreter installed).
   came back a real, 3-seed-verified `clear_improvement` -- now the
   project-best). LightGBM also tried (`lgbm_baseline`, standalone, not
   integrated into the Model Zoo) -- see README "Multi-task learning" for
-  the full reasoning on both.
+  the full reasoning on both. DIN sequence modeling also tried
+  (`deepfm_din_v1`, standalone, `seq_len=20`) -- `ranking_tradeoff`
+  (nDCG@5 up, GAUC down), not a clean win; see
+  `docs/P2_FEATURES_AND_RESULTS.md` §6.
 - **Still not built from the P1 tier:** Per-Segment Metric Diagnosis,
   generalized (not per-node-id-hardcoded) diagnosis-driven candidate
   generation. `DeepFM_BPR` is a natural, cheap extension of what's already
   built. Sequence modeling (DIN/SIM-style, the starter kit's own #2-ranked
-  untested item) is the next natural PyTorch target -- attention's
-  backward pass is a genuinely good autograd use case, same reasoning as
-  `deepfm_mtl`.
+  untested item) is now done -- see the "Unexplored headroom" #2 entry
+  above and `docs/P2_FEATURES_AND_RESULTS.md` §6 (`deepfm_din_v1`,
+  `ranking_tradeoff`, not a win).
 - **Not yet built from Phase 4:** budget-aware stopping (the `budget` dict
   in the LLM prompt is informational only -- nothing changes behavior as it
   depletes), auto-triggering `verify_multiseed.py` when a new best node

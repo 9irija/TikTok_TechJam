@@ -18,13 +18,17 @@ google-genai>=1.0    # Gemini API client (free tier -- see CLAUDE.md's provider 
 python-dotenv>=1.0    # loads GEMINI_API_KEY from .env (gitignored; .env.example is the template)
 
 # ---------------------------------------------------------------------------
-# P2 Extended Model Zoo, first real use: agent/model_zoo/deepfm_mtl.py
-# (multi-task DeepFM with auxiliary is_like/is_follow/is_comment/is_forward
-# heads -- see docs/P2_FEATURES_AND_RESULTS.md). CPU-only wheel; autograd is a
-# genuine win here over hand-rolled backprop (unlike FM/DeepFM/FM_BPR, which
-# stay numpy-only on purpose -- see their own docstrings) because a 5-headed
+# P2 Extended Model Zoo: agent/model_zoo/deepfm_mtl.py (multi-task DeepFM
+# with auxiliary is_like/is_follow/is_comment/is_forward heads -- see
+# docs/P2_FEATURES_AND_RESULTS.md). CPU-only wheel; autograd is a genuine win
+# here over hand-rolled backprop (unlike FM/DeepFM/FM_BPR, which stay
+# numpy-only on purpose -- see their own docstrings) because a 5-headed
 # shared-bottom network's backward pass is exactly what autograd is for.
 # deepfm_mtl_v1 (3-seed verified) is the current project-best.
+# Also used by agent/model_zoo/deepfm_din.py (DIN-style attention over user
+# history, same autograd rationale for its attention block's backward pass;
+# standalone-checked via tools/check_sequence_model.py, not registered in
+# the Model Zoo -- deepfm_din_v1 came back ranking_tradeoff, not a win).
 torch>=2.0
 
 # ---------------------------------------------------------------------------

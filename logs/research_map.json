@@ -1921,6 +1921,132 @@
       "diagnosis_tag": "regression",
       "created_at": 1787900600.7236865,
       "updated_at": 1787900600.733838
+    },
+    "deepfm_din_v1": {
+      "node_id": "deepfm_din_v1",
+      "config": {
+        "id": "deepfm_din_v1",
+        "model": "deepfm_din",
+        "hypothesis": "DIN-style attention (Zhou et al. 2018) over each user's recent watch history should let the model weigh past videos by relevance to the candidate video, on top of deepfm_regularized's backbone. An earlier seq_len=10 ablation (3 seeds, not logged as its own node) came back a small but consistent regression (valid -0.0006, test -0.0012, same direction all 3 seeds) -- too short a history to give the attention block anything useful to weigh. This config doubles the window to seq_len=20 to test whether that was the real limiting factor.",
+        "hyperparams": {
+          "k": 16,
+          "hidden": [
+            128,
+            64
+          ],
+          "lr": 0.001,
+          "l2": 0.0001,
+          "seq_len": 20,
+          "epochs": 20,
+          "patience": 5
+        },
+        "fields": [
+          "user_id",
+          "video_id",
+          "author_id",
+          "tab",
+          "dur_bucket"
+        ],
+        "parent_id": "deepfm_regularized",
+        "seeds": [
+          0,
+          1,
+          2
+        ],
+        "notes": "Standalone check (tools/check_sequence_model.py --seq_len 20), same methodology as lgbm_baseline -- not wired into agent/model_zoo/ or agent/experiment.py's training loop; result recorded here for the audit trail even though no reusable pipeline code was added. seq_len=10 ablation (seeds 0/1/2: valid 0.6024/0.6033/0.6031, test 0.5963/0.5972/0.5959) is the supporting evidence for the hypothesis above and is not itself a Research Map node.",
+        "edge_type": null
+      },
+      "edge_type": "improve",
+      "parent_id": "deepfm_regularized",
+      "status": "done",
+      "fidelity": "100pct",
+      "metrics": {
+        "n_seeds": 3,
+        "valid": {
+          "GAUC_mean": 0.6695666666666666,
+          "GAUC_std": 0.00023570226039554222,
+          "nDCG@5_mean": 0.5375333333333333,
+          "nDCG@5_std": 0.00032998316455373815,
+          "primary_mean": 0.6035666666666667,
+          "primary_std": 0.00012472191289245098
+        },
+        "test": {
+          "GAUC_mean": 0.6639333333333334,
+          "GAUC_std": 0.0005906681715556321,
+          "nDCG@5_mean": 0.5307333333333333,
+          "nDCG@5_std": 0.00020548046676565794,
+          "primary_mean": 0.5973,
+          "primary_std": 0.00029439202887761274
+        },
+        "delta_vs_baseline_test": {
+          "delta_GAUC": 0.0029333333333333433,
+          "delta_nDCG@5": 0.0025333333333332764,
+          "delta_primary_mean": 0.00273333333333331
+        },
+        "per_seed": [
+          {
+            "seed": 0,
+            "best_epoch": 10,
+            "epochs_run": 15,
+            "experiment_id": "deepfm_din_v1",
+            "num_params": 825697,
+            "train_fraction": 1.0,
+            "wall_time_s": 33.9,
+            "valid": {
+              "GAUC": 0.6699,
+              "nDCG@5": 0.5373,
+              "primary": 0.6036
+            },
+            "test": {
+              "GAUC": 0.6644,
+              "nDCG@5": 0.5305,
+              "primary": 0.5974
+            }
+          },
+          {
+            "seed": 1,
+            "best_epoch": 4,
+            "epochs_run": 9,
+            "experiment_id": "deepfm_din_v1",
+            "num_params": 825697,
+            "train_fraction": 1.0,
+            "wall_time_s": 19.8,
+            "valid": {
+              "GAUC": 0.6694,
+              "nDCG@5": 0.5373,
+              "primary": 0.6034
+            },
+            "test": {
+              "GAUC": 0.6643,
+              "nDCG@5": 0.531,
+              "primary": 0.5976
+            }
+          },
+          {
+            "seed": 2,
+            "best_epoch": 7,
+            "epochs_run": 12,
+            "experiment_id": "deepfm_din_v1",
+            "num_params": 825697,
+            "train_fraction": 1.0,
+            "wall_time_s": 26.2,
+            "valid": {
+              "GAUC": 0.6694,
+              "nDCG@5": 0.538,
+              "primary": 0.6037
+            },
+            "test": {
+              "GAUC": 0.6631,
+              "nDCG@5": 0.5307,
+              "primary": 0.5969
+            }
+          }
+        ]
+      },
+      "insight": "nDCG@5 improved (+0.0005) but GAUC dropped (-0.0003): top-5 precision got better, but broader ordering got worse -- likely overfit to head items/short lists.",
+      "diagnosis_tag": "ranking_tradeoff",
+      "created_at": 1787938278.736576,
+      "updated_at": 1787938278.7388039
     }
   }
 }

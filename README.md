@@ -289,6 +289,22 @@ local optimum. Also caught and fixed a real concurrency bug along the way
 another background process — this project runs several at once by
 design). Full detail: [`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §4.
 
+**DIN sequence modeling — the starter kit's own last untested headroom
+item, now a real number.** `agent/model_zoo/deepfm_din.py` +
+`agent/sequences.py` add DIN-style attention (Zhou et al. 2018) over each
+user's recent watch history on top of `deepfm_regularized`'s backbone —
+built and unit-tested well before ever being run against real data.
+Standalone check (`tools/check_sequence_model.py`), same treatment as
+LightGBM. A `seq_len=10` first pass came back a small, consistent
+regression across all 3 seeds; doubling to `seq_len=20`
+(`deepfm_din_v1`, `parent_id=deepfm_regularized`, 3-seed-verified: valid
+0.6036 ± 0.0001, test 0.5973 ± 0.0003) made the regression disappear, but
+the Diagnosis Engine's seed-aware read is more precise than "a tie": it's
+tagged `ranking_tradeoff` — nDCG@5 genuinely improved (+0.0005) while GAUC
+genuinely dropped (-0.0003). Not a clean win; `deepfm_mtl_v1` remains the
+project-best. Full detail, including the `seq_len=10` ablation:
+[`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §6.
+
 ## Engineered features — a real negative result, and a real bug it surfaced
 
 `agent/features.py` adds 4 new fields on top of the starter kit's base 5:
@@ -376,11 +392,17 @@ Critic Gate + dashboard):
 - **Best-First Selector's cost/gain model is a simple heuristic**, not
   learned or calibrated — reasonable with almost no historical data per
   model family yet, worth revisiting once the Research Map has more nodes.
-- **`docs/dashboard.html` is generated once, by hand**, from a snapshot of
-  the Research Map at the time it was written — not regenerated
-  automatically from `logs/research_map.json` on every run. A real next
-  step: a small script that re-emits the `NODES` array from the live JSON
-  instead of the current hand-transcribed data block.
+- ~~`docs/dashboard.html` is generated once, by hand~~ — **fixed**:
+  `tools/generate_dashboard.py` now regenerates the `NODES` array (and the
+  "nodes explored" stat tile) directly from `logs/research_map.json`,
+  with `--check` for a pre-demo staleness check. Regenerating it while
+  adding `deepfm_din_v1` caught a real, pre-existing ordering bug in the
+  old hand-transcribed data (`lgbm_baseline` was listed before
+  `deepfm_mtl_v1`/`features_v1`, the wrong chronological order per
+  `created_at` — exactly the class of drift this script now prevents).
+  Two fields still aren't derivable from the Research Map schema (`phase`,
+  whether the LLM proposed it) and stay in an explicit, required
+  `PHASE_OVERRIDES` table in the script rather than being guessed.
 
 **Verified, not just claimed** (worth stating plainly, since this is
 exactly the kind of thing that's easy to assert and never check): OOM
