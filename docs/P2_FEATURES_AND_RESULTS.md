@@ -1,9 +1,10 @@
-# P2 — Engineered Features, Multi-Task Learning, LightGBM, Hyperparameter Search
+# P2 — Engineered Features, Multi-Task Learning, LightGBM, Hyperparameter Search, Ensembling
 
-Four experiments closing real gaps left open by CLAUDE.md's roadmap
+Five experiments closing real gaps left open by CLAUDE.md's roadmap
 ("Multi-Task Feature Exploitation", "TikTok-disclosed features", "Extended
-Model Zoo", "Hyperparameter Search"), run and 3-seed-verified where the
-result warranted it. Three of four are negative results, reported exactly
+Model Zoo", "Hyperparameter Search") plus one more tried on the user's
+explicit "optimise further" request, run and 3-seed-verified where the
+result warranted it. Four of five are negative results, reported exactly
 as measured — the honest signal here is which levers this specific
 benchmark actually responds to, not a scoreboard of wins. One of those
 negative results (the hyperparameter search) also surfaced and fixed a
@@ -218,6 +219,25 @@ this search space, at least at this trial budget. Logged as a proper
 Research Map node (`deepfm_mtl_v1_hpo`, tagged `regression`) rather than
 discarded — a real, reportable negative result, same standard as
 `features_v1` and `lgbm_baseline` above.
+
+## 5. Ensembling — also tried, also negative, and honestly explained
+
+A standalone check (not a Research Map node — ensembling blends already-
+trained predictions, it doesn't fit the `ExperimentConfig`/Model Zoo
+schema): every already-cached prediction pair/triple among
+`deepfm_mtl_v1`, `deepfm_regularized`, `fm_bpr_slow_and_steady`,
+`fm_baseline_repro`, `features_v1` was z-score-normalized (each model's
+valid-split mean/std) and averaged, scored on validation only. Best
+combination found (`deepfm_mtl_v1 + fm_baseline_repro`): valid primary
+0.6045 — still below `deepfm_mtl_v1` alone (0.6049, same single-seed
+cached predictions). No combination tried beat the single best model.
+
+Makes sense on reflection, not just an unlucky search: ensembling helps
+most when blending models of comparable strength with different error
+patterns. `deepfm_mtl_v1` is meaningfully stronger than everything else in
+this Research Map, so averaging it with a weaker model pulls the blend
+toward the weaker model's mistakes rather than correcting `deepfm_mtl_v1`'s
+own. `deepfm_mtl_v1` alone remains the right call.
 
 ## Net effect on the project-best
 
