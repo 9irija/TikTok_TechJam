@@ -107,14 +107,15 @@ recorded purely for our own tracking parity with `baseline.py`. Keep it that
 way in any change you make; it's the single easiest rule to accidentally
 break while iterating fast.
 
-## Architecture (Phase 0 + P1 -- what's built)
+## Architecture (Phase 0 + P1 + Phase 4 -- what's built)
 
 ```
 run.py                     Phase 0 entry point: python run.py
 run_p1.py                   P1 entry point: python run_p1.py (run Phase 0 first at least once)
+run_p4.py                    Phase 4 entry point: python run_p4.py (needs GEMINI_API_KEY in .env)
 agent/
   paths.py                  sys.path wiring into kuairand-starter-kit/
-  config.py                  Structured Experiment Interface (ExperimentConfig, diff_configs)
+  config.py                  Structured Experiment Interface (ExperimentConfig, diff_configs, edge_type)
   evaluator.py                 wraps evaluate.py exactly + harness self-check (random -> ~0.4834 valid)
   convergence.py                epsilon/N read live from baseline_scores.json
   cache.py                       disk cache for encoded training data (~66x faster on a cache hit)
@@ -134,20 +135,30 @@ agent/
   research_map.py              [P1] persistent, tree-structured Research Map (logs/research_map.json)
   diagnosis.py                  [P1] Metric-Aware Diagnosis Engine, seed-aware significance (not flat epsilon)
   multi_fidelity.py              [P1] 1%->10%->100% staged runner, kills clearly-broken candidates cheaply
-  selector.py                     [P1] Best-First Node Selector: gain x confidence x novelty / cost
+  selector.py                     [P1] Best-First Node Selector: gain x confidence x novelty / cost (no LLM)
   p1_orchestrator.py               [P1] ties the above together; seeds the map from Phase 0's run_log.jsonl
+  llm_client.py                     [Phase 4] Gemini API wrapper (free tier), retry logic
+  research_strategist.py             [Phase 4] builds the prompt from the Research Map, validates the LLM's
+                                       proposed ExperimentConfig against the model registry before executing it
+  p4_orchestrator.py                  [Phase 4] swaps P1's candidate source for the Strategist; reuses P1's
+                                        Multi-Fidelity Runner + Diagnosis Engine completely unchanged
 tools/
   generate_analysis.py         logs/run_log.jsonl -> logs/analysis_report.md (the Run & Iteration Log deliverable)
+  verify_multiseed.py            [Phase 4] promotes a single-seed Research Map node to a 3-seed-verified one
 tests/
   test_foundation.py            plain-assert smoke tests (no pytest in this env), run: python tests/test_foundation.py
+                                  -- Phase 4's LLM calls are tested via a mock client, never a real API call
 experiments/                  generated per run, run-scoped (<run_id>/iter_001/, <run_id>/iter_002/, ...)
                                  -- a second run gets its own subdirectory, never overwrites a prior one
 logs/                          run_log.jsonl (shared, append-only, run_id per entry), run_summary.json,
-                                 analysis_report.md (Phase 0), research_map.json + p1_round_report.json (P1)
+                                 analysis_report.md (Phase 0), research_map.json (shared, persistent, P1+Phase 4),
+                                 p1_round_report.json (P1), p4_run_report.json (Phase 4, real llm_tokens_total)
 kuairand-starter-kit/          organizer's code, UNMODIFIED (evaluate.py/data.py/submit.py/baseline.py)
   KuaiRand-Pure/data/            downloaded dataset (gitignored -- see Quick start)
-docs/                         the full PS + brainstorm doc, PDF, its 2 extracted diagrams, and both
-                                Phase 0 / P1 features+results writeups
+docs/                         the full PS + brainstorm doc, PDF, its 2 extracted diagrams, and the
+                                Phase 0 / P1 / Phase 4 features+results writeups
+.env / .env.example            GEMINI_API_KEY -- .env is gitignored (real key), .env.example is the
+                                 committed template (empty value) -- NEVER put a real key in .env.example
 ```
 
 ### Design decisions worth knowing before you change anything
@@ -180,16 +191,35 @@ docs/                         the full PS + brainstorm doc, PDF, its 2 extracted
   genuinely novel ideas cost real tokens."* `diff_configs()` in
   `agent/config.py` produces the "code diff applied" field the Run &
   Iteration Log deliverable asks for, for every config-driven experiment.
-  Once Phase 4 lets the LLM write raw code for a genuinely novel idea, THAT
-  diff should be a real unified diff of the generated file, logged
-  alongside (not instead of) the config diff.
+  Phase 4's LLM still only ever proposes a structured config too (see
+  below) -- there is no code-generation call anywhere in this codebase yet;
+  if that's ever added for a genuinely novel idea, THAT diff should be a
+  real unified diff of the generated file, logged alongside (not instead
+  of) the config diff.
+- **The LLM never executes anything it returns directly.** `research_strategist.py`'s
+  `_validate_and_build()` is a real Validation Gate: unknown model name,
+  non-existent `parent_id`, wrong hyperparameter types, missing fields are
+  all rejected with a specific error fed back to the LLM as a re-prompt
+  (`max_validation_retries`, default 2) before giving up and returning
+  `None` -- the caller logs that and moves on, never crashes. Tested with a
+  mock client (`_FakeGeminiClient` in `tests/test_foundation.py`) so the
+  test suite makes zero real API calls.
+- **Gemini (free tier), not Anthropic/OpenAI** -- the problem statement
+  doesn't mandate a provider; a genuinely $0 token cost is a cleaner,
+  more defensible number for Feasibility & Practicality than an estimated
+  dollar figure from a paid API. `GEMINI_MODEL` env var overrides
+  `agent/llm_client.py`'s `DEFAULT_MODEL` if Google retires the current one
+  again (already happened once during this project -- `gemini-2.0-flash`
+  was retired mid-build, caught by a live API call returning 404 with the
+  replacement name in the error message, not by advance knowledge).
 - **Convergence Detector reads epsilon/N from `baseline_scores.json` at
   runtime**, never hardcoded, so a republished Starter Kit value is picked
   up automatically.
-- **Lineage field pre-wired, tree not built yet.** `ExperimentConfig.parent_id`
-  exists in Phase 0's flat predefined list purely so P1's Research Map /
-  Experiment Tree (AIDE-style: node = full config, edges = modification
-  type) doesn't require a schema migration later -- see Roadmap.
+- **Lineage was pre-wired in Phase 0, the tree is now built and in active
+  use.** `ExperimentConfig.parent_id` (Phase 0) plus `edge_type` (added in
+  P1) are what `agent/research_map.py`'s persistent tree runs on --
+  draft/improve/debug edges, AIDE-style. Both P1's hand-authored candidates
+  and Phase 4's LLM proposals set these on every node.
 
 ## Quick start
 
@@ -210,6 +240,16 @@ python run.py --timeout_s 120      # tighter per-experiment recovery budget
 
 # 4. Regenerate the Run & Iteration Log deliverable from logs/run_log.jsonl
 python tools/generate_analysis.py --stdout
+
+# 5. Run a P1 round (persistent Research Map, Best-First Selector, Multi-Fidelity Runner)
+python run_p1.py
+
+# 6. Run a Phase 4 round (LLM Research Strategist) -- needs GEMINI_API_KEY in .env
+#    (copy .env.example; get a free key at https://aistudio.google.com/apikey)
+python run_p4.py --max_iterations 2
+
+# 7. Promote a promising single-seed result to 3-seed-verified
+python tools/verify_multiseed.py <node_id>
 ```
 
 Windows notes: use `python`, not `python3` (the latter is a Microsoft Store
@@ -222,70 +262,77 @@ alias stub in this environment that fails with no interpreter installed).
 |---|---|
 | Technical Execution (35%) — primary metric | `agent/evaluator.py` (exact scoring), `agent/model_zoo/` |
 | Technical Execution — robustness | `agent/recovery.py` (subprocess isolation, retry, degraded fallback) |
-| Innovation & Problem Insight (20%) | Hypotheses in `PREDEFINED_EXPERIMENTS` (orchestrator.py) + `p1_candidate_pool()` citing starter-kit headroom + prior work; `agent/research_map.py` (persistent tree) + `agent/diagnosis.py` (why, not just what) |
-| Impact & Relevance (20%) — autonomy | `RunLogger.manual_intervene()` -- every human nudge counted, logged, never silent; `agent/selector.py`'s scored best-first order (not source order) is a real, if not yet LLM-driven, autonomy step |
-| Feasibility & Practicality (15%) | `Orchestrator.wall_time_total_s` / `llm_tokens_total` / `gpu_hours_total` in `run_summary.json` |
+| Innovation & Problem Insight (20%) | Hypotheses in `PREDEFINED_EXPERIMENTS`/`p1_candidate_pool()` citing starter-kit headroom + prior work; `agent/research_map.py` (persistent tree) + `agent/diagnosis.py` (why, not just what); Phase 4's LLM finding a gap (DeepFM overfitting) the hand-authored logic missed -- see `docs/PHASE4_RESULTS.md` |
+| Impact & Relevance (20%) — autonomy | `RunLogger.manual_intervene()` -- every human nudge counted, logged, never silent; Phase 4's full run (propose -> validate -> execute -> diagnose -> record) with 0 manual interventions is the real autonomy story, not `agent/selector.py`'s heuristic (still useful, but not LLM-driven) |
+| Feasibility & Practicality (15%) | `wall_time_total_s` / `gpu_hours_total` throughout; `llm_tokens_total` is real (not structurally zero) only in `logs/p4_run_report.json` -- Gemini free tier means it's also genuinely $0, not an estimate |
 | Presentation (10%, final only) | `tools/generate_analysis.py` report; dashboard artifact (P2, pulled forward per doc's own advice -- not built yet, see Roadmap) |
 | Deliverable: Run & Iteration Logs | `logs/run_log.jsonl` + `experiments/<run_id>/iter_*/` + `tools/generate_analysis.py` -> `logs/analysis_report.md` |
-| Deliverable: Final submission | `agent/submission.py` writes+validates `submission_valid.csv` / `submission_test.csv` |
+| Deliverable: Final submission | `agent/submission.py` writes+validates `submission_valid.csv` / `submission_test.csv` -- currently `deepfm_regularized` (Phase 4), 3-seed verified |
 
-## Roadmap (from the brainstorm doc -- Phase 0 + the two highest-ROI P1 items are DONE; this is what's next)
+## Roadmap (Phase 0 + P1 + Phase 4 are DONE; P2 and the numbered Phase 3/5/6 items are what's left)
 
-- **Phase 0 (done, validated end-to-end against real data, 3-seed
-  robustness-checked):** all 8 P0 "Foundation" features -- Orchestrator,
-  Model Zoo (FM+DeepFM), Evaluator Wrapper, Convergence Detector, Structured
-  Experiment Interface, Structured Run Log, Failure Recovery, Submission
-  Validator. A real run converges automatically (ε/N rule) and **beats the
-  official baseline** (test primary +0.0029 on the submitted seed, +0.0030
-  as a 3-seed mean, ~8.9σ above the measured noise floor -- GAUC +0.0033,
-  nDCG@5 +0.0024), 0 manual interventions. Full writeup:
-  [`docs/PHASE0_FEATURES_AND_IMPROVEMENTS.md`](docs/PHASE0_FEATURES_AND_IMPROVEMENTS.md).
-- **P1 (done, one round, validated end-to-end):** the brainstorm doc's own
-  "highest-ROI pair" -- Research Map / Experiment Tree (persistent,
-  AIDE-style edges) + Multi-Fidelity Runner (1%→10%→100% staged) -- plus the
-  Best-First Node Selector and Metric-Aware Diagnosis Engine needed to make
-  them functional, plus one new algorithmic direction (FM_BPR, pairwise
-  loss). Real round result: **two honest negative results** (BPR
-  underperformed with unchanged pointwise hyperparameters, `k=32`
-  independently reproduces a documented dead end), each with a specific,
-  actionable diagnosis rather than just a lower number. Full writeup,
-  including two more real bugs found + fixed during this pass's own
-  validation (a 12h host-sleep wall-clock measurement bug, a
-  PYTHONHASHSEED reproducibility gap, and a Diagnosis Engine fix that
-  corrected a false "noise_floor" label on a real ~8.9σ effect):
+- **Phase 0 (done):** all 8 P0 "Foundation" features. Converges
+  automatically, **beat the official baseline** (test primary +0.0029 on
+  the submitted seed at the time, +0.0030 3-seed mean, ~8.9σ above noise),
+  0 manual interventions. Superseded as "project best" by Phase 4 (below),
+  still the reference for the largest single jump over the official
+  baseline. Full writeup: [`docs/PHASE0_FEATURES_AND_IMPROVEMENTS.md`](docs/PHASE0_FEATURES_AND_IMPROVEMENTS.md).
+- **P1 (done, 3 rounds):** the brainstorm doc's own "highest-ROI pair" --
+  Research Map / Experiment Tree + Multi-Fidelity Runner -- plus the
+  Best-First Node Selector, Metric-Aware Diagnosis Engine, and one new
+  algorithmic direction (FM_BPR, pairwise loss). 3 rounds of
+  diagnosis-driven iteration on BPR (round 1 hand-authored, rounds 2-3
+  automated + hand-authored reactions to its own diagnosis) recovered
+  +0.0013 and fixed BPR's training dynamics, but plateaued ~0.002 below
+  baseline -- a real, reported, incomplete trend, not a clean win. Also
+  found + fixed 3 real bugs (a 12h host-sleep wall-clock measurement bug
+  now using `time.process_time()`; a PYTHONHASHSEED reproducibility gap;
+  a Diagnosis Engine fix for a false "noise_floor" label on a real ~8.9σ
+  effect -- read *why* before touching this logic again). Full writeup:
   [`docs/P1_FEATURES_AND_RESULTS.md`](docs/P1_FEATURES_AND_RESULTS.md).
-  Read both docs before touching `agent/` performance-sensitive or
-  statistics code again -- they document *why* several non-obvious things
-  are the way they are (`time.process_time()` not `time.time()`; `sorted()`
-  over a set of string keys; a seed-aware significance bar instead of a flat
-  epsilon) so a "cleanup" pass doesn't quietly reintroduce a fixed bug.
+- **Phase 4 (done, LLM research reasoning) -- the actual differentiator,
+  and it delivered:** `agent/research_strategist.py` + `agent/llm_client.py`
+  (Gemini, free tier -- $0 real cost) replace the hand-authored candidate
+  pools. On its first real run: proposed `deepfm_regularized` (raised L2 on
+  `deepfm_wider`'s architecture, reasoning from *both* DeepFM nodes'
+  `overfitting_risk` flags -- a gap P1's own hand-authored logic never
+  acted on), **3-seed-verified as a real improvement** (0.6035±0.0002 vs.
+  0.6028, `clear_improvement`) -- **this is now the project-best result**,
+  reflected in `submission_valid.csv`/`submission_test.csv`. Iteration 2's
+  proposal was a genuine regression, correctly caught and reported, not
+  hidden. `tools/verify_multiseed.py` (new this pass) promotes a promising
+  single-seed result to 3-seed-verified on demand. Full writeup:
+  [`docs/PHASE4_RESULTS.md`](docs/PHASE4_RESULTS.md).
 - **Not yet built from the P1 tier:** Multi-Task Feature Exploitation,
   TikTok-disclosed features (completion rate, rewatch flag, fast-skip,
-  creator aggregates), Per-Segment Metric Diagnosis. `DeepFM_BPR` (pairwise
-  loss + the deep component) is a natural, cheap extension of what's
-  already built. P1 is currently **one round**, not a loop -- the candidate
-  pool is a fixed 2-item list; extending it (more hand-authored "improve"
-  templates reacting to each round's diagnosis) is the natural next step
-  before Phase 4's LLM replaces hand-authoring entirely.
-- **Phase 3 (Model Zoo + tuning):** fill out DCNv2/Wide&Deep/LightGBM (needs
-  torch/sklearn — currently absent from this env, install when this phase starts).
-- **Phase 4 (LLM research reasoning) -- the actual differentiator:** replace
-  the hand-authored candidate pools (`PREDEFINED_EXPERIMENTS`,
-  `p1_candidate_pool()`) with an LLM-driven Research Strategist that reads
-  dataset summary + metric history + the Research Map + budget remaining and
-  outputs `{hypothesis, experiment, reasoning, expected_effect, cost, priority}`
-  -- `agent/selector.py`'s scoring formula and `agent/diagnosis.py`'s
-  insights are exactly the *input context* this strategist would consume;
-  neither needs to change shape when Phase 4 starts. This is also where
-  `llm_tokens_total` in `run_summary.json` starts being real instead of
-  structurally zero.
-- **P2 stretch, but the doc explicitly says pull the dashboard earlier:**
-  *"Consider building the dashboard/log-replay earlier than its P2 slot
-  suggests -- it's cheap and it's your closing argument."* Generate an HTML
-  dashboard from `logs/run_log.jsonl` + `logs/research_map.json` (Claude's
-  `dataviz` skill covers chart/palette conventions; `artifact-design` before
-  publishing as an Artifact) — a good next session's first task now that
-  both logs have real, multi-node content.
+  creator aggregates), Per-Segment Metric Diagnosis, generalized
+  (not per-node-id-hardcoded) diagnosis-driven candidate generation.
+  `DeepFM_BPR` is a natural, cheap extension of what's already built.
+- **Not yet built from Phase 4:** budget-aware stopping (the `budget` dict
+  in the LLM prompt is informational only -- nothing changes behavior as it
+  depletes), auto-triggering `verify_multiseed.py` when a new best node
+  appears, generating the prompt's "dead ends" section from the Research
+  Map's own tags instead of a hand-maintained string. See
+  `docs/PHASE4_RESULTS.md` §6 for the complete list.
+- **Phase 3 (Model Zoo + tuning) -- partially covered:** FM/DeepFM/FM_BPR
+  done; DCNv2/Wide&Deep/LightGBM need torch/sklearn (not installed in this
+  env, install when this phase starts). Hyperparameter search (Optuna) not
+  started.
+- **Phase 5 (multi-fidelity + early termination) -- done**, built as part
+  of the P1 tier (`agent/multi_fidelity.py`) rather than as a separate
+  numbered phase; nothing further needed here specifically.
+- **Phase 6 (recovery, polish & bonus) -- partially covered:** Failure
+  Recovery (OOM/timeout/crash handling) done as part of P0. Not done:
+  bonus benchmarks (KuaiRand-1k/27k), a Research Critic Gate.
+- **P2 stretch (the last tier, per the brainstorm doc's own P0/P1/P2
+  framing):** Research Critic Gate, Extended Model Zoo (needs torch),
+  Hyperparameter Search (Optuna), Live Dashboard, Checkpointing,
+  Config-Driven Scale-Up for bonus benchmarks. The doc explicitly flags the
+  dashboard as worth pulling forward -- *"cheap and it's your closing
+  argument"* -- generate one from `logs/run_log.jsonl` +
+  `logs/research_map.json` (now with real, multi-node, multi-phase content
+  including an actual LLM-vs-hand-authored comparison to show) using
+  Claude's `dataviz`/`artifact-design` skills.
 
 ## Open questions from the brainstorm doc, still open
 

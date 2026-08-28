@@ -249,6 +249,85 @@ def test_multi_fidelity_kills_a_broken_config():
     assert result.killed_at == "1pct", f"should be killed at the first (cheapest) stage, got {result.killed_at}"
 
 
+class _FakeLLMResponse:
+    """Duck-types agent.llm_client.LLMResponse without a real API call."""
+    def __init__(self, total_tokens=50):
+        self.total_tokens = total_tokens
+
+
+class _FakeGeminiClient:
+    """No network call -- returns a scripted sequence of raw dicts, so the
+    Research Strategist's validation-gate + re-prompt-and-retry logic can
+    be tested deterministically and for free."""
+    def __init__(self, scripted_responses):
+        self._responses = list(scripted_responses)
+        self.calls = 0
+
+    def generate_json(self, prompt, max_retries=3, backoff_s=2.0):
+        self.calls += 1
+        return self._responses.pop(0), _FakeLLMResponse()
+
+
+def test_research_strategist_accepts_a_valid_proposal():
+    import tempfile
+    from agent.research_map import ResearchMap
+    from agent.research_strategist import propose_next_experiment
+
+    with tempfile.TemporaryDirectory() as d:
+        map = ResearchMap(Path(d) / "map.json")
+        root = ExperimentConfig(id="root", model="fm", hypothesis="h")
+        map.add_node(root, edge_type="draft")
+        map.update_node("root", status="done", metrics={"valid": {"primary_mean": 0.60}, "per_seed": []})
+
+        valid_raw = {
+            "id": "llm_candidate_1", "hypothesis": "test", "model": "fm",
+            "hyperparams": {"k": 16, "lr": 0.001, "l2": 1e-6, "batch": 8192, "epochs": 40, "patience": 4},
+            "parent_id": "root", "edge_type": "improve", "reasoning": "test reasoning",
+            "expected_metric_effect": {"gauc": "up", "ndcg": "up"}, "estimated_cost_s": 90, "priority": 0.8,
+        }
+        client = _FakeGeminiClient([valid_raw])
+        proposal, meta = propose_next_experiment(map, {"iterations_remaining": 1}, client=client)
+        assert proposal is not None, "a well-formed proposal must be accepted"
+        assert proposal.config.model == "fm"
+        assert proposal.config.parent_id == "root"
+        assert meta["tokens"] == 50
+        assert client.calls == 1, "a valid first response should not trigger a retry"
+
+
+def test_research_strategist_rejects_and_retries_an_invalid_proposal():
+    import tempfile
+    from agent.research_map import ResearchMap
+    from agent.research_strategist import propose_next_experiment
+
+    with tempfile.TemporaryDirectory() as d:
+        map = ResearchMap(Path(d) / "map.json")
+
+        bad_raw = {  # unknown model -- must be rejected by the validation gate, not executed
+            "id": "llm_candidate_bad", "hypothesis": "test", "model": "this_model_does_not_exist",
+            "hyperparams": {"k": 16}, "parent_id": None, "edge_type": "draft",
+            "reasoning": "test", "expected_metric_effect": {"gauc": "up", "ndcg": "up"},
+            "estimated_cost_s": 90, "priority": 0.5,
+        }
+        good_raw = {
+            "id": "llm_candidate_fixed", "hypothesis": "test", "model": "fm",
+            "hyperparams": {"k": 16, "lr": 0.001}, "parent_id": None, "edge_type": "draft",
+            "reasoning": "test", "expected_metric_effect": {"gauc": "up", "ndcg": "up"},
+            "estimated_cost_s": 90, "priority": 0.5,
+        }
+        client = _FakeGeminiClient([bad_raw, good_raw])
+        proposal, meta = propose_next_experiment(map, {"iterations_remaining": 1}, client=client)
+        assert proposal is not None, "should recover via retry after one invalid response"
+        assert proposal.config.model == "fm"
+        assert client.calls == 2, "an invalid first response must trigger exactly one re-prompt"
+        assert any(e["kind"] == "validation_error" for e in meta["events"])
+
+        # Every attempt invalid -> must return None, never raise, never execute garbage.
+        client2 = _FakeGeminiClient([bad_raw, bad_raw, bad_raw])
+        proposal2, meta2 = propose_next_experiment(map, {"iterations_remaining": 1},
+                                                     client=client2, max_validation_retries=2)
+        assert proposal2 is None, "exhausting all validation retries must return None, not raise"
+
+
 def test_recovery_catches_broken_config():
     from agent.recovery import run_with_recovery
     bad_config = ExperimentConfig(
@@ -276,6 +355,8 @@ def main() -> int:
         test_research_map_basic,
         test_diagnosis_rules,
         test_selector_scores_candidates,
+        test_research_strategist_accepts_a_valid_proposal,
+        test_research_strategist_rejects_and_retries_an_invalid_proposal,
     ]
     if data_dir_available():
         tests.insert(0, test_evaluator_self_check)

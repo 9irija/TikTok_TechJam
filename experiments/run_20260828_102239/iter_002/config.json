@@ -1,0 +1,30 @@
+{
+  "id": "deepfm_higher_l2",
+  "model": "deepfm",
+  "hypothesis": "deepfm_regularized achieved our current best primary score (0.6035), but its diagnosis engine flagged overfitting_risk with the best validation epoch occurring at ~38% of training length. Increasing L2 regularization (from default ~1e-4/1e-3 to 1e-2) and lowering learning rate slightly will slow down training convergence, allowing the deep MLP interactions to generalize better across user impression sessions without overfitting.",
+  "hyperparams": {
+    "k": 16,
+    "lr": 0.0005,
+    "l2": 0.01,
+    "batch": 2048,
+    "epochs": 20,
+    "patience": 5,
+    "hidden": [
+      64,
+      32
+    ]
+  },
+  "fields": [
+    "user_id",
+    "video_id",
+    "author_id",
+    "tab",
+    "dur_bucket"
+  ],
+  "parent_id": "deepfm_regularized",
+  "seeds": [
+    0
+  ],
+  "notes": "LLM-proposed (Phase 4 Research Strategist). priority=0.95",
+  "edge_type": "improve"
+}

@@ -1,0 +1,30 @@
+{
+  "id": "deepfm_regularized",
+  "model": "deepfm",
+  "hypothesis": "Both deepfm_default and deepfm_wider achieved top validation scores (~0.6028) but were flagged for overfitting_risk with peak validation performance occurring at only ~33-40% of training epochs. Increasing L2 regularization (from 1e-5 to 1e-4) will slow down overfitting on the MLP/embeddings, allowing deeper training without degradation.",
+  "hyperparams": {
+    "k": 16,
+    "lr": 0.001,
+    "l2": 0.0001,
+    "batch": 8192,
+    "epochs": 20,
+    "patience": 5,
+    "hidden": [
+      128,
+      64
+    ]
+  },
+  "fields": [
+    "user_id",
+    "video_id",
+    "author_id",
+    "tab",
+    "dur_bucket"
+  ],
+  "parent_id": "deepfm_wider",
+  "seeds": [
+    0
+  ],
+  "notes": "LLM-proposed (Phase 4 Research Strategist). priority=0.85",
+  "edge_type": "improve"
+}

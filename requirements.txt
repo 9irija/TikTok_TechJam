@@ -1,13 +1,21 @@
-# Phase 0 (this repo, right now): numpy only, matching the starter kit's own
-# zero-dependency philosophy ("numpy only (no torch / pandas / scikit-learn)").
-# `agent/` (evaluator, convergence, FM, DeepFM, orchestrator, recovery,
-# logging, submission validator) imports nothing beyond this line.
+# Phase 0 + P1 (agent/, run.py, run_p1.py): numpy only, matching the starter
+# kit's own zero-dependency philosophy ("numpy only, no torch / pandas /
+# scikit-learn"). Evaluator, convergence, FM, DeepFM, FM_BPR, orchestrator,
+# recovery, research map, diagnosis, multi-fidelity, selector, logging,
+# submission validator import nothing beyond this line.
 numpy>=1.24
 
 # ---------------------------------------------------------------------------
 # Already installed in this dev environment, used for ad-hoc EDA notebooks /
 # scripts only -- never imported by anything under agent/ or run.py itself.
 pandas>=2.0
+
+# ---------------------------------------------------------------------------
+# Phase 4 only (agent/llm_client.py, agent/research_strategist.py,
+# run_p4.py) -- the LLM Research Strategist. Everything else in this repo
+# runs without these installed.
+google-genai>=1.0    # Gemini API client (free tier -- see CLAUDE.md's provider decision)
+python-dotenv>=1.0    # loads GEMINI_API_KEY from .env (gitignored; .env.example is the template)
 
 # ---------------------------------------------------------------------------
 # Not yet installed / not yet required. Uncomment as later phases need them

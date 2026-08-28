@@ -1,0 +1,93 @@
+{
+  "run_id": "run_20260828_102239",
+  "iteration_id": "iter_001",
+  "timestamp": 1787883848.1752393,
+  "status": "ok",
+  "config_id": "deepfm_regularized",
+  "model": "deepfm",
+  "hypothesis": "Both deepfm_default and deepfm_wider achieved top validation scores (~0.6028) but were flagged for overfitting_risk with peak validation performance occurring at only ~33-40% of training epochs. Increasing L2 regularization (from 1e-5 to 1e-4) will slow down overfitting on the MLP/embeddings, allowing deeper training without degradation.",
+  "parent_id": "deepfm_wider",
+  "code_diff": {
+    "__root__": true
+  },
+  "hyperparams": {
+    "k": 16,
+    "lr": 0.001,
+    "l2": 0.0001,
+    "batch": 8192,
+    "epochs": 20,
+    "patience": 5,
+    "hidden": [
+      128,
+      64
+    ]
+  },
+  "metrics": {
+    "n_seeds": 1,
+    "valid": {
+      "GAUC_mean": 0.670222277135584,
+      "GAUC_std": 0.0,
+      "nDCG@5_mean": 0.5367396452367371,
+      "nDCG@5_std": 0.0,
+      "primary_mean": 0.6034809611861606,
+      "primary_std": 0.0
+    },
+    "test": {
+      "GAUC_mean": 0.6652508801572441,
+      "GAUC_std": 0.0,
+      "nDCG@5_mean": 0.5312412574470253,
+      "nDCG@5_std": 0.0,
+      "primary_mean": 0.5982460688021347,
+      "primary_std": 0.0
+    },
+    "delta_vs_baseline_test": {
+      "delta_GAUC": 0.0042508801572440635,
+      "delta_nDCG@5": 0.003041257447025325,
+      "delta_primary_mean": 0.0036460688021346943
+    },
+    "per_seed": [
+      {
+        "experiment_id": "deepfm_regularized",
+        "seed": 0,
+        "best_epoch": 3,
+        "epochs_run": 8,
+        "valid": {
+          "GAUC": 0.670222277135584,
+          "nDCG@5": 0.5367396452367371,
+          "primary": 0.6034809611861606
+        },
+        "test": {
+          "GAUC": 0.6652508801572441,
+          "nDCG@5": 0.5312412574470253,
+          "primary": 0.5982460688021347
+        },
+        "wall_time_s": 57.53125,
+        "num_params": 703110,
+        "train_loss_curve": [
+          0.5588316525731768,
+          0.5103322180254118,
+          0.5056666985154152,
+          0.5027351200580596,
+          0.49945501089096067,
+          0.49683936195714135,
+          0.49354224886213033,
+          0.48946938174111504
+        ],
+        "valid_primary_curve": [
+          0.6003745421955774,
+          0.6021092235657419,
+          0.6034809611861606,
+          0.6022414018108164,
+          0.6023718173362279,
+          0.6011223430217091,
+          0.6002053984519617,
+          0.598094301164027
+        ],
+        "train_fraction": 1.0
+      }
+    ]
+  },
+  "wall_time_s": 70.140625,
+  "recovery_events": [],
+  "convergence": null
+}

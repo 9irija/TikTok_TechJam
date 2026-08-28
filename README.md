@@ -49,7 +49,7 @@ using label `long_view` and metrics `GAUC` / `nDCG@5`.
 - **Editor**: VS Code (via the Claude Code extension)
 - **Language / runtime**: Python 3.14, Windows 11
 - **Dev dependencies actually used**: `numpy` (all model/eval code), `pandas` (ad-hoc EDA only — never imported by `agent/`)
-- **No LLM API calls yet** — neither Phase 0 nor P1 has an LLM in the loop by design (see roadmap); `run_summary.json`'s `llm_tokens_total` is structurally 0 until the Phase 4 Research Strategist is wired in.
+- **LLM API**: Google Gemini (free tier), used by Phase 4's Research Strategist only — Phase 0 and P1 deliberately have no LLM in the loop (hand-authored candidate pools, by design). `logs/p4_run_report.json`'s `llm_tokens_total` is real; Phase 0/P1's `run_summary.json`/`p1_round_report.json` stay structurally 0.
 
 ## Datasets and assets used
 
@@ -89,6 +89,14 @@ python tools/generate_analysis.py --stdout
 #    scores the candidate pool (Best-First Node Selector), runs each
 #    candidate through the Multi-Fidelity Runner in best-first order
 python run_p1.py
+
+# 5. Run a Phase 4 round: the LLM Research Strategist (Gemini) proposes
+#    experiments instead of a hand-authored pool -- needs GEMINI_API_KEY
+#    in .env (copy .env.example). Free tier: real token usage, $0 cost.
+python run_p4.py --max_iterations 2
+
+# 6. Promote a promising single-seed result to a 3-seed-verified one
+python tools/verify_multiseed.py <node_id>
 ```
 
 Outputs: `experiments/<run_id>/iter_*/` (per-iteration hypothesis/config/results/logs;
@@ -98,30 +106,32 @@ run-scoped, so a later run never overwrites an earlier one's folders),
 `submission_valid.csv` / `submission_test.csv` (format-validated against the
 organizer's `submit.py --check` logic).
 
-## Results (validation-best config, latest run)
+## Results (current project-best, 3-seed verified)
 
-Live numbers are always in `logs/analysis_report.md` / `logs/run_summary.json`
-(regenerate with `python tools/generate_analysis.py`) — this table is a
-snapshot from the run described in
-[`docs/PHASE0_FEATURES_AND_IMPROVEMENTS.md`](docs/PHASE0_FEATURES_AND_IMPROVEMENTS.md#4-final-validated-phase-0-result),
-which also explains the efficiency/robustness fixes made to reach it, and
-why this number is seed-robustness-checked (3 seeds), not a single lucky draw.
+Live numbers are always in `logs/analysis_report.md` / `logs/research_map.json`
+— this table is a snapshot of `deepfm_regularized`, found by Phase 4's LLM
+Research Strategist and 3-seed-verified with `tools/verify_multiseed.py`
+(full writeup: [`docs/PHASE4_RESULTS.md`](docs/PHASE4_RESULTS.md)). It
+improves on Phase 0's `deepfm_wider` (full writeup:
+[`docs/PHASE0_FEATURES_AND_IMPROVEMENTS.md`](docs/PHASE0_FEATURES_AND_IMPROVEMENTS.md#4-final-validated-phase-0-result)),
+which is itself still the reference for the earlier, larger jump over the
+official baseline.
 
-Validation-best: `deepfm_wider` (FM + numpy MLP deep component, shared embeddings, hidden=[128,64]).
+Validation-best: `deepfm_regularized` — `deepfm_wider`'s architecture (hidden=[128,64]) with L2 raised 1e-5→1e-4, proposed by the LLM Research Strategist because both prior DeepFM nodes were flagged `overfitting_risk`.
 
-| Metric | Official FM baseline (test) | This run (test, submitted seed) | Δ | 3-seed mean Δ |
-|---|---|---|---|---|
-| GAUC | 0.6610 | 0.6643 | **+0.0033** | — |
-| nDCG@5 | 0.5282 | 0.5306 | **+0.0024** | — |
-| primary | 0.5946 | 0.5975 | **+0.0029** | **+0.0030** (~8.9σ above noise floor) |
+| Metric | Official FM baseline (test) | `deepfm_wider` (Phase 0, 3-seed) | `deepfm_regularized` (Phase 4, 3-seed) |
+|---|---|---|---|
+| GAUC | 0.6610 | 0.6643 | **0.6646** (Δ **+0.0036**) |
+| nDCG@5 | 0.5282 | 0.5306 | **0.5308** (Δ **+0.0026**) |
+| primary | 0.5946 | 0.5976 | **0.5977** (Δ **+0.0031**) |
 
-Converged automatically (ε=0.002, N=3) after 4 iterations, 0 manual
-interventions, 1,083.3s wall-clock (10 individual training runs — 3 seeds
-each for both DeepFM configs, to confirm the win isn't a single-seed
-fluke), 0 LLM tokens, 0 GPU-hours (CPU-only numpy). Config selection used
-only the validation split throughout — see
-`docs/PHASE0_FEATURES_AND_IMPROVEMENTS.md` §4 for the full per-seed
-breakdown and significance calculation.
+`submission_valid.csv` / `submission_test.csv` reflect `deepfm_regularized`.
+Both models converged on the validation split only — see
+`docs/PHASE4_RESULTS.md` §4 for the honest nuance that this improvement is
+clear and statistically real on **validation** (0.6035 vs. 0.6028, the
+split every decision here is allowed to read) while the **test**-split gap
+over `deepfm_wider` is much smaller, exactly what train/valid/test
+discipline predicts for a model that wasn't selected by peeking at test.
 
 ## P1 results (three rounds — each acts on the previous round's own diagnosis)
 
@@ -174,9 +184,35 @@ The Selector's own diminishing-returns prior predicted round 3's gain
 almost exactly (+0.0004 projected vs. +0.0005 actual) — the honest signal
 to stop iterating on this specific lever (FM + BPR + hyperparameters) and
 either try DeepFM_BPR or accept this direction has a structural, not
-tunable, ceiling here. Best result across the whole project remains Phase
-0's `deepfm_wider` (+0.0030). Reported as a real, incomplete trend — not
-a clean win, and not worth a 4th round without a genuinely new hypothesis.
+tunable, ceiling here. Reported as a real, incomplete trend — not a clean
+win, and not worth a 4th round without a genuinely new hypothesis. (Best
+result across the project moved past `deepfm_wider` in Phase 4, below.)
+
+## Phase 4 results — the LLM found a real, verified improvement
+
+Full details, including the LLM's actual reasoning and a genuine failure it
+also proposed, in [`docs/PHASE4_RESULTS.md`](docs/PHASE4_RESULTS.md).
+
+`python run_p4.py --max_iterations 2`: the LLM Research Strategist (Gemini,
+$0 cost, 4,947 tokens total) replaces the hand-authored candidate pools
+with a model that reads the full Research Map history and proposes what to
+try — reusing P1's Multi-Fidelity Runner and Diagnosis Engine completely
+unchanged.
+
+- **Iteration 1 — a real win.** LLM proposal `deepfm_regularized`: raise L2
+  on `deepfm_wider`'s architecture, because *both* prior DeepFM nodes were
+  flagged `overfitting_risk` — a gap P1's own hand-authored logic never
+  acted on (it only ever reacted to `fm_bpr_default`'s overfitting flag).
+  Result: valid primary 0.6035, up from 0.6028. **3-seed-verified**
+  (`tools/verify_multiseed.py`, new this pass): 0.6032 / 0.6035 / 0.6036,
+  mean 0.6035 ± 0.0002 — a robust, real `clear_improvement`, not a lucky seed.
+- **Iteration 2 — a real failure, correctly caught.** LLM proposal
+  `deepfm_higher_l2`: push L2 further. Result: GAUC −0.0512, nDCG@5 −0.0191
+  — a clear regression, diagnosed as such, not hidden. Reported here
+  precisely because a curated "the LLM only ever proposes good ideas"
+  writeup would be dishonest.
+
+This is now the project's best result — see the Results table above.
 
 ## Team / contributions
 
@@ -185,20 +221,22 @@ Deliverables requirement, if applicable._
 
 ## Limitations & what we'd improve with more time
 
-- **No LLM reasoning yet.** Both Phase 0's and P1's candidate pools are
-  fixed and human-written (by design — see `CLAUDE.md` roadmap Phase 4).
-  The Innovation & Autonomy scores both depend heavily on the Research
-  Strategist layer that isn't built yet.
-- **P1 is one round, not a loop.** The candidate pool (`p1_candidate_pool()`)
-  is a fixed 2-item list; a second `python run_p1.py` finds nothing new to
-  run. A real iterative loop needs either more hand-authored "improve"
-  templates reacting to each round's diagnosis, or Phase 4's LLM.
-- **BPR direction not beaten yet.** `fm_bpr_default` underperformed the
-  baseline with pointwise-FM hyperparameters reused unchanged; the
-  Diagnosis Engine's overfitting flag suggests fewer epochs / different
-  learning rate as the natural next candidate, not that BPR itself is a
-  dead end. `DeepFM_BPR` (pairwise loss + the deep component) is also
-  untested.
+- **Phase 4 has only run 2 iterations.** A longer run would show whether
+  the LLM keeps finding real improvements or converges to marginal/
+  regressive tweaks — genuinely unknown from this much data.
+- **The LLM prompt's "dead ends" section is hand-maintained**, not derived
+  automatically from the Research Map's own diagnosis tags — see
+  `docs/PHASE4_RESULTS.md` §6 for the concrete next step (generate it from
+  `explored_summary()` instead of a hardcoded string).
+- **No budget-aware stopping in Phase 4.** `--max_iterations` is a fixed
+  count; the `budget` dict shown to the LLM in its prompt is informational
+  only — nothing makes it change behavior as budget depletes.
+- **`tools/verify_multiseed.py` is a manual step**, not auto-triggered when
+  a new best node appears.
+- **BPR direction plateaued after 3 diagnosis-driven rounds** (see the P1
+  results above) — training dynamics fixed, but a ~0.002 quality gap to
+  baseline looks structural, not a hyperparameter away. `DeepFM_BPR`
+  (pairwise loss + the deep component) is untested and the natural next angle.
 - **Model zoo**: FM, DeepFM, FM_BPR. DCNv2/Wide&Deep/LightGBM need
   torch/scikit-learn, not installed in the current dev environment.
 - **Bonus benchmarks (KuaiRand-1k/27k) not attempted** — deliberately
