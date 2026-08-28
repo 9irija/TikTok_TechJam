@@ -302,28 +302,30 @@
   <div class="eyebrow">Autonomous ML Research Agent · KuaiRand-Pure</div>
   <h1 class="title">Research Map</h1>
   <p class="subtitle">
-    Every experiment this agent has run, as a persistent tree — not a flat log. Ten nodes across
-    three build phases: Foundation (hand-authored), Differentiators (best-first selection + diagnosis-driven
-    iteration), and an LLM Research Strategist that reads this exact map to decide what to try next.
+    Every experiment this agent has run, as a persistent tree — not a flat log. 14 nodes across
+    four build phases: Foundation (hand-authored), Differentiators (best-first selection + diagnosis-driven
+    iteration), an LLM Research Strategist that reads this exact map to decide what to try next, and P2
+    (engineered features, multi-task learning, LightGBM, hyperparameter search — three of which came back
+    honest negative results).
   </p>
 
   <div class="headline-card">
     <div class="headline-metric">
       <div class="label">Current best</div>
-      <div class="value good tnum">0.6035</div>
-      <div class="delta"><span class="mono">deepfm_regularized</span> — valid primary, 3-seed verified (±0.0002)</div>
+      <div class="value good tnum">0.6046</div>
+      <div class="delta"><span class="mono">deepfm_mtl_v1</span> — valid primary, 3-seed verified (±0.0003)</div>
     </div>
     <div class="headline-divider"></div>
     <div class="headline-metric">
       <div class="label">vs. official baseline (test)</div>
-      <div class="value tnum">+0.0031</div>
-      <div class="delta">0.5977 vs. 0.5946 · GAUC +0.0036 · nDCG@5 +0.0026</div>
+      <div class="value tnum">+0.0028</div>
+      <div class="delta">0.5974 vs. 0.5946 · GAUC +0.0031 · nDCG@5 +0.0026</div>
     </div>
     <div class="headline-divider"></div>
     <div class="headline-metric">
       <div class="label">Found by</div>
-      <div class="value tnum" style="font-size:22px;">LLM Strategist</div>
-      <div class="delta">Gemini · read <span class="mono">overfitting_risk</span> on 2 prior nodes, proposed the fix</div>
+      <div class="value tnum" style="font-size:22px;">Multi-task (P2)</div>
+      <div class="delta">Auxiliary is_like/is_follow/is_comment/is_forward heads on <span class="mono">deepfm_regularized</span> — the LLM's own P4 find</div>
     </div>
   </div>
 
@@ -333,8 +335,8 @@
     <div class="tiles">
       <div class="tile">
         <div class="label">Nodes explored</div>
-        <div class="value tnum">10</div>
-        <div class="sub">4 Foundation · 4 Differentiators · 2 LLM-proposed</div>
+        <div class="value tnum">14</div>
+        <div class="sub">4 Foundation · 4 Differentiators · 2 LLM-proposed · 4 P2</div>
       </div>
       <div class="tile">
         <div class="label">Manual interventions</div>
@@ -367,7 +369,7 @@
     </div>
     <div class="chart-card">
       <div class="chart-scroll">
-        <svg id="traj-svg" width="1100" height="330" viewBox="0 0 1100 330" role="img" aria-label="Validation primary score for each of the 10 experiment nodes, in run order, colored by outcome"></svg>
+        <svg id="traj-svg" width="1100" height="330" viewBox="0 0 1100 330" role="img" aria-label="Validation primary score for each of the 14 experiment nodes, in run order, colored by outcome"></svg>
       </div>
       <div class="legend">
         <div class="legend-item"><span class="legend-swatch" style="background:var(--good)"></span>Clear improvement</div>
@@ -395,7 +397,7 @@
 
     <div id="view-tree" class="chart-card">
       <div class="tree-scroll">
-        <svg id="tree-svg" width="1360" height="780" viewBox="0 0 1360 780" role="img" aria-label="Tree of ten experiment nodes with parent-child lineage"></svg>
+        <svg id="tree-svg" width="1590" height="935" viewBox="0 0 1590 935" role="img" aria-label="Tree of 14 experiment nodes with parent-child lineage"></svg>
       </div>
       <div class="tree-legend">
         <div class="legend-item"><span class="pill good"><span class="pill-dot" style="background:var(--good)"></span>clear improvement</span></div>
@@ -440,7 +442,8 @@
   <footer>
     Generated from <span class="mono">logs/research_map.json</span> and <span class="mono">logs/run_log.jsonl</span> —
     see <a href="#">docs/PHASE0_FEATURES_AND_IMPROVEMENTS.md</a>, <a href="#">docs/P1_FEATURES_AND_RESULTS.md</a>,
-    and <a href="#">docs/PHASE4_RESULTS.md</a> in the repository for the full narrative behind every node.
+    <a href="#">docs/PHASE4_RESULTS.md</a>, and <a href="#">docs/P2_FEATURES_AND_RESULTS.md</a> in the repository
+    for the full narrative behind every node.
   </footer>
 </div>
 
@@ -492,9 +495,25 @@
       valid:0.5683, delta:-0.0352, tag:"critical", tagLabel:"regression",
       hyp:"deepfm_regularized is the current best but still flagged overfitting_risk at ~38% of training length. Push L2 further and drop learning rate slightly on the proven architecture.",
       insight:"Both GAUC (−0.0512) and nDCG@5 (−0.0191) got worse — over-regularizing broke the model. Correctly caught, not hidden." },
+    { id:"lgbm_baseline", model:"lgbm", edge:"draft", parent:"fm_baseline_repro", phase:"P2", llm:false,
+      valid:0.5995, delta:-0.0020, tag:"neutral", tagLabel:"noise floor",
+      hyp:"Genuinely different model family — gradient-boosted trees, not learned embeddings. Same 5 base fields as fm_baseline_repro. Structural concern going in: trees can't learn dense embeddings for high-cardinality user_id×video_id crossing the way FM/DeepFM can.",
+      insight:"Change vs. parent (−0.0020 primary) within the significance bar (0.0020, single-seed) — ties the FM baseline, but trails every DeepFM node by a real ~0.004–0.005 margin. Standalone diagnostic, not integrated into the Model Zoo (LightGBM's own boosting loop is a real interface mismatch with every other model's per-epoch SGD loop)." },
+    { id:"features_v1", model:"deepfm", edge:"improve", parent:"deepfm_regularized", phase:"P2", llm:false,
+      valid:0.6037, delta:0.0002, tag:"neutral", tagLabel:"noise floor",
+      hyp:"TikTok-disclosed signals (completion rate, rewatch, fast-skip, creator engagement) as train-split-only aggregate fields — never a same-row play_time_ms ratio, which would leak the long_view label directly (confirmed ~85% correlated with it before writing any code).",
+      insight:"Change vs. parent (+0.0002 primary) within the significance bar (0.0006, seed-aware) — not distinguishable from run-to-run variance. 3-seed: 0.6030 / 0.6037 / 0.6043 — single-seed alone would have looked like a regression." },
+    { id:"deepfm_mtl_v1", model:"deepfm_mtl", edge:"improve", parent:"deepfm_regularized", phase:"P2", llm:false,
+      valid:0.6046, delta:0.0012, tag:"good", tagLabel:"clear improvement",
+      hyp:"Auxiliary is_like/is_follow/is_comment/is_forward sigmoid heads sharing deepfm_regularized's embedding table — a shared-bottom multi-task setup (ESMM/MMoE line). First PyTorch model in the project — a 5-headed shared trunk's backward pass is where autograd earns its keep over hand-rolled backprop.",
+      insight:"Both GAUC (+0.0016) and nDCG@5 (+0.0008) improved over the parent — a clean win. 3-seed verified: 0.6049 / 0.6049 / 0.6042 (mean 0.6046 ± 0.0003). New project-best." },
+    { id:"deepfm_mtl_v1_hpo", model:"deepfm_mtl", edge:"improve", parent:"deepfm_mtl_v1", phase:"P2", llm:false,
+      valid:0.6015, delta:-0.0031, tag:"critical", tagLabel:"regression",
+      hyp:"Optuna search (15 trials, reduced fidelity — 15% data, 8 epochs) around deepfm_mtl_v1's k/hidden/lr/l2/aux_weight, to check whether its hyperparameters were actually well-tuned or just the first thing tried.",
+      insight:"Both GAUC (−0.0039) and nDCG@5 (−0.0024) got worse — the winning trial's tiny reduced-fidelity edge (+0.0005) did not survive full-fidelity confirmation. Current hyperparameters already look close to a local optimum for this search space." },
   ];
   var BASELINE = 0.6016;
-  var BEST_ID = "deepfm_regularized";
+  var BEST_ID = "deepfm_mtl_v1";
   var byId = {};
   NODES.forEach(function (n) { byId[n.id] = n; });
 
@@ -552,7 +571,8 @@
     svg.appendChild(baseLine);
 
     // phase bands + labels
-    var phaseRanges = [{ p: "Foundation", from: 0, to: 3 }, { p: "Differentiators", from: 4, to: 7 }, { p: "LLM Strategist", from: 8, to: 9 }];
+    var phaseRanges = [{ p: "Foundation", from: 0, to: 3 }, { p: "Differentiators", from: 4, to: 7 },
+                       { p: "LLM Strategist", from: 8, to: 9 }, { p: "P2", from: 10, to: 13 }];
     phaseRanges.forEach(function (pr) {
       var x0 = xFor(pr.from) - stepX / 2, x1 = xFor(pr.to) + stepX / 2;
       if (pr.from === 0) x0 = padL;
@@ -617,9 +637,12 @@
 
   // =============================================================== TREE
   var LEVELS = { fm_baseline_repro: 0, fm_seed_variance: 1, deepfm_default: 1, fm_bpr_default: 1, fm_wider_k32: 1,
-                 deepfm_wider: 2, fm_bpr_regularized: 2, deepfm_regularized: 3, fm_bpr_slow_and_steady: 3, deepfm_higher_l2: 4 };
+                 lgbm_baseline: 1, deepfm_wider: 2, fm_bpr_regularized: 2, deepfm_regularized: 3,
+                 fm_bpr_slow_and_steady: 3, deepfm_higher_l2: 4, features_v1: 4, deepfm_mtl_v1: 4,
+                 deepfm_mtl_v1_hpo: 5 };
   var LANES = { fm_seed_variance: 0, deepfm_default: 1, deepfm_wider: 1, deepfm_regularized: 1, deepfm_higher_l2: 1,
-                fm_bpr_default: 2, fm_bpr_regularized: 2, fm_bpr_slow_and_steady: 2, fm_wider_k32: 3, fm_baseline_repro: 1.5 };
+                fm_bpr_default: 2, fm_bpr_regularized: 2, fm_bpr_slow_and_steady: 2, fm_wider_k32: 3, fm_baseline_repro: 1.5,
+                lgbm_baseline: 4, features_v1: 0, deepfm_mtl_v1: 2, deepfm_mtl_v1_hpo: 2 };
   var COL_W = 260, ROW_H = 170, MARGIN_X = 30, MARGIN_Y = 65, CARD_W = 208, CARD_H = 140;
 
   function tagColor(tag) {
