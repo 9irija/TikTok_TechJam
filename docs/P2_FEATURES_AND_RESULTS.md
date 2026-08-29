@@ -685,6 +685,64 @@ confidence rather than leaving it a mystery. Not pursued further given
 this clarity and that the source paper's exact tuned constants were
 unavailable to try instead. `deepfm_mtl_v1` remains the project-best.
 
+## 15. Per-segment diagnosis — does the win hold uniformly, or is it concentrated?
+
+Every result so far reports one aggregate GAUC/nDCG@5 number, which can
+hide a win (or a loss) that's actually concentrated in one segment and
+flat or negative elsewhere. `tools/check_per_segment.py`: no new training
+run needed — reuses `deepfm_regularized`'s and `deepfm_mtl_v1`'s
+already-cached valid-split predictions, bucketed by **user activity** and
+**item (video) popularity**, both computed from TRAIN-split impression
+counts only (never valid/test — the same train-only-aggregate discipline
+`agent/features.py` already uses, so a segment boundary is never informed
+by the very labels being scored).
+
+**By user activity (quartiles of train-split impressions per user):**
+
+| Segment | Rows | `deepfm_regularized` | `deepfm_mtl_v1` | Delta |
+|---|---|---|---|---|
+| Q1 (least active) | 19,132 | 0.5988 | 0.5994 | +0.0006 |
+| Q2 | 24,731 | 0.6106 | 0.6131 | +0.0025 |
+| Q3 | 31,956 | 0.6103 | 0.6106 | +0.0003 |
+| Q4 (most active) | 49,090 | 0.5923 | 0.5945 | +0.0022 |
+
+**Positive in all 4 segments** — the win isn't propped up by one narrow
+slice of users. Reassuring, and worth stating plainly since it could
+easily have come back otherwise.
+
+**By item (video) popularity (quartiles of train-split impressions per video):**
+
+| Segment | Rows | `deepfm_regularized` | `deepfm_mtl_v1` | Delta |
+|---|---|---|---|---|
+| Q1 (least popular) | 4,810 | 0.4748 | 0.4784 | +0.0035 |
+| Q2 | 9,242 | 0.4857 | 0.4791 | **−0.0066** |
+| Q3 | 22,263 | 0.5270 | 0.5258 | **−0.0012** |
+| Q4 (most popular) | 88,594 | 0.5978 | 0.5996 | +0.0019 |
+
+**Not uniform, and worth reporting exactly as measured rather than
+smoothed into the aggregate:** the two middle-popularity quartiles show a
+real *negative* delta — `deepfm_mtl_v1` is measurably worse than
+`deepfm_regularized` there, most notably Q2 (−0.0066). The win is positive
+at both popularity extremes, but `Q4` alone holds 88,594 of 124,909 valid
+rows (71%) — a heavily right-skewed popularity distribution, as expected
+for short-video engagement data — so the *aggregate* +0.0014 win is
+disproportionately carried by success on already-popular items, not
+evidence of uniformly better ranking across the popularity spectrum.
+
+**Honest read:** multi-task learning's aggregate win is genuine and not a
+user-segment artifact, but on the item side it's concentrated where the
+bulk of the data (and the aggregate metric's weight) already sits, with a
+real, unexplained dip in the middle-popularity range. A concrete, specific
+next question this raises — not chased further here, a real scope
+boundary: why would auxiliary engagement signals (`is_like`/`is_follow`/
+etc.) help *more* at the popularity extremes than in the middle? One
+plausible, untested hypothesis: mid-popularity videos have enough
+interaction volume for the *pointwise* signal to already be reasonably
+well-estimated, but not enough for the *auxiliary* signals (which are
+individually sparser than `long_view` itself) to add much beyond noise at
+that specific density — worth a dedicated follow-up, not asserted as
+confirmed here.
+
 ## Net effect on the project-best
 
 | | Valid primary (3-seed) | Test primary (3-seed mean) | vs. official baseline (test) |

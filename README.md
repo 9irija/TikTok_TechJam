@@ -52,6 +52,33 @@ using label `long_view` and metrics `GAUC` / `nDCG@5`.
 - **Dev dependencies actually used**: `numpy` (all model/eval code), `pandas` (ad-hoc EDA only — never imported by `agent/`)
 - **LLM API**: Google Gemini (free tier), used by Phase 4's Research Strategist only — Phase 0 and P1 deliberately have no LLM in the loop (hand-authored candidate pools, by design). `logs/p4_run_report.json`'s `llm_tokens_total` is real; Phase 0/P1's `run_summary.json`/`p1_round_report.json` stay structurally 0.
 
+### Why no GPU was used
+
+Every model in this project trains in single-digit minutes on one CPU
+core — including the torch models (`deepfm_mtl`, `deepfm_din`,
+`deepfm_bpr`, and P2's later variants). The organizer's own baseline
+reproduces in ~40s on a single CPU core (starter kit README). Phase 0's
+full run (self-check → 4 predefined experiments → convergence,
+`logs/run_summary.json`) took **18.1 minutes** wall-clock, **0
+GPU-hours**, 0 manual interventions, and converged automatically. The
+current project-best (`deepfm_mtl_v1`) trains in a few minutes per seed on
+CPU alone.
+
+The problem statement scores GPU-hours and LLM tokens for Feasibility &
+Practicality — not as a cap to stay under, but as a real cost with no
+upside unless it buys a validated score improvement. This project's own
+evidence backs that directly: 8 of the last 10 real P2 modeling attempts
+came back flat or negative (`docs/P2_FEATURES_AND_RESULTS.md`), a pattern
+that describes hitting this benchmark's actual learning-problem ceiling,
+not a compute ceiling. More epochs or a bigger network on an already-
+plateaued or overfitting model burns compute for nothing — it doesn't buy
+a better result (`deepfm_pdaom_v1` and the first `deepfm_bpr_v1` attempt
+were both fixed by *less* capacity/training, via diagnosed
+`overfitting_risk`, not more). Reaching for GPU only makes sense for a
+specific candidate that's genuinely CPU-infeasible within budget (e.g. a
+much larger architecture, or the bonus KuaiRand-1k/27k benchmarks) — not
+as a default, and not something this project has needed yet.
+
 ## Datasets and assets used
 
 - **KuaiRand-Pure** (Kuaishou / KuaiRand, via Zenodo — https://kuairand.com), the challenge's required benchmark. 1.4M interactions, 27K users × 7.6K items. No other dataset is used for training, per the challenge's one hard rule ("no external training data").
@@ -408,6 +435,17 @@ distribution — it's proportionally *larger* there (+0.0102 vs. +0.0034 on
 valid), real evidence the win isn't an artifact of the platform's own
 serving policy. Full detail:
 [`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §9.
+
+**Does the win hold uniformly across users and items, or is it
+concentrated?** `tools/check_per_segment.py` (no new training — reuses
+cached predictions): by user activity, positive in all 4 train-impression
+quartiles, not a narrow-segment artifact. By item popularity, **not
+uniform** — real negative deltas in the two middle-popularity quartiles
+(worst: −0.0066), positive at both extremes; the aggregate win is
+disproportionately carried by the most-popular-item quartile (71% of
+valid rows). Reported exactly as measured, including the part that isn't
+flattering. Full detail:
+[`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §15.
 
 ## Engineered features — a real negative result, and a real bug it surfaced
 

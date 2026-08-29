@@ -437,9 +437,17 @@ alias stub in this environment that fails with no interpreter installed).
   (LLM tokens, wall-clock, iterations out of the cap, GPU-hours), pulled
   directly from `logs/research_map.json`/`run_summary.json`/
   `p4_run_report.json`, not hand-estimated.
-- **Still not built from the P1 tier:** Per-Segment Metric Diagnosis
-  (does `deepfm_mtl_v1`'s win hold uniformly across user/item segments, or
-  mostly on one? -- genuinely unchecked), generalized (not per-node-id-
+- **Per-Segment Metric Diagnosis: done.** `tools/check_per_segment.py` --
+  does `deepfm_mtl_v1`'s win hold uniformly across user/item segments, or
+  mostly on one? No new training needed (reuses cached valid predictions).
+  By user activity: positive in all 4 train-impression-count quartiles --
+  not a narrow-segment artifact. By item popularity: NOT uniform -- real
+  negative deltas in the two middle-popularity quartiles (worst: -0.0066),
+  positive at both popularity extremes; the aggregate win is
+  disproportionately carried by the most-popular-item quartile, which
+  alone holds 71% of valid rows. See `docs/P2_FEATURES_AND_RESULTS.md`
+  §15 for the full breakdown and an untested hypothesis for the dip.
+- **Still not built from the P1 tier:** generalized (not per-node-id-
   hardcoded) diagnosis-driven candidate generation. Sequence modeling
   (DIN/SIM-style, the starter kit's own #2-ranked untested item) and
   `DeepFM_BPR` (the loss/architecture combination flagged as a natural
