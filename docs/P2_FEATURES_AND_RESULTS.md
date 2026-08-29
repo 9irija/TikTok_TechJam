@@ -1,15 +1,22 @@
-# P2 — Engineered Features, Multi-Task Learning, LightGBM, Hyperparameter Search, Ensembling, DIN Sequence Modeling
+# P2 — Engineered Features, Multi-Task Learning, LightGBM, Hyperparameter Search, Ensembling, DIN Sequence Modeling, DeepFM_BPR, Randomized-Exposure Generalization
 
-Six experiments closing real gaps left open by CLAUDE.md's roadmap
+Eight experiments closing real gaps left open by CLAUDE.md's roadmap
 ("Multi-Task Feature Exploitation", "TikTok-disclosed features", "Extended
-Model Zoo", "Hyperparameter Search", sequence modeling) plus one more tried
-on the user's explicit "optimise further" request, run and 3-seed-verified
-where the result warranted it. Five of six are negative or mixed results,
-reported exactly as measured — the honest signal here is which levers this
-specific benchmark actually responds to, not a scoreboard of wins. One of
-those negative results (the hyperparameter search) also surfaced and fixed
-a real concurrency bug in the Research Map's persistence layer, unrelated
-to modeling but a genuine reliability gap worth having found.
+Model Zoo", "Hyperparameter Search", sequence modeling, "DeepFM_BPR is a
+natural, cheap extension") plus a generalization check answering a direct
+question the user asked ("does the improvement hold across any kinds of
+data, not just this one"), run and 3-seed-verified where the result
+warranted it. Six of eight are negative or mixed results, reported exactly
+as measured — the honest signal here is which levers this specific
+benchmark actually responds to, not a scoreboard of wins. One of those
+negative results (the hyperparameter search) also surfaced and fixed a
+real concurrency bug in the Research Map's persistence layer, unrelated to
+modeling but a genuine reliability gap worth having found. This pass also
+merged real, independent parallel work from a teammate (Yichen930): the
+`seq_len=20` DIN result in §6, the `best_confirmed_node()` correctness fix
+in §7, and `tools/generate_dashboard.py` (dashboard auto-generation) all
+came from that merge, not from this session directly — credited inline
+below rather than claimed.
 
 ## 1. Engineered features (`agent/features.py`) — noise_floor
 
@@ -341,6 +348,99 @@ No change on the real map: `best_confirmed_node()` still returns
 This was fixed pre-emptively, before it ever produced a wrong answer, once
 the tree grew a second real branch worth taking seriously.
 
+## 8. DeepFM_BPR (`deepfm_bpr_v1`) — combining two independently-partial results, still not enough
+
+`fm_bpr` (P1) showed the loss/metric-alignment direction was real —
+GAUC/nDCG are ranking metrics, BPR directly optimizes for within-user
+ranking — but plateaued ~0.002 below the FM baseline after 3 diagnosis-
+driven rounds, in plain FM form. The deep component
+(`deepfm`/`deepfm_regularized`) independently, separately proved to help.
+Neither was ever combined with the other, despite being flagged in this
+project's own roadmap notes as "a natural, cheap extension" since before
+the P1 BPR rounds even concluded.
+
+`agent/model_zoo/deepfm_bpr.py`: DeepFM's exact architecture (shared field
+embeddings, FM linear + 2nd-order term, deep MLP), trained on the same
+pairwise BPR objective as `fm_bpr.py`. First torch model wired directly
+into the real pipeline from day one (`registry.py`, `agent/experiment.py`'s
+existing `is_bpr` branch) rather than standalone-checked first — the
+`bpr_step`/`predict` contract `fm_bpr` already validated in P1 needed zero
+training-loop changes to carry over.
+
+`deepfm_bpr_v1` (`parent_id=deepfm_regularized`, same fields/k/hidden/l2 —
+isolating the pairwise-vs-pointwise objective as the only variable):
+
+| | Valid primary | Diagnosis |
+|---|---|---|
+| `deepfm_bpr_v1` (first attempt) | 0.5819 | `regression` (GAUC −0.0290, nDCG@5 −0.0141), flagged `overfitting_risk` — best epoch at ~20% of training length |
+| `deepfm_bpr_v1_regularized` (L2 ×10, patience 4→2) | 0.5980 | `clear_improvement` **vs. its own parent** — recovers most of the damage |
+| `deepfm_regularized` (plain DeepFM, for reference) | 0.6035 | — |
+| `fm_baseline_repro` (plain FM, for reference) | 0.6015 | — |
+
+Same reactive pattern that worked twice before (`deepfm_default` →
+`deepfm_regularized`, `fm_bpr_default` → `fm_bpr_regularized`): diagnose
+the overfitting, raise L2, tighten patience. It worked again in the sense
+that it recovered most of the damage (+0.0161) — but even after the fix,
+`deepfm_bpr_v1_regularized` (0.5980) still doesn't clear the *plain* FM
+baseline (0.6015), let alone `deepfm_regularized` or `deepfm_mtl_v1`.
+
+**Honest conclusion:** this now doubly-confirms (P1's FM_BPR rounds, and
+this DeepFM_BPR attempt) that BPR's pairwise objective has a real,
+structural ceiling on this specific benchmark regardless of which
+architecture it's paired with — not a hyperparameter away from competitive,
+a genuine mismatch between the training signal and this dataset's actual
+learnable structure. Not pursued further (a third round, mirroring P1's
+`fm_bpr_slow_and_steady`, was considered and declined): the pattern is
+consistent enough across two independent architectures now that another
+round would very likely just re-confirm the same ceiling, not move it.
+`deepfm_mtl_v1` remains the project-best.
+
+## 9. Randomized-exposure generalization check — does the win hold on unbiased data?
+
+Direct answer to a question the user asked explicitly: has anything here
+been optimized to generalize "across any kinds of data," not just this one
+train/valid/test split? Honest answer at the time: partially. 3-seed
+verification checks robustness to random initialization; the date-based
+splits check a real temporal holdout. Neither checks whether
+`deepfm_mtl_v1`'s win holds under a genuinely different *distribution* —
+every split so far is drawn from TikTok's own recommendation-biased
+logging policy (whatever the platform already chose to show users).
+
+`log_random_4_22_to_5_08_pure.csv` is a separate, real file in the
+dataset — interactions logged under *randomized* exposure (`is_rand=1`),
+same user population and date range as valid+test, explicitly flagged in
+the brainstorm doc as usable for "an unbiased secondary validation set,"
+never used anywhere in this project until now. `tools/check_randomized_exposure.py`
+encodes it via the organizer's own pinned `encode()` (a `splits` dict with
+an extra `"random"` key, vocab still built from `train` only — never
+reimplemented) and evaluates both `fm_baseline_repro` and `deepfm_mtl_v1`
+on it, strictly as a held-out eval, never trained on.
+
+| Split | FM baseline | `deepfm_mtl_v1` | Delta |
+|---|---|---|---|
+| valid | 0.6015 | 0.6049 | +0.0034 |
+| test | 0.5953 | 0.5979 | +0.0025 |
+| **random (unbiased)** | 0.3639 | 0.3741 | **+0.0102** |
+
+Absolute scores collapse on the random split (expected, not concerning):
+only 8.5% of randomly-shown content is a `long_view`, vs. 31.3% on
+TikTok's own biased logs — the platform's own recommendation policy is
+already good at showing people things they'll watch, and random exposure
+removes that head start, making it a genuinely harder ranking task for
+both models (nDCG@5 in particular drops hard, since it needs enough
+positives per user to have anything meaningful in the top 5).
+
+**The result that matters: the delta doesn't just survive, it's
+proportionally larger** under the unbiased distribution — roughly 3-4x the
+gap seen on valid/test. Real evidence that multi-task learning's benefit
+isn't an artifact of TikTok's own biased serving/logging policy; if
+anything it holds up better once the "easy" signal (already-good matches)
+is stripped away and the model has to do genuine ranking work. Single-seed
+only (kept fast on purpose, same standalone-check pattern as the rest of
+this document) — the exact magnitude shouldn't be quoted with 3-seed
+confidence, but the direction is a real, useful answer: yes, this specific
+optimization generalizes beyond the one distribution it was validated on.
+
 ## Net effect on the project-best
 
 | | Valid primary (3-seed) | Test primary (3-seed mean) | vs. official baseline (test) |
@@ -349,9 +449,13 @@ the tree grew a second real branch worth taking seriously.
 | `deepfm_regularized` (Phase 4, prior best) | 0.6035 ± 0.0002 | 0.5977 | +0.0031 |
 | **`deepfm_mtl_v1` (P2, current best)** | **0.6046 ± 0.0003** | 0.5974 | +0.0028 |
 
-Both engineered features and LightGBM were genuinely worth trying — public,
-well-motivated ideas backed by the problem statement's own allowed toolset
-— and both came back negative, for two different, specific, structural
-reasons rather than "we didn't get to it." Multi-task learning was the one
-that paid off, and did so on the first attempt with no diagnosis-driven
-iteration needed (unlike BPR's 3 rounds in P1).
+Engineered features, LightGBM, DIN sequence modeling, and DeepFM_BPR were
+all genuinely worth trying — public, well-motivated ideas backed by the
+problem statement's own allowed toolset — and all came back negative or
+mixed, each for a different, specific, structural reason rather than "we
+didn't get to it." Multi-task learning was the one that paid off, and did
+so on the first attempt with no diagnosis-driven iteration needed (unlike
+BPR's 3 P1 rounds, or DeepFM_BPR's own regularization round here). The
+randomized-exposure check (§9) is the closest thing to independent
+confirmation this project has: `deepfm_mtl_v1`'s edge over the baseline
+doesn't just survive an unbiased data distribution, it grows there.

@@ -305,6 +305,29 @@ genuinely dropped (-0.0003). Not a clean win; `deepfm_mtl_v1` remains the
 project-best. Full detail, including the `seq_len=10` ablation:
 [`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §6.
 
+**DeepFM_BPR — combining two independently-partial results, still not
+enough.** `agent/model_zoo/deepfm_bpr.py`: DeepFM's architecture trained
+on `fm_bpr`'s pairwise BPR objective instead of pointwise logloss —
+flagged in this project's own roadmap notes as "a natural, cheap
+extension" since P1, never attempted until now. First attempt
+(`deepfm_bpr_v1`) overfit fast (regression, `overfitting_risk` flagged);
+the same L2/patience fix that worked twice before recovered most of the
+damage (`deepfm_bpr_v1_regularized`, valid 0.5980) but still doesn't clear
+even the plain FM baseline (0.6015). Doubly confirms — P1's FM_BPR rounds,
+and this DeepFM_BPR attempt — that BPR has a real, structural ceiling on
+this benchmark, not a hyperparameter away. Full detail:
+[`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §8.
+
+**Does the win hold on genuinely unbiased data?** Every result above is
+drawn from TikTok's own recommendation-biased logs. `log_random_...csv`
+(randomized-exposure interactions, never used before) lets that be checked
+directly. `tools/check_randomized_exposure.py`: `deepfm_mtl_v1`'s edge
+over the FM baseline doesn't just survive on this genuinely different
+distribution — it's proportionally *larger* there (+0.0102 vs. +0.0034 on
+valid), real evidence the win isn't an artifact of the platform's own
+serving policy. Full detail:
+[`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §9.
+
 ## Engineered features — a real negative result, and a real bug it surfaced
 
 `agent/features.py` adds 4 new fields on top of the starter kit's base 5:

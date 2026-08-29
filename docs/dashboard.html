@@ -302,11 +302,11 @@
   <div class="eyebrow">Autonomous ML Research Agent · KuaiRand-Pure</div>
   <h1 class="title">Research Map</h1>
   <p class="subtitle">
-    Every experiment this agent has run, as a persistent tree — not a flat log. 15 nodes across
+    Every experiment this agent has run, as a persistent tree — not a flat log. 17 nodes across
     four build phases: Foundation (hand-authored), Differentiators (best-first selection + diagnosis-driven
     iteration), an LLM Research Strategist that reads this exact map to decide what to try next, and P2
-    (engineered features, multi-task learning, LightGBM, hyperparameter search, DIN sequence modeling — four
-    of which came back honest negative or mixed results).
+    (engineered features, multi-task learning, LightGBM, hyperparameter search, DIN sequence modeling,
+    DeepFM_BPR — six of which came back honest negative or mixed results).
   </p>
 
   <div class="headline-card">
@@ -335,8 +335,8 @@
     <div class="tiles">
       <div class="tile">
         <div class="label">Nodes explored</div>
-        <div class="value tnum">15</div>
-        <div class="sub">4 Foundation · 4 Differentiators · 2 LLM-proposed · 5 P2</div>
+        <div class="value tnum">17</div>
+        <div class="sub">4 Foundation · 4 Differentiators · 2 LLM-proposed · 7 P2</div>
       </div>
       <div class="tile">
         <div class="label">Manual interventions</div>
@@ -515,6 +515,14 @@
       valid:0.6036, delta:0.0001, tag:"warning", tagLabel:"ranking tradeoff",
       hyp:"DIN-style attention (Zhou et al. 2018) over each user's recent watch history should let the model weigh past videos by relevance to the candidate video, on top of deepfm_regularized's backbone. An earlier seq_len=10 ablation (3 seeds, not logged as its own node) came back a small but consistent regression (valid -0.0006, test -0.0012, same direction all 3 seeds) -- too short a history to give the attention block anything useful to weigh. This config doubles the window to seq_len=20 to test whether that was the real limiting factor.",
       insight:"nDCG@5 improved (+0.0005) but GAUC dropped (-0.0003): top-5 precision got better, but broader ordering got worse -- likely overfit to head items/short lists." },
+    { id:"deepfm_bpr_v1", model:"deepfm_bpr", edge:"improve", parent:"deepfm_regularized", phase:"P2", llm:false,
+      valid:0.5819, delta:-0.0215, tag:"critical", tagLabel:"regression",
+      hyp:"Combines two independently-partial results rather than a new, unrelated idea: fm_bpr's pairwise loss (P1, real loss/metric-alignment signal, plateaued ~0.002 below the FM baseline in plain FM form) with 'deepfm_regularized's deep architecture (valid primary 0.6034507203196051), which independently proved to help. Same fields/k/hidden/l2 as the parent, so any effect is attributable to the pairwise-vs-pointwise objective change alone -- exactly the same isolation discipline fm_bpr_default used against fm_baseline_repro.",
+      insight:"Both GAUC (-0.0290) and nDCG@5 (-0.0141) got worse -- the change likely hurt (bar=0.0002). [overfitting_risk: best validation epoch landed at ~20% of training length on average across seeds -- later epochs likely overfit train loss without validation benefit; consider fewer epochs or stronger regularization.]" },
+    { id:"deepfm_bpr_v1_regularized", model:"deepfm_bpr", edge:"debug", parent:"deepfm_bpr_v1", phase:"P2", llm:false,
+      valid:0.598, delta:0.0161, tag:"good", tagLabel:"clear improvement",
+      hyp:"Directly acts on deepfm_bpr_v1's own diagnosis, same pattern that worked for fm_bpr_default->fm_bpr_regularized and deepfm_default->deepfm_regularized: its overfitting_risk flag showed the best validation epoch landing at ~20% of training length -- DeepFM's extra capacity combined with BPR's pairwise sampling overfits even faster than plain FM_BPR did. L2 raised another 10x (1e-4 -> 1e-3, on top of the L2 already inherited from deepfm_regularized) and patience tightened (default 4 -> 2) to stop closer to where validation actually peaks.",
+      insight:"Both GAUC (+0.0214) and nDCG@5 (+0.0107) improved over the parent -- a clean win (bar=0.0020)." },
   ];
   var BASELINE = 0.6016;
   var BEST_ID = "deepfm_mtl_v1";

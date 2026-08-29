@@ -1,11 +1,11 @@
 # Run & Iteration Log -- Analysis Report
 
-_Generated 2026-08-28 15:08:30 from `logs\run_log.jsonl`_
+_Generated 2026-08-29 12:12:33 from `logs\run_log.jsonl`_
 
 ## Run overview
 
 - **Run ID:** `run_20260827_201247`
-- **Iterations:** 12 total -- 12 succeeded, 0 failed after recovery was exhausted
+- **Iterations:** 14 total -- 14 succeeded, 0 failed after recovery was exhausted
 - **Converged:** True (epsilon=0.002, N=3, per organizer's baseline_scores.json)
 - **Validation-best:** `iter_004` (valid primary = 0.6028)
 - **Manual interventions:** 0 (lower is better -- this is what judges use to score Autonomy)
@@ -15,8 +15,8 @@ _Generated 2026-08-28 15:08:30 from `logs\run_log.jsonl`_
 ## Validation-primary trajectory
 
 ```
-▇▇▇▇▆▇▆▆▇ ▇█
-min=0.5683  max=0.6049  n=12
+▇▇▇▇▆▇▆▆▇ ▇█▂▆
+min=0.5683  max=0.6049  n=14
 ```
 
 ## Per-iteration log
@@ -35,6 +35,8 @@ min=0.5683  max=0.6049  n=12
 | iter_002 | `deepfm_higher_l2` | deepfm | ok | 0.5683 | -0.0345 | 181.3s | 3 | deepfm_regularized achieved our current best primary score (0.6035), but its diagnosis engine flagge... |
 | iter_001 | `features_v1` | deepfm | ok | 0.6030 | +0.0026 | 203.3s | 0 | Tests TikTok's own disclosed strong signals as train-only aggregate features on top of the current b... |
 | iter_001 | `deepfm_mtl_v1` | deepfm_mtl | ok | 0.6049 | +0.0033 | 435.5s | 0 | Multi-task learning, not a hyperparameter or input-feature change: adds auxiliary is_like/is_follow/... |
+| iter_001 | `deepfm_bpr_v1` | deepfm_bpr | ok | 0.5819 | -0.0233 | 186.5s | 0 | Combines two independently-partial results rather than a new, unrelated idea: fm_bpr's pairwise loss... |
+| iter_001 | `deepfm_bpr_v1_regularized` | deepfm_bpr | ok | 0.5980 | -0.0019 | 247.7s | 0 | Directly acts on deepfm_bpr_v1's own diagnosis, same pattern that worked for fm_bpr_default->fm_bpr_... |
 
 _Δ vs baseline is computed on the locally-held test split for tracking parity with the organizer's own baseline.py; it is never used to pick a config -- only the Valid primary column drives Convergence Detector / config-selection decisions, per Task Requirement 2 (train+validation only)._
 
@@ -52,6 +54,8 @@ _Δ vs baseline is computed on the locally-held test split for tracking parity w
 - **iter_002** (`deepfm_higher_l2`): `hyperparams`: {'k': 16, 'lr': 0.001, 'l2': 0.0001, 'batch': 8192, 'epochs': 20, 'patience': 5, 'hidden': [128, 64]} → {'k': 16, 'lr': 0.0005, 'l2': 0.01, 'batch': 2048, 'epochs': 20, 'patience': 5, 'hidden': [64, 32]}, `parent_id`: deepfm_wider → deepfm_regularized
 - **iter_001** (`features_v1`): root config, no prior iteration to diff against.
 - **iter_001** (`deepfm_mtl_v1`): root config, no prior iteration to diff against.
+- **iter_001** (`deepfm_bpr_v1`): root config, no prior iteration to diff against.
+- **iter_001** (`deepfm_bpr_v1_regularized`): root config, no prior iteration to diff against.
 
 ## Error / recovery events
 

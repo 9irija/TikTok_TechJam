@@ -1,0 +1,104 @@
+{
+  "run_id": "run_20260829_120203",
+  "iteration_id": "iter_001",
+  "timestamp": 1787976498.0172365,
+  "status": "ok",
+  "config_id": "deepfm_bpr_v1_regularized",
+  "model": "deepfm_bpr",
+  "hypothesis": "Directly acts on deepfm_bpr_v1's own diagnosis, same pattern that worked for fm_bpr_default->fm_bpr_regularized and deepfm_default->deepfm_regularized: its overfitting_risk flag showed the best validation epoch landing at ~20% of training length -- DeepFM's extra capacity combined with BPR's pairwise sampling overfits even faster than plain FM_BPR did. L2 raised another 10x (1e-4 -> 1e-3, on top of the L2 already inherited from deepfm_regularized) and patience tightened (default 4 -> 2) to stop closer to where validation actually peaks.",
+  "parent_id": "deepfm_bpr_v1",
+  "code_diff": {
+    "__root__": true
+  },
+  "hyperparams": {
+    "k": 16,
+    "l2": 0.001,
+    "hidden": [
+      128,
+      64
+    ],
+    "lr": 0.001,
+    "patience": 2
+  },
+  "metrics": {
+    "n_seeds": 1,
+    "valid": {
+      "GAUC_mean": 0.662325508665895,
+      "GAUC_std": 0.0,
+      "nDCG@5_mean": 0.5336439767330035,
+      "nDCG@5_std": 0.0,
+      "primary_mean": 0.5979847426994492,
+      "primary_std": 0.0
+    },
+    "test": {
+      "GAUC_mean": 0.6580021684267191,
+      "GAUC_std": 0.0,
+      "nDCG@5_mean": 0.5274197676742569,
+      "nDCG@5_std": 0.0,
+      "primary_mean": 0.5927109680504881,
+      "primary_std": 0.0
+    },
+    "delta_vs_baseline_test": {
+      "delta_GAUC": -0.002997831573280929,
+      "delta_nDCG@5": -0.000780232325743091,
+      "delta_primary_mean": -0.00188903194951201
+    },
+    "per_seed": [
+      {
+        "experiment_id": "deepfm_bpr_v1_regularized",
+        "seed": 0,
+        "best_epoch": 7,
+        "epochs_run": 9,
+        "valid": {
+          "GAUC": 0.662325508665895,
+          "nDCG@5": 0.5336439767330035,
+          "primary": 0.5979847426994492
+        },
+        "test": {
+          "GAUC": 0.6580021684267191,
+          "nDCG@5": 0.5274197676742569,
+          "primary": 0.5927109680504881
+        },
+        "wall_time_s": 231.578125,
+        "num_params": 703110,
+        "train_loss_curve": [
+          0.5928450758508641,
+          0.5524036699919392,
+          0.5497150798495725,
+          0.5490654055163157,
+          0.5483987404288148,
+          0.5468929332794903,
+          0.5467227465814823,
+          0.5464602039872314,
+          0.5465214942856659
+        ],
+        "valid_primary_curve": [
+          0.5958470658515874,
+          0.5961100561668966,
+          0.5969039593808387,
+          0.5958713161168383,
+          0.5972070504267838,
+          0.5973119418978161,
+          0.5979847426994492,
+          0.5969826951926805,
+          0.5966825636363244
+        ],
+        "train_fraction": 1.0
+      }
+    ]
+  },
+  "wall_time_s": 247.65625,
+  "recovery_events": [],
+  "convergence": null,
+  "fidelity_info": {
+    "final_stage": "100pct",
+    "killed_at": null,
+    "kill_reason": null,
+    "stage_wall_times_s": {
+      "1pct": 4.640625,
+      "10pct": 11.4375,
+      "100pct": 231.578125
+    },
+    "estimated_time_saved_s": null
+  }
+}

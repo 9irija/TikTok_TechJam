@@ -2047,6 +2047,209 @@
       "diagnosis_tag": "ranking_tradeoff",
       "created_at": 1787938278.736576,
       "updated_at": 1787938278.7388039
+    },
+    "deepfm_bpr_v1": {
+      "node_id": "deepfm_bpr_v1",
+      "config": {
+        "id": "deepfm_bpr_v1",
+        "model": "deepfm_bpr",
+        "hypothesis": "Combines two independently-partial results rather than a new, unrelated idea: fm_bpr's pairwise loss (P1, real loss/metric-alignment signal, plateaued ~0.002 below the FM baseline in plain FM form) with 'deepfm_regularized's deep architecture (valid primary 0.6034507203196051), which independently proved to help. Same fields/k/hidden/l2 as the parent, so any effect is attributable to the pairwise-vs-pointwise objective change alone -- exactly the same isolation discipline fm_bpr_default used against fm_baseline_repro.",
+        "hyperparams": {
+          "k": 16,
+          "l2": 0.0001,
+          "hidden": [
+            128,
+            64
+          ],
+          "lr": 0.001
+        },
+        "fields": [
+          "user_id",
+          "video_id",
+          "author_id",
+          "tab",
+          "dur_bucket"
+        ],
+        "parent_id": "deepfm_regularized",
+        "seeds": [
+          0
+        ],
+        "notes": "agent/model_zoo/deepfm_bpr.py -- first torch model wired directly into the real pipeline (registry.py + agent/experiment.py's existing is_bpr branch) rather than standalone-checked first, since the bpr_step/predict contract fm_bpr already validated in P1 carries over with zero training-loop changes needed.",
+        "edge_type": "improve"
+      },
+      "edge_type": "improve",
+      "parent_id": "deepfm_regularized",
+      "status": "done",
+      "fidelity": "100pct",
+      "metrics": {
+        "n_seeds": 1,
+        "valid": {
+          "GAUC_mean": 0.6409262359602278,
+          "GAUC_std": 0.0,
+          "nDCG@5_mean": 0.5229026325223666,
+          "nDCG@5_std": 0.0,
+          "primary_mean": 0.5819144342412972,
+          "primary_std": 0.0
+        },
+        "test": {
+          "GAUC_mean": 0.6302166960390168,
+          "GAUC_std": 0.0,
+          "nDCG@5_mean": 0.5123751674260011,
+          "nDCG@5_std": 0.0,
+          "primary_mean": 0.5712959317325089,
+          "primary_std": 0.0
+        },
+        "delta_vs_baseline_test": {
+          "delta_GAUC": -0.030783303960983277,
+          "delta_nDCG@5": -0.015824832573998915,
+          "delta_primary_mean": -0.023304068267491096
+        },
+        "per_seed": [
+          {
+            "experiment_id": "deepfm_bpr_v1",
+            "seed": 0,
+            "best_epoch": 1,
+            "epochs_run": 5,
+            "valid": {
+              "GAUC": 0.6409262359602278,
+              "nDCG@5": 0.5229026325223666,
+              "primary": 0.5819144342412972
+            },
+            "test": {
+              "GAUC": 0.6302166960390168,
+              "nDCG@5": 0.5123751674260011,
+              "primary": 0.5712959317325089
+            },
+            "wall_time_s": 137.953125,
+            "num_params": 703110,
+            "train_loss_curve": [
+              0.5686097042166072,
+              0.48380741905823027,
+              0.44072687454360854,
+              0.4094198140309011,
+              0.3788960994147568
+            ],
+            "valid_primary_curve": [
+              0.5819144342412972,
+              0.5766381317121281,
+              0.580029253807197,
+              0.5776413916310998,
+              0.5763617923473321
+            ],
+            "train_fraction": 1.0
+          }
+        ]
+      },
+      "insight": "Both GAUC (-0.0290) and nDCG@5 (-0.0141) got worse -- the change likely hurt (bar=0.0002). [overfitting_risk: best validation epoch landed at ~20% of training length on average across seeds -- later epochs likely overfit train loss without validation benefit; consider fewer epochs or stronger regularization.]",
+      "diagnosis_tag": "regression",
+      "created_at": 1787976017.701513,
+      "updated_at": 1787976017.7092512
+    },
+    "deepfm_bpr_v1_regularized": {
+      "node_id": "deepfm_bpr_v1_regularized",
+      "config": {
+        "id": "deepfm_bpr_v1_regularized",
+        "model": "deepfm_bpr",
+        "hypothesis": "Directly acts on deepfm_bpr_v1's own diagnosis, same pattern that worked for fm_bpr_default->fm_bpr_regularized and deepfm_default->deepfm_regularized: its overfitting_risk flag showed the best validation epoch landing at ~20% of training length -- DeepFM's extra capacity combined with BPR's pairwise sampling overfits even faster than plain FM_BPR did. L2 raised another 10x (1e-4 -> 1e-3, on top of the L2 already inherited from deepfm_regularized) and patience tightened (default 4 -> 2) to stop closer to where validation actually peaks.",
+        "hyperparams": {
+          "k": 16,
+          "l2": 0.001,
+          "hidden": [
+            128,
+            64
+          ],
+          "lr": 0.001,
+          "patience": 2
+        },
+        "fields": [
+          "user_id",
+          "video_id",
+          "author_id",
+          "tab",
+          "dur_bucket"
+        ],
+        "parent_id": "deepfm_bpr_v1",
+        "seeds": [
+          0
+        ],
+        "notes": "Generated by _diagnosis_driven_candidates() because deepfm_bpr_v1's own insight flagged overfitting_risk, same reactive pattern as fm_bpr_regularized.",
+        "edge_type": "debug"
+      },
+      "edge_type": "debug",
+      "parent_id": "deepfm_bpr_v1",
+      "status": "done",
+      "fidelity": "100pct",
+      "metrics": {
+        "n_seeds": 1,
+        "valid": {
+          "GAUC_mean": 0.662325508665895,
+          "GAUC_std": 0.0,
+          "nDCG@5_mean": 0.5336439767330035,
+          "nDCG@5_std": 0.0,
+          "primary_mean": 0.5979847426994492,
+          "primary_std": 0.0
+        },
+        "test": {
+          "GAUC_mean": 0.6580021684267191,
+          "GAUC_std": 0.0,
+          "nDCG@5_mean": 0.5274197676742569,
+          "nDCG@5_std": 0.0,
+          "primary_mean": 0.5927109680504881,
+          "primary_std": 0.0
+        },
+        "delta_vs_baseline_test": {
+          "delta_GAUC": -0.002997831573280929,
+          "delta_nDCG@5": -0.000780232325743091,
+          "delta_primary_mean": -0.00188903194951201
+        },
+        "per_seed": [
+          {
+            "experiment_id": "deepfm_bpr_v1_regularized",
+            "seed": 0,
+            "best_epoch": 7,
+            "epochs_run": 9,
+            "valid": {
+              "GAUC": 0.662325508665895,
+              "nDCG@5": 0.5336439767330035,
+              "primary": 0.5979847426994492
+            },
+            "test": {
+              "GAUC": 0.6580021684267191,
+              "nDCG@5": 0.5274197676742569,
+              "primary": 0.5927109680504881
+            },
+            "wall_time_s": 231.578125,
+            "num_params": 703110,
+            "train_loss_curve": [
+              0.5928450758508641,
+              0.5524036699919392,
+              0.5497150798495725,
+              0.5490654055163157,
+              0.5483987404288148,
+              0.5468929332794903,
+              0.5467227465814823,
+              0.5464602039872314,
+              0.5465214942856659
+            ],
+            "valid_primary_curve": [
+              0.5958470658515874,
+              0.5961100561668966,
+              0.5969039593808387,
+              0.5958713161168383,
+              0.5972070504267838,
+              0.5973119418978161,
+              0.5979847426994492,
+              0.5969826951926805,
+              0.5966825636363244
+            ],
+            "train_fraction": 1.0
+          }
+        ]
+      },
+      "insight": "Both GAUC (+0.0214) and nDCG@5 (+0.0107) improved over the parent -- a clean win (bar=0.0020).",
+      "diagnosis_tag": "clear_improvement",
+      "created_at": 1787976498.0036666,
+      "updated_at": 1787976498.0108056
     }
   }
 }

@@ -1,0 +1,95 @@
+{
+  "run_id": "run_20260829_115644",
+  "iteration_id": "iter_001",
+  "timestamp": 1787976017.7175646,
+  "status": "ok",
+  "config_id": "deepfm_bpr_v1",
+  "model": "deepfm_bpr",
+  "hypothesis": "Combines two independently-partial results rather than a new, unrelated idea: fm_bpr's pairwise loss (P1, real loss/metric-alignment signal, plateaued ~0.002 below the FM baseline in plain FM form) with 'deepfm_regularized's deep architecture (valid primary 0.6034507203196051), which independently proved to help. Same fields/k/hidden/l2 as the parent, so any effect is attributable to the pairwise-vs-pointwise objective change alone -- exactly the same isolation discipline fm_bpr_default used against fm_baseline_repro.",
+  "parent_id": "deepfm_regularized",
+  "code_diff": {
+    "__root__": true
+  },
+  "hyperparams": {
+    "k": 16,
+    "l2": 0.0001,
+    "hidden": [
+      128,
+      64
+    ],
+    "lr": 0.001
+  },
+  "metrics": {
+    "n_seeds": 1,
+    "valid": {
+      "GAUC_mean": 0.6409262359602278,
+      "GAUC_std": 0.0,
+      "nDCG@5_mean": 0.5229026325223666,
+      "nDCG@5_std": 0.0,
+      "primary_mean": 0.5819144342412972,
+      "primary_std": 0.0
+    },
+    "test": {
+      "GAUC_mean": 0.6302166960390168,
+      "GAUC_std": 0.0,
+      "nDCG@5_mean": 0.5123751674260011,
+      "nDCG@5_std": 0.0,
+      "primary_mean": 0.5712959317325089,
+      "primary_std": 0.0
+    },
+    "delta_vs_baseline_test": {
+      "delta_GAUC": -0.030783303960983277,
+      "delta_nDCG@5": -0.015824832573998915,
+      "delta_primary_mean": -0.023304068267491096
+    },
+    "per_seed": [
+      {
+        "experiment_id": "deepfm_bpr_v1",
+        "seed": 0,
+        "best_epoch": 1,
+        "epochs_run": 5,
+        "valid": {
+          "GAUC": 0.6409262359602278,
+          "nDCG@5": 0.5229026325223666,
+          "primary": 0.5819144342412972
+        },
+        "test": {
+          "GAUC": 0.6302166960390168,
+          "nDCG@5": 0.5123751674260011,
+          "primary": 0.5712959317325089
+        },
+        "wall_time_s": 137.953125,
+        "num_params": 703110,
+        "train_loss_curve": [
+          0.5686097042166072,
+          0.48380741905823027,
+          0.44072687454360854,
+          0.4094198140309011,
+          0.3788960994147568
+        ],
+        "valid_primary_curve": [
+          0.5819144342412972,
+          0.5766381317121281,
+          0.580029253807197,
+          0.5776413916310998,
+          0.5763617923473321
+        ],
+        "train_fraction": 1.0
+      }
+    ]
+  },
+  "wall_time_s": 186.453125,
+  "recovery_events": [],
+  "convergence": null,
+  "fidelity_info": {
+    "final_stage": "100pct",
+    "killed_at": null,
+    "kill_reason": null,
+    "stage_wall_times_s": {
+      "1pct": 3.9375,
+      "10pct": 44.5625,
+      "100pct": 137.953125
+    },
+    "estimated_time_saved_s": null
+  }
+}

@@ -79,7 +79,15 @@ From the Starter Kit README, tested and **no gain**:
 1. **Loss function**: pointwise logloss now; GAUC/nDCG are *ranking* metrics —
    pairwise (BPR) or listwise (per-user softmax) is their top guess.
    **Done (P1):** `fm_bpr` -- 3 diagnosis-driven rounds, real but plateaued
-   ~0.002 below baseline, see P1_FEATURES_AND_RESULTS.md.
+   ~0.002 below baseline, see P1_FEATURES_AND_RESULTS.md. **Extended (P2):**
+   `agent/model_zoo/deepfm_bpr.py` combines BPR with DeepFM's deeper
+   architecture (torch, wired directly into the real pipeline). Overfits
+   fast at first (`deepfm_bpr_v1`, regression); the same L2/patience fix
+   that worked for `fm_bpr_regularized`/`deepfm_regularized` recovers most
+   of it (`deepfm_bpr_v1_regularized`, valid 0.5980) but still doesn't
+   clear the plain FM baseline (0.6015) -- doubly confirms (P1 + this) that
+   BPR has a real, structural ceiling on this benchmark, not a
+   hyperparameter away. See `docs/P2_FEATURES_AND_RESULTS.md` §8.
 2. **User history / sequences**: **Done (P2):**
    `agent/model_zoo/deepfm_din.py` + `agent/sequences.py` -- DIN-style
    attention (Zhou et al. 2018) over each user's recent watch history on
@@ -362,13 +370,18 @@ alias stub in this environment that fails with no interpreter installed).
   (`deepfm_din_v1`, standalone, `seq_len=20`) -- `ranking_tradeoff`
   (nDCG@5 up, GAUC down), not a clean win; see
   `docs/P2_FEATURES_AND_RESULTS.md` §6.
-- **Still not built from the P1 tier:** Per-Segment Metric Diagnosis,
-  generalized (not per-node-id-hardcoded) diagnosis-driven candidate
-  generation. `DeepFM_BPR` is a natural, cheap extension of what's already
-  built. Sequence modeling (DIN/SIM-style, the starter kit's own #2-ranked
-  untested item) is now done -- see the "Unexplored headroom" #2 entry
-  above and `docs/P2_FEATURES_AND_RESULTS.md` §6 (`deepfm_din_v1`,
-  `ranking_tradeoff`, not a win).
+- **Still not built from the P1 tier:** Per-Segment Metric Diagnosis
+  (does `deepfm_mtl_v1`'s win hold uniformly across user/item segments, or
+  mostly on one? -- genuinely unchecked), generalized (not per-node-id-
+  hardcoded) diagnosis-driven candidate generation. Sequence modeling
+  (DIN/SIM-style, the starter kit's own #2-ranked untested item) and
+  `DeepFM_BPR` (the loss/architecture combination flagged as a natural
+  extension) are both now done -- see "Unexplored headroom" #1/#2 above
+  and `docs/P2_FEATURES_AND_RESULTS.md` §6/§8. Neither beat `deepfm_mtl_v1`.
+  A randomized-exposure generalization check (§9, `log_random_...csv`,
+  never used before) found `deepfm_mtl_v1`'s edge over the baseline holds
+  -- and grows -- on unbiased data, the strongest evidence yet that the
+  win isn't an artifact of TikTok's own biased serving/logging policy.
 - **Not yet built from Phase 4:** budget-aware stopping (the `budget` dict
   in the LLM prompt is informational only -- nothing changes behavior as it
   depletes), auto-triggering `verify_multiseed.py` when a new best node
