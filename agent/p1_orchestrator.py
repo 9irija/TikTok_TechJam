@@ -111,6 +111,7 @@ def p1_candidate_pool(map: ResearchMap) -> list[ExperimentConfig]:
     candidates.extend(_engineered_feature_candidates(map))
     candidates.extend(_multi_task_candidates(map))
     candidates.extend(_deepfm_bpr_candidates(map))
+    candidates.extend(_pcgrad_candidates(map))
     candidates.extend(_diagnosis_driven_candidates(map))
     return [c for c in candidates if c.id not in map.nodes]
 
@@ -247,6 +248,48 @@ def _deepfm_bpr_candidates(map: ResearchMap) -> list[ExperimentConfig]:
               "(registry.py + agent/experiment.py's existing is_bpr branch) rather than standalone-checked "
               "first, since the bpr_step/predict contract fm_bpr already validated in P1 carries over "
               "with zero training-loop changes needed.",
+    )]
+
+
+def _pcgrad_candidates(map: ResearchMap) -> list[ExperimentConfig]:
+    """Refines the one mechanism that's actually worked (deepfm_mtl_v1),
+    rather than trying yet another architecture -- every architecture bet
+    this pass (DIN, BPR, listwise, PDAOM) came back negative or tied,
+    independently reconfirming the organizers' own "capacity/architecture
+    isn't the bottleneck" finding. deepfm_mtl_uncertainty_v1 (already
+    tried) addressed loss-magnitude weighting and came back tied; PCGrad
+    (Yu et al. 2020) addresses a genuinely different multi-task pathology
+    -- gradient DIRECTION conflict on shared parameters, which magnitude
+    reweighting cannot fix even in principle. Same fields/k/hidden/l2/
+    aux_weight as deepfm_mtl_v1, so gradient surgery is the only variable.
+    """
+    parent = map.nodes.get("deepfm_mtl_v1")
+    if parent is None or parent.status != "done" or "deepfm_mtl_pcgrad_v1" in map.nodes:
+        return []
+    try:
+        import torch  # noqa: F401
+    except ImportError:
+        return []  # torch not installed in this environment -- skip, don't fail the whole pool
+
+    base_hp = dict(parent.config.hyperparams)
+    return [ExperimentConfig(
+        id="deepfm_mtl_pcgrad_v1", model="deepfm_mtl_pcgrad",
+        hypothesis=(
+            f"Refines '{parent.node_id}''s own multi-task mechanism (valid primary "
+            f"{(parent.metrics or {}).get('valid', {}).get('primary_mean')}) rather than trying a new "
+            f"architecture: PCGrad (Yu et al. 2020, 'Gradient Surgery for Multi-Task Learning') resolves "
+            f"conflicting gradient DIRECTIONS between the main task and the auxiliary tasks on their "
+            f"shared parameters, before combining them -- a different pathology than "
+            f"deepfm_mtl_uncertainty_v1's loss-magnitude weighting (already tried, tied), which cannot "
+            f"address direction conflict even in principle. Simplified to a 2-task formulation (main vs. "
+            f"combined aux loss, not full 5-way pairwise) since aux_heads' 4 outputs share one weight "
+            f"matrix, not cleanly separable parameters. Same fields/k/hidden/l2/aux_weight as the parent, "
+            f"so gradient surgery is the only variable."
+        ),
+        hyperparams=base_hp, fields=list(parent.config.fields), parent_id="deepfm_mtl_v1", seeds=[0],
+        edge_type="improve",
+        notes="agent/model_zoo/deepfm_mtl_pcgrad.py -- reuses agent/experiment.py's existing is_mtl branch "
+              "(same mtl_step(X,y,aux) contract as deepfm_mtl.py), wired directly into the real pipeline.",
     )]
 
 

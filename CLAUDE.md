@@ -149,7 +149,13 @@ From the Starter Kit README, tested and **no gain**:
    training-loop interface mismatch, not worth the refactor once the
    standalone result was this clearly behind) -- see README "Multi-task
    learning" section for the full reasoning.
-6. Temporal features / train↔test drift. Still open.
+6. **Temporal drift diagnosis: done** (`tools/check_temporal_drift.py`,
+   no new training). Cold-start is negligible (98.1% of valid users /
+   99.9% of valid videos already seen in train); label rate shifts
+   (0.3366 train -> 0.3133 valid). Per-day within valid: `deepfm_mtl_v1`'s
+   win holds 6/7 days, one small real negative day (4/22, -0.0023) --
+   reported plainly. See `docs/P2_FEATURES_AND_RESULTS.md` §16.
+   **Temporal features as model inputs** (not just diagnosis) still open.
 7. `log_random_4_22_to_5_08_pure.csv` — randomized-exposure subset, usable
    for an unbiased secondary validation set / IPW / counterfactual eval.
    Still open.

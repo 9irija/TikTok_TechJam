@@ -454,6 +454,15 @@ valid rows). Reported exactly as measured, including the part that isn't
 flattering. Full detail:
 [`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §15.
 
+**Does anything drift between train and validation?** `tools/check_temporal_drift.py`:
+98.1% of valid users / 99.9% of valid videos were already seen in train
+(negligible cold-start), but the label rate does shift (0.3366 → 0.3133).
+Per-day within the valid window, `deepfm_mtl_v1`'s win over
+`deepfm_regularized` holds on 6 of 7 days, with one small, real negative
+day (4/22, −0.0023) — reported plainly, not smoothed into "holds every
+day." Full detail:
+[`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §16.
+
 ## Engineered features — a real negative result, and a real bug it surfaced
 
 `agent/features.py` adds 4 new fields on top of the starter kit's base 5:

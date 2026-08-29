@@ -510,6 +510,73 @@ def test_deepfm_bpr_forward_backward_reduces_loss():
     assert np.allclose(m.predict(X), m2.predict(X)), "get_state/set_state round-trip must reproduce predictions"
 
 
+def test_pcgrad_resolve_math_on_hand_constructed_cases():
+    """Targeted correctness check of agent/model_zoo/deepfm_mtl_pcgrad.py's
+    core `_pcgrad_resolve` -- the actual gradient-surgery math, not just
+    "loss goes down" -- on three hand-constructed cases with known,
+    hand-derived expected outcomes. This is the highest-risk new code in
+    this project (manual multi-loss gradient manipulation, not a single
+    .backward() call), so it gets checked against real numbers, not just
+    smoke-tested."""
+    import torch
+    from agent.model_zoo.deepfm_mtl_pcgrad import _pcgrad_resolve
+
+    rng = np.random.default_rng(0)
+
+    # Case 1: directly opposing gradients (dot < 0, maximal conflict) --
+    # each fully cancels when projected onto the other's orthogonal plane,
+    # so the combined result is exactly zero regardless of resolution order.
+    g_main = [torch.tensor([1.0, 0.0])]
+    g_aux = [torch.tensor([-1.0, 0.0])]
+    combined = _pcgrad_resolve(g_main, g_aux, rng)
+    assert torch.allclose(combined[0], torch.zeros(2), atol=1e-6), \
+        f"directly opposing gradients should fully cancel, got {combined[0]}"
+
+    # Case 2: orthogonal gradients (dot == 0, no conflict) -- PCGrad must be a
+    # no-op here; the combined result is exactly the unmodified sum.
+    g_main = [torch.tensor([1.0, 0.0])]
+    g_aux = [torch.tensor([0.0, 1.0])]
+    combined = _pcgrad_resolve(g_main, g_aux, rng)
+    assert torch.allclose(combined[0], torch.tensor([1.0, 1.0]), atol=1e-6), \
+        f"orthogonal gradients should sum unmodified (no conflict to resolve), got {combined[0]}"
+
+    # Case 3: same-direction gradients (dot > 0, reinforcing) -- also a no-op;
+    # PCGrad only ever removes conflicting components, never reinforcing ones.
+    g_main = [torch.tensor([2.0, 1.0])]
+    g_aux = [torch.tensor([1.0, 0.5])]
+    combined = _pcgrad_resolve(g_main, g_aux, rng)
+    assert torch.allclose(combined[0], torch.tensor([3.0, 1.5]), atol=1e-6), \
+        f"reinforcing gradients should sum unmodified, got {combined[0]}"
+
+
+def test_deepfm_mtl_pcgrad_forward_backward_reduces_loss():
+    """P2's gradient-surgery multi-task model, same shape of test as every
+    other torch model above, through the REAL Model Zoo registry (reuses
+    agent/experiment.py's existing is_mtl branch -- same mtl_step(X,y,aux)
+    contract deepfm_mtl.py already validated, so this is wired directly
+    into the real pipeline, not standalone-checked first)."""
+    rng = np.random.default_rng(0)
+    n, n_fields, dim = 2000, 5, 200
+    X = rng.integers(0, dim, size=(n, n_fields)).astype(np.int32)
+    y = rng.integers(0, 2, size=n).astype(np.float32)
+    aux = rng.integers(0, 2, size=(n, 4)).astype(np.float32)
+
+    m = build_model("deepfm_mtl_pcgrad", dim=dim, n_fields=n_fields, k=8, hidden=[16, 8],
+                     lr=0.01, aux_weight=0.2, seed=0)
+    losses = [m.mtl_step(X[i:i + 200], y[i:i + 200], aux[i:i + 200]) for i in range(0, n, 200) for _ in range(3)]
+    assert losses[-1] < losses[0], f"main-task loss should decrease on synthetic data: {losses[0]} -> {losses[-1]}"
+
+    preds = m.predict(X)
+    assert preds.shape == (n,), preds.shape
+    assert np.isfinite(preds).all(), "predictions must be finite"
+
+    state = m.get_state()
+    m2 = build_model("deepfm_mtl_pcgrad", dim=dim, n_fields=n_fields, k=8, hidden=[16, 8],
+                      lr=0.01, aux_weight=0.2, seed=2)
+    m2.set_state(state)
+    assert np.allclose(m.predict(X), m2.predict(X)), "get_state/set_state round-trip must reproduce predictions"
+
+
 def test_research_map_basic():
     import tempfile
     from agent.research_map import ResearchMap
@@ -1084,6 +1151,8 @@ def main() -> int:
         tests.append(test_deepfm_listwise_forward_backward_reduces_loss)
         tests.append(test_deepfm_pdaom_forward_backward_reduces_loss)
         tests.append(test_deepfm_bpr_forward_backward_reduces_loss)
+        tests.append(test_pcgrad_resolve_math_on_hand_constructed_cases)
+        tests.append(test_deepfm_mtl_pcgrad_forward_backward_reduces_loss)
     except ImportError:
         pass
     tests += [

@@ -743,6 +743,52 @@ individually sparser than `long_view` itself) to add much beyond noise at
 that specific density — worth a dedicated follow-up, not asserted as
 confirmed here.
 
+## 16. Temporal drift check — train→valid boundary, and day-by-day within validation
+
+Priority #3 from the user's own next-steps list. Two checks,
+`tools/check_temporal_drift.py`, no new training needed.
+
+**Distribution drift across the train→valid boundary:** 98.1% of valid
+users and 99.9% of valid videos were already seen somewhere in train — 
+cold-start is negligible on this benchmark, so any drift found isn't a
+"the model has never seen these entities" effect. The label rate does
+shift, though: train positive rate 0.3366 → valid 0.3133 (−0.0233, a real,
+non-trivial drop) — a genuine distribution difference between the two
+windows, consistent with `deepfm_mtl_v1`'s own honestly-reported
+validation-vs-test gap elsewhere in this document.
+
+**Per-day performance within the valid window** (`deepfm_regularized` vs.
+`deepfm_mtl_v1`, both scored on identical within-day user groupings):
+
+| Date | Rows | Positive rate | `deepfm_regularized` | `deepfm_mtl_v1` | Delta |
+|---|---|---|---|---|---|
+| 2022-04-22 | 22,283 | 0.3186 | 0.5467 | 0.5443 | **−0.0023** |
+| 2022-04-23 | 26,645 | 0.3382 | 0.5573 | 0.5600 | +0.0026 |
+| 2022-04-24 | 18,240 | 0.3031 | 0.5228 | 0.5258 | +0.0030 |
+| 2022-04-25 | 14,911 | 0.3123 | 0.5245 | 0.5290 | +0.0045 |
+| 2022-04-26 | 14,530 | 0.3114 | 0.5236 | 0.5239 | +0.0003 |
+| 2022-04-27 | 14,328 | 0.2973 | 0.5227 | 0.5244 | +0.0017 |
+| 2022-04-28 | 13,972 | 0.2899 | 0.5309 | 0.5312 | +0.0003 |
+| All 7 days (aggregate) | 124,909 | 0.3133 | 0.6035 | 0.6049 | +0.0014 |
+
+**Methodological note, so this table isn't misread:** the per-day absolute
+scores (~0.52–0.56) look much lower than the 7-day aggregate (0.6035/
+0.6049) — this is expected, not a sign the model performs worse day to
+day than reported. GAUC/nDCG@5 are computed per-user; restricting to one
+day gives each user far fewer impressions to rank within, which is a
+harder, noisier evaluation than letting each user's full week contribute.
+The **delta** column (both models scored on the identical within-day
+grouping) is still a fair, self-consistent comparison — the absolute
+column just isn't comparable to the aggregate row.
+
+**Honest read:** the win holds on 6 of 7 days, with one borderline day
+(4/22, the very first day of the validation window) showing a real but
+small negative delta (−0.0023). Not an alarming drift pattern — a single
+day out of seven, small in magnitude, on the smallest and noisiest kind of
+slice this project scores — but reported exactly as measured rather than
+rounded up to "holds every day." No clear day-of-week or trend pattern is
+visible in the remaining 6 days' deltas.
+
 ## Net effect on the project-best
 
 | | Valid primary (3-seed) | Test primary (3-seed mean) | vs. official baseline (test) |
