@@ -138,7 +138,7 @@ def main() -> int:
     args = ap.parse_args()
 
     nodes_js, best_id, n_total, breakdown = build_nodes_js()
-    html = DASHBOARD_PATH.read_text()
+    html = DASHBOARD_PATH.read_text(encoding="utf-8")
 
     new_nodes_block = "  var NODES = [\n%s\n  ];" % nodes_js
     html_new = re.sub(r"  var NODES = \[.*?\n  \];", lambda _m: new_nodes_block, html, count=1, flags=re.S)
@@ -160,7 +160,7 @@ def main() -> int:
         print("docs/dashboard.html already up to date -- no changes written.")
         return 0
 
-    DASHBOARD_PATH.write_text(html_new)
+    DASHBOARD_PATH.write_text(html_new, encoding="utf-8")
     print(f"Regenerated docs/dashboard.html ({n_total} nodes, BEST_ID={best_id}).")
     return 0
 

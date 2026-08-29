@@ -288,12 +288,27 @@ real) — top-5 precision got slightly better, broader within-user ordering
 got slightly worse. Not a clean win, not a clean loss, and not noise
 either; a genuine mixed signal.
 
+A third, independent data point (single-seed, `seq_len=30` — checked
+concurrently and merged in, not yet 3-seed-verified): valid primary
+**0.6039**, test primary **0.5975**. The average user in this dataset has
+53 interactions logged (median 39), so `seq_len=10` was genuinely
+truncating most of a typical user's history before the model ever saw it
+— the concrete reason both independent efforts converged on "try a longer
+window" separately. But `seq_len=30`'s single-seed number sits right where
+`seq_len=20`'s 3-seed mean already was (0.6039 vs. 0.6036, a gap well
+inside this model family's established noise band), not on some rising
+trend — the honest read is a plateau, not "give it more window and it'll
+eventually win": doubling and tripling the history length moved the
+result from "consistent regression" to "roughly ties the parent," and
+appears to stop there.
+
 **Honest conclusion:** DIN needs a long-enough history window to stop
-actively hurting (10 videos: consistent regression; 20 videos: the
-regression resolves into a trade-off), but even at `seq_len=20` it doesn't
-clear the bar to justify the added complexity and inference cost of a
-second embedding table + attention block. `deepfm_mtl_v1` remains the
-project-best. Logged as a proper Research Map node rather than left
+actively hurting (10 videos: consistent regression; 20-30 videos: plateaus
+at roughly parent-level performance, a trade-off at best), but at no
+window length tried does it clear the bar to justify the added complexity
+and inference cost of a second embedding table + attention block —
+`deepfm_mtl_v1` remains the project-best by a clear margin (0.6046 vs.
+~0.6036-0.6039). Logged as a proper Research Map node rather than left
 untested — the last item on the starter kit's own headroom list is now a
 real, reproducible number instead of an open question.
 
