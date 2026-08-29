@@ -104,6 +104,41 @@ def load_aux_labels(data_dir: str | None = None) -> dict[str, np.ndarray]:
             for name, rows in splits.items()}
 
 
+WATCH_RATIO_CLIP = 3.0  # cap rewatches (play_time_ms > duration_ms) at 3x duration before normalizing
+
+
+def load_watch_ratio(data_dir: str | None = None, clip: float = WATCH_RATIO_CLIP) -> dict[str, np.ndarray]:
+    """Per-split (N,) float32 arrays of a clipped, [0,1]-normalized
+    play_time_ms/duration_ms completion ratio -- used ONLY as a continuous
+    auxiliary training TARGET for `agent/model_zoo/deepfm_mtl_watch.py`
+    (CLAUDE.md's "Unexplored headroom" #4, "Watch-time modeling... Still
+    open"), never as model input.
+
+    This is NOT the leakage case this file's own module docstring warns
+    about: that warning is about using a row's own completion ratio as an
+    INPUT feature, which would hand the model `long_view` directly (both
+    are derived from the same play_time_ms/duration_ms pair). Using it as
+    a training TARGET for an auxiliary head is a structurally different,
+    already-established pattern in this codebase -- `load_aux_labels`'
+    is_like/is_follow/etc. are exactly the same shape of thing (a same-row
+    outcome of the impression being scored, used only to shape gradients
+    into the shared embedding table). The main `long_view` logit -- the
+    only thing GAUC/nDCG@5 ever score -- never sees this value at either
+    train or inference time; `deepfm_mtl_watch.py`'s `predict()` only ever
+    reads the main head.
+
+    Same row order as `load_splits`/`load_aux_labels` (see that function's
+    docstring for why that alignment is guaranteed, not assumed).
+    """
+    splits = load_splits(data_dir)
+    out: dict[str, np.ndarray] = {}
+    for name, rows in splits.items():
+        ratios = [min(x["play_time_ms"] / x["duration_ms"], clip) if x["duration_ms"] > 0 else 0.0
+                  for x in rows]
+        out[name] = (np.array(ratios, dtype=np.float32) / clip)
+    return out
+
+
 def compute_train_only_aggregates(train_rows: list[dict[str, Any]]) -> dict[str, dict[str, float]]:
     """Per-video and per-author aggregate stats from the TRAINING split
     only. `play_time_ms` is read here -- and ONLY here -- to compute a

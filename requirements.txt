@@ -28,7 +28,33 @@ python-dotenv>=1.0    # loads GEMINI_API_KEY from .env (gitignored; .env.example
 # Also used by agent/model_zoo/deepfm_din.py (DIN-style attention over user
 # history, same autograd rationale for its attention block's backward pass;
 # standalone-checked via tools/check_sequence_model.py, not registered in
-# the Model Zoo -- deepfm_din_v1 came back ranking_tradeoff, not a win).
+# the Model Zoo -- deepfm_din_v1 came back ranking_tradeoff, not a win),
+# agent/model_zoo/deepfm_bpr.py (DeepFM + BPR's pairwise loss, wired into
+# the real agent/experiment.py pipeline via the existing is_bpr branch --
+# deepfm_bpr_v1_regularized still doesn't clear the plain FM baseline), and
+# agent/model_zoo/deepfm_mtl_watch.py (deepfm_mtl_v1 + a 5th, continuous
+# watch-time auxiliary head; standalone-checked via
+# tools/check_watch_time_mtl.py -- deepfm_mtl_watch_v1 came back
+# noise_floor at every weight swept, not a win), and
+# agent/model_zoo/deepfm_din_mtl.py (DIN attention + MTL auxiliary heads
+# combined; standalone-checked via tools/check_din_mtl.py --
+# deepfm_din_mtl_v1 landed below both individual components, the two
+# mechanisms cancelled out rather than stacked), and
+# agent/model_zoo/deepfm_mtl_uncertainty.py (deepfm_mtl_v1 with learned
+# per-task uncertainty weights, Kendall et al. 2018, instead of a fixed
+# aux_weight; standalone-checked via tools/check_mtl_uncertainty.py --
+# deepfm_mtl_uncertainty_v1 came back noise_floor even at 8 seeds, the
+# tightest margin tried but still not a confirmed win), and
+# agent/model_zoo/deepfm_listwise.py (DeepFM + a per-user listwise
+# softmax ranking loss instead of pointwise BCE -- the untested half of
+# the starter kit's own "pairwise BPR or listwise" loss-function guess;
+# standalone-checked via tools/check_listwise.py -- deepfm_listwise_v1
+# ties deepfm_regularized outright, unlike BPR's real regression against
+# the same parent, but still doesn't beat deepfm_mtl_v1), and
+# agent/model_zoo/deepfm_pdaom.py (DeepFM + a pairwise exponential AUC
+# loss with per-user hard-pair mining, arXiv:2304.09176 reconstruction;
+# standalone-checked via tools/check_pdaom.py -- deepfm_pdaom_v1 came
+# back a severe, well-diagnosed regression, not pursued further).
 torch>=2.0
 
 # ---------------------------------------------------------------------------

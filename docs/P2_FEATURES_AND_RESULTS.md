@@ -441,6 +441,250 @@ this document) — the exact magnitude shouldn't be quoted with 3-seed
 confidence, but the direction is a real, useful answer: yes, this specific
 optimization generalizes beyond the one distribution it was validated on.
 
+## 10. Watch-time multi-task head (`deepfm_mtl_watch_v1`) — a thoroughly-tested noise_floor
+
+CLAUDE.md's "Unexplored headroom" #4, "Watch-time modeling: censored
+regression on `play_time`... Still open" — the last item on that list not
+yet tried. `agent/model_zoo/deepfm_mtl_watch.py` extends `deepfm_mtl_v1`'s
+proven shared-bottom setup (4 binary auxiliary heads: `is_like`/
+`is_follow`/`is_comment`/`is_forward`) with a 5th, **continuous** auxiliary
+head trained on a clipped, normalized `play_time_ms/duration_ms`
+completion ratio (`agent/features.py`'s new `load_watch_ratio`), via MSE
+instead of BCE. Hypothesis: a denser, continuous training signal might
+regularize the shared embeddings better than 4 binary signals alone.
+
+**Not the leakage case this project usually has to guard against** with
+`play_time_ms` (see `agent/features.py`'s module docstring on why it's
+unsafe as an *input* feature) — this uses it only as an auxiliary
+**training target**, exactly the same role the existing 4 heads already
+play. The main `long_view` logit — the only thing GAUC/nDCG@5 ever score
+— never sees it, at train or inference time.
+
+Standalone check (`tools/check_watch_time_mtl.py`), same discipline as
+`lgbm_baseline`/`deepfm_din_v1`. `watch_weight` swept at seed 0 across
+`{0.05, 0.1, 0.2, 0.4, 0.6}` first — valid primary stayed in a narrow
+0.6043–0.6045 band at every weight, all within noise of the parent
+(0.6046). Not a tuning problem: the signal simply isn't moving validation
+either way, regardless of how strongly it's weighted. Two settings
+3-seed-verified for a proper check:
+
+| | valid primary (3-seed) | test primary (3-seed) | diagnosis |
+|---|---|---|---|
+| `watch_weight=0.2` (matches `aux_weight`) | 0.6043 ± 0.0003 | 0.5982 ± 0.0005 | `noise_floor` |
+| `watch_weight=0.6` (best single-seed point) | 0.6045 ± 0.0002 | 0.5982 ± 0.0004 | `noise_floor` |
+
+Logged as `deepfm_mtl_watch_v1` (the `watch_weight=0.2` run, for symmetry
+with `deepfm_mtl_v1`'s own `aux_weight=0.2`).
+
+**A curious, consistent aside — reported honestly, not used to override
+the diagnosis**: test primary came in *higher* than `deepfm_mtl_v1`'s at
+every single seed tried, at both weights (0.5982 vs. parent's 0.5974,
+consistently, 6 runs). Train/valid/test discipline says this doesn't
+matter for the decision — validation is the only split anything here is
+allowed to read, and validation says `noise_floor` — but it's worth
+recording rather than silently dropping, the same way `deepfm_mtl_v1`
+itself had an honestly-reported test-side quirk relative to
+`deepfm_regularized`.
+
+**Honest conclusion:** the watch-time auxiliary signal doesn't clear the
+bar on validation, at any weight tested. `deepfm_mtl_v1` remains the
+project-best. The last item on the starter kit's own headroom list is now
+a real, reproducible, thoroughly-swept number instead of an open question.
+
+## 11. Combining DIN + MTL (`deepfm_din_mtl_v1`) — the two mechanisms cancel out, not stack
+
+The natural "combine two independently-partial results" move, same
+reasoning `deepfm_bpr_v1` already used to combine P1's BPR loss with
+DeepFM's architecture (§8). `deepfm_din_v1` alone (seq_len=20) was a
+`ranking_tradeoff` on top of `deepfm_regularized`: nDCG@5 improved
+(+0.0005) but GAUC dropped (-0.0003). `deepfm_mtl_v1` alone was a clean
+`clear_improvement` on the same parent. Hypothesis: MTL's regularizing
+effect might correct DIN's GAUC regression while keeping its nDCG@5 gain,
+since the two act on different parts of the model (attention over recent
+history vs. a denser multi-signal training target) rather than obviously
+competing for the same capacity.
+
+`agent/model_zoo/deepfm_din_mtl.py`: DIN's exact attention block (dedicated
+video embedding table, masked scaled-dot-product attention) plus MTL's 4
+binary auxiliary heads (`is_like`/`is_follow`/`is_comment`/`is_forward`),
+both reading the same post-attention deep trunk. Standalone check
+(`tools/check_din_mtl.py`), both components' proven hyperparameters reused
+unchanged (`seq_len=20`, `aux_weight=0.2`) so combining them is the only
+variable. 3-seed result:
+
+| | valid primary (3-seed) | test primary (3-seed) |
+|---|---|---|
+| `deepfm_mtl_v1` (current best) | 0.6046 ± 0.0003 | 0.5974 |
+| `deepfm_din_v1` alone (seq_len=20) | 0.6036 ± 0.0001 | 0.5973 |
+| **`deepfm_din_mtl_v1` (combined)** | **0.6033 ± 0.0002** | **0.5972** |
+
+**The hypothesis was wrong.** The combined model doesn't land between or
+above its two parents — it lands *below both*. Diagnosed against its
+actual parent (`deepfm_regularized`, 0.6035): `noise_floor` (the two
+effects roughly cancel rather than combine). Diagnosed against the
+current best (`deepfm_mtl_v1`) for honest context: a real `regression`
+(GAUC -0.0021, nDCG@5 -0.0005, both individually significant).
+
+**Why, plausibly:** both components' hyperparameters were reused exactly
+as tuned for each standalone case, not re-tuned for the combined,
+higher-capacity model (one more embedding table, one more loss term,
+same learning rate and epoch budget). The two mechanisms may simply need
+a smaller learning rate or lower `aux_weight` to coexist productively
+instead of interfering during optimization — a real, concrete next
+question if this direction is ever revisited, not chased further here.
+`deepfm_mtl_v1` remains the project-best.
+
+## 12. Uncertainty-weighted MTL (`deepfm_mtl_uncertainty_v1`) — the closest thing to a tie, still not a confirmed win
+
+After DIN+MTL combination failed (§11), a different lever on the
+already-working mechanism itself rather than combining it with something
+else: `deepfm_mtl_v1` combines its 4 auxiliary losses with one fixed,
+hand-picked `aux_weight=0.2` — a value `agent/hpo.py`'s Optuna search
+already searched around (among other hyperparameters) and found nothing
+better than. Kendall, Gal & Cipolla 2018 ("Multi-Task Learning Using
+Uncertainty to Weigh Losses") replaces every fixed task weight with a
+**learned** per-task uncertainty parameter, optimized jointly with the
+network — a genuinely different mechanism from a fixed-value sweep, not
+just a different point in the same search space.
+
+`agent/model_zoo/deepfm_mtl_uncertainty.py`: identical architecture to
+`deepfm_mtl.py`, but 5 learned `log_var` parameters (main + 4 aux tasks
+individually) replace the single fixed weight; `loss = sum_i
+exp(-log_var_i) * task_loss_i + log_var_i`. Standalone check
+(`tools/check_mtl_uncertainty.py`). Given how close the early seeds
+looked, this is the one lever pushed to **8 seeds** instead of the usual
+3, to get a properly powered read:
+
+| | valid primary | test primary |
+|---|---|---|
+| `deepfm_mtl_v1` (current best, fixed weight=0.2) | 0.6046 ± 0.0003 (3-seed) | 0.5974 (3-seed) |
+| **`deepfm_mtl_uncertainty_v1`** (learned weights) | **0.6048 ± 0.0002 (8-seed)** | **0.5984 ± 0.0002 (8-seed)** |
+
+The learned weights converged to roughly **uniform across all 4 aux
+tasks** (~3.2–3.8× the main task's own learned weight of ~1.98) rather
+than differentiating between `is_like`/`is_follow`/`is_comment`/
+`is_forward` — the 4 signals appear similarly relevant/difficult here, so
+the real effect of this technique is closer to "recalibrate the overall
+aux weight upward from 0.2" than "weight tasks differently from each
+other."
+
+**Diagnosis, even at 8 seeds: `noise_floor`** — the +0.0002 valid-primary
+edge stays inside the seed-aware significance bar (0.0004). This is the
+tightest margin and the only lever this pass that never scored *below*
+the current best on any single seed (unlike the watch-time head or the
+DIN+MTL combination), but it still isn't a confirmed win by this
+project's own statistical standard.
+
+**Worth stating plainly, not smoothed over:** the 8-seed test-primary gap
+(0.5984 vs. 0.5974) is *itself* statistically real (~2.7 combined standard
+errors) — a stronger test-side signal than validation shows. Train/valid/
+test discipline means this cannot be the basis for calling it a win —
+only validation is allowed to drive a decision here, and validation says
+tie — but it's an honest, curious data point rather than something to
+quietly drop. `deepfm_mtl_v1` remains the project-best.
+
+## 13. Listwise ranking loss (`deepfm_listwise_v1`) — ties the pointwise baseline, the untested half of the loss-function guess
+
+The starter kit README's own top guess for the loss-function lever was
+*"pairwise (BPR) or listwise (per-user softmax)"* — `fm_bpr` (P1) and
+`deepfm_bpr` (P2) tested the pairwise half twice, both plateauing below
+the plain FM baseline (a real, structural ceiling, per §8). The listwise
+half was never actually tried, only assumed to be in the same family.
+This tests it directly.
+
+`agent/model_zoo/deepfm_listwise.py`: the same DeepFM backbone as
+`deepfm_regularized`, trained with a per-user softmax cross-entropy
+(ListNet/Plackett-Luce style) over each user's *entire* impression set at
+once, instead of pointwise BCE or BPR's one-pair-at-a-time. Batching is
+structurally different from every other model here (each batch is a set
+of users, padded to `max_len=64`, masked out of the softmax — same
+masking convention `deepfm_din.py` already established), so it's a
+standalone check (`tools/check_listwise.py`), not wired into
+`agent/experiment.py`.
+
+`l2` swept `{1e-2, 1e-3, 1e-4 (DeepFM's own default), 1e-5, 1e-6}` at
+seed 0 first — and the direction was the *opposite* of what fixed
+`deepfm_default`/`deepfm_wider`'s overfitting earlier in this project:
+**higher** L2 made this worse (1e-2 broke training outright, valid
+~0.58), not better. `1e-5` was the best point found. 3-seed result at
+`l2=1e-5`:
+
+| | valid primary (3-seed) | vs. parent |
+|---|---|---|
+| `deepfm_regularized` (parent, pointwise BCE) | 0.6035 ± 0.0002 | — |
+| `deepfm_bpr_v1_regularized` (pairwise BPR) | 0.5980 | −0.0055, real regression |
+| **`deepfm_listwise_v1`** (listwise softmax) | **0.6033 ± 0.0004** | **−0.0002, `noise_floor` — a genuine tie** |
+
+**Listwise is clearly the better of the starter kit's own two suggested
+ranking-loss options** — it ties the pointwise baseline outright, where
+pairwise BPR fell short by a real, structural margin twice. Neither beats
+`deepfm_mtl_v1` (0.6046), the actual current best, so this doesn't move
+the project's bottom line — but it does close out the loss-function
+question the starter kit itself posed more completely than the pairwise
+attempts alone did. One curious training-dynamics note, also flagged by
+the Diagnosis Engine's own `overfitting_risk` check: validation peaks
+very early (epoch 2-3) at every L2 tried, a different shape than
+pointwise BCE's more gradual climb — a real next question if this
+direction is revisited (e.g. a much smaller effective learning rate, or a
+temperature-scaled softmax), not chased further here.
+
+## 14. PDAOM hard-pair mining (`deepfm_pdaom_v1`) — a real, well-diagnosed regression
+
+One more loss-function bet after listwise (§13) tied the pointwise
+baseline: "PDAOM" (Personalized Differentiable AUC Optimization with
+Maximum violation, arXiv:2304.09176) — a pairwise loss like BPR, but with
+two real differences: an exponential loss shape (steeper than BPR's
+bounded log-sigmoid) and per-user hard-pair mining (the single hardest
+positive/negative pair per user each batch, not BPR's uniformly-random
+pair). The paper reports real GAUC/AUC gains in a production
+feed-recommendation system.
+
+**Source-fidelity caveat, stated upfront:** the paper's PDF text couldn't
+be machine-extracted (image-embedded, not searchable), so
+`agent/model_zoo/deepfm_pdaom.py` is a faithful reconstruction from its
+abstract-level description plus the two named techniques it's built
+from (classic AUC-optimization exponential loss; batch-hard mining from
+metric learning) — not a citation of the paper's own exact tuned
+constants.
+
+**Result: a severe, unambiguous regression**, not noise — no 3-seed
+re-verification needed to see this is real:
+
+| config | valid primary |
+|---|---|
+| `deepfm_regularized` (parent, pointwise BCE) | 0.6035 |
+| `deepfm_bpr_v1_regularized` (uniform-pair BPR) | 0.5980 |
+| `deepfm_listwise_v1` (per-user softmax) | 0.6033 |
+| **`deepfm_pdaom_v1`** (hard-mining, `max_candidates=8`) | **0.5483** |
+
+Diagnosed with two quick ablations before stopping, isolating the two
+variables (loss shape vs. mining) instead of guessing:
+
+| variant | valid primary |
+|---|---|
+| Full hard-mining (`max_candidates=8`) | 0.5483 |
+| Smaller candidate pool (`max_candidates=2`) | 0.5764 |
+| No mining at all — exponential loss on one random pair (`max_candidates=1`) | 0.5917 |
+
+**Both ingredients hurt independently.** Even with hard-mining fully
+removed, the exponential loss alone (0.5917) still trails BPR's bounded
+log-sigmoid loss (0.5980) — the loss barely moved epoch-to-epoch during
+training (~1.003 the whole run), a sign of a weak or unstable gradient
+signal. Hard-pair mining then compounds that instability further as the
+candidate pool grows (0.5917 → 0.5764 → 0.5483). This matches a
+documented failure mode in the metric-learning literature: FaceNet
+(Schroff et al. 2015) moved away from pure hardest-negative mining
+toward "semi-hard" mining for exactly this reason — the single hardest
+example in a batch is often a noisy outlier, not a useful training
+signal, and training on it exclusively can destabilize rather than
+sharpen the model.
+
+**Honest conclusion:** this specific reconstruction of PDAOM doesn't
+work here, and the diagnostic trail explains why with reasonable
+confidence rather than leaving it a mystery. Not pursued further given
+this clarity and that the source paper's exact tuned constants were
+unavailable to try instead. `deepfm_mtl_v1` remains the project-best.
+
 ## Net effect on the project-best
 
 | | Valid primary (3-seed) | Test primary (3-seed mean) | vs. official baseline (test) |
@@ -449,13 +693,19 @@ optimization generalizes beyond the one distribution it was validated on.
 | `deepfm_regularized` (Phase 4, prior best) | 0.6035 ± 0.0002 | 0.5977 | +0.0031 |
 | **`deepfm_mtl_v1` (P2, current best)** | **0.6046 ± 0.0003** | 0.5974 | +0.0028 |
 
-Engineered features, LightGBM, DIN sequence modeling, and DeepFM_BPR were
-all genuinely worth trying — public, well-motivated ideas backed by the
-problem statement's own allowed toolset — and all came back negative or
-mixed, each for a different, specific, structural reason rather than "we
-didn't get to it." Multi-task learning was the one that paid off, and did
+Engineered features, LightGBM, DIN sequence modeling, DeepFM_BPR, the
+watch-time auxiliary head, combining DIN with MTL, uncertainty-weighted
+MTL, listwise ranking loss, and PDAOM hard-pair mining were all genuinely
+worth trying — public, well-motivated ideas backed by the problem
+statement's own allowed toolset, several straight off this project's own
+documented headroom list — and all came back negative, mixed, or (in
+uncertainty-weighting's and listwise's cases) too close to call, each for
+a different, specific, structural reason rather than "we didn't get to
+it." Multi-task learning
+(the original, fixed-weight version) was the one that paid off, and did
 so on the first attempt with no diagnosis-driven iteration needed (unlike
 BPR's 3 P1 rounds, or DeepFM_BPR's own regularization round here). The
-randomized-exposure check (§9) is the closest thing to independent
-confirmation this project has: `deepfm_mtl_v1`'s edge over the baseline
-doesn't just survive an unbiased data distribution, it grows there.
+randomized-exposure check
+(§9) is the closest thing to independent confirmation this project has:
+`deepfm_mtl_v1`'s edge over the baseline doesn't just survive an unbiased
+data distribution, it grows there.

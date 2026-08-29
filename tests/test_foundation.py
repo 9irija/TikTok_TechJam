@@ -86,6 +86,35 @@ def test_convergence_detector_reads_organizer_epsilon_n():
     assert cd.n == 3, cd.n
 
 
+def test_convergence_detector_hits_iteration_cap_before_epsilon_n_rule():
+    """Problem Statement Sec 2.3 "Limits": 50-iteration hard cap, on top of
+    the epsilon/N rule. Feed a trajectory that keeps improving by MORE than
+    epsilon every single iteration (so the epsilon/N rule alone would never
+    fire) for more than 50 iterations -- the cap must still stop the run."""
+    from agent.convergence import MAX_ITERATIONS
+    cd = ConvergenceDetector(epsilon=0.002, n=3)
+    for i in range(MAX_ITERATIONS + 5):
+        cd.update(f"iter_{i}", 0.50 + i * 0.01)  # +0.01 > epsilon every time -- never stagnant
+        if cd.is_converged():
+            break
+    assert cd.is_converged(), "must stop once MAX_ITERATIONS is reached, even mid-improvement"
+    assert cd.stop_reason() == "iteration_cap", cd.stop_reason()
+    assert len(cd.history) == MAX_ITERATIONS, \
+        f"should stop exactly at the cap, not run past it: got {len(cd.history)} iterations"
+
+
+def test_convergence_detector_hits_wall_clock_cap():
+    """Problem Statement Sec 2.3's "6h wall-clock ceiling per run as a
+    backstop" -- simulated by backdating the detector's own start time
+    rather than actually waiting 6 hours."""
+    from agent.convergence import MAX_WALL_CLOCK_S
+    cd = ConvergenceDetector(epsilon=0.002, n=3)
+    cd._run_start_s -= (MAX_WALL_CLOCK_S + 1.0)  # pretend the run started 6h+ ago
+    cd.update("iter_0", 0.50 + 0.5)  # a real, still-improving iteration -- epsilon/N wouldn't fire
+    assert cd.is_converged(), "must stop once the wall-clock ceiling is exceeded"
+    assert cd.stop_reason() == "wall_clock_cap", cd.stop_reason()
+
+
 def test_config_diff():
     a = ExperimentConfig(id="a", model="fm", hypothesis="h", hyperparams={"k": 16, "lr": 0.001})
     b = ExperimentConfig(id="b", model="deepfm", hypothesis="h2", hyperparams={"k": 16, "lr": 0.005})
@@ -224,6 +253,228 @@ def test_deepfm_din_forward_backward_reduces_loss():
     m2.set_state(state)
     assert np.allclose(m.predict_seq(X, seq, cur_video), m2.predict_seq(X, seq, cur_video)), \
         "get_state/set_state round-trip must reproduce predictions"
+
+
+def test_deepfm_mtl_watch_forward_backward_reduces_loss():
+    """deepfm_mtl.py extended with a 5th, continuous watch-time auxiliary
+    head (agent/model_zoo/deepfm_mtl_watch.py) -- same shape of test as
+    deepfm_mtl's own, plus proving mtl_watch_step actually consumes the
+    continuous `watch` target (not just the 4 binary ones) without
+    crashing or producing non-finite output."""
+    from agent.model_zoo.deepfm_mtl_watch import build
+
+    rng = np.random.default_rng(0)
+    n, n_fields, dim = 2000, 5, 200
+    X = rng.integers(0, dim, size=(n, n_fields)).astype(np.int32)
+    y = rng.integers(0, 2, size=n).astype(np.float32)
+    aux = rng.integers(0, 2, size=(n, 4)).astype(np.float32)
+    watch = rng.uniform(0, 1, size=n).astype(np.float32)
+
+    m = build(dim=dim, n_fields=n_fields, k=8, hidden=[16, 8], lr=0.01,
+              aux_weight=0.2, watch_weight=0.2, seed=0)
+    losses = [m.mtl_watch_step(X[i:i + 200], y[i:i + 200], aux[i:i + 200], watch[i:i + 200])
+              for i in range(0, n, 200) for _ in range(3)]
+    assert losses[-1] < losses[0], f"main-task loss should decrease on synthetic data: {losses[0]} -> {losses[-1]}"
+
+    preds = m.predict(X)
+    assert preds.shape == (n,), preds.shape
+    assert np.isfinite(preds).all(), "predictions must be finite"
+
+    state = m.get_state()
+    m2 = build(dim=dim, n_fields=n_fields, k=8, hidden=[16, 8], lr=0.01,
+               aux_weight=0.2, watch_weight=0.2, seed=2)
+    m2.set_state(state)
+    assert np.allclose(m.predict(X), m2.predict(X)), "get_state/set_state round-trip must reproduce predictions"
+
+
+def test_deepfm_din_mtl_forward_backward_reduces_loss():
+    """agent/model_zoo/deepfm_din_mtl.py: DIN attention + MTL auxiliary
+    heads combined into one model. Same shape of test as deepfm_din's own
+    (loss decreases, predict/get_state/set_state behave, an all-padding
+    history never produces NaN, a real history changes the prediction),
+    plus proving seq_mtl_step actually consumes the 4 auxiliary labels
+    alongside the sequence inputs without crashing."""
+    from agent.model_zoo.deepfm_din_mtl import build
+
+    rng = np.random.default_rng(0)
+    n, n_fields, dim, seq_len, video_vocab_size = 2000, 5, 200, 10, 50
+    pad_idx = video_vocab_size - 1
+    X = rng.integers(0, dim, size=(n, n_fields)).astype(np.int32)
+    y = rng.integers(0, 2, size=n).astype(np.float32)
+    aux = rng.integers(0, 2, size=(n, 4)).astype(np.float32)
+    seq = rng.integers(0, video_vocab_size, size=(n, seq_len)).astype(np.int32)
+    cur_video = rng.integers(0, video_vocab_size, size=n).astype(np.int32)
+
+    m = build(dim=dim, n_fields=n_fields, k=8, hidden=[16, 8], lr=0.01,
+              aux_weight=0.2, video_vocab_size=video_vocab_size, seed=0)
+    # 8 reps per slice, not 3 (deepfm_mtl's/deepfm_din's own figure): this model has strictly more
+    # moving parts than either alone (attention block AND aux heads sharing one optimizer), so it
+    # needs a few more steps to visibly overfit each fixed synthetic slice -- confirmed empirically,
+    # not an arbitrary bump.
+    losses = [m.seq_mtl_step(X[i:i + 200], y[i:i + 200], aux[i:i + 200], seq[i:i + 200], cur_video[i:i + 200])
+              for i in range(0, n, 200) for _ in range(8)]
+    assert losses[-1] < losses[0], f"main-task loss should decrease on synthetic data: {losses[0]} -> {losses[-1]}"
+
+    preds = m.predict_seq(X, seq, cur_video)
+    assert preds.shape == (n,), preds.shape
+    assert np.isfinite(preds).all(), "predictions must be finite"
+
+    all_pad_seq = np.full((n, seq_len), pad_idx, dtype=np.int32)
+    preds_no_hist = m.predict_seq(X, all_pad_seq, cur_video)
+    assert np.isfinite(preds_no_hist).all(), "an all-padding history must not produce NaN/inf"
+    assert not np.allclose(preds, preds_no_hist), \
+        "predictions with real history should differ from an all-padding history -- attention may be a dead branch"
+
+    state = m.get_state()
+    m2 = build(dim=dim, n_fields=n_fields, k=8, hidden=[16, 8], lr=0.01,
+               aux_weight=0.2, video_vocab_size=video_vocab_size, seed=2)
+    m2.set_state(state)
+    assert np.allclose(m.predict_seq(X, seq, cur_video), m2.predict_seq(X, seq, cur_video)), \
+        "get_state/set_state round-trip must reproduce predictions"
+
+
+def test_deepfm_mtl_uncertainty_forward_backward_reduces_loss():
+    """deepfm_mtl.py's architecture with learned per-task uncertainty
+    weighting instead of one fixed aux_weight (agent/model_zoo/
+    deepfm_mtl_uncertainty.py, Kendall et al. 2018) -- same shape of test
+    as deepfm_mtl's own, plus proving the 5 learned log_var parameters
+    actually move away from their zero-init (the whole point of the
+    method) and stay finite."""
+    from agent.model_zoo.deepfm_mtl_uncertainty import build
+
+    rng = np.random.default_rng(0)
+    n, n_fields, dim = 2000, 5, 200
+    X = rng.integers(0, dim, size=(n, n_fields)).astype(np.int32)
+    y = rng.integers(0, 2, size=n).astype(np.float32)
+    aux = rng.integers(0, 2, size=(n, 4)).astype(np.float32)
+
+    m = build(dim=dim, n_fields=n_fields, k=8, hidden=[16, 8], lr=0.01, seed=0)
+    log_vars_before = m.log_vars.detach().clone()
+    losses = [m.mtl_step(X[i:i + 200], y[i:i + 200], aux[i:i + 200]) for i in range(0, n, 200) for _ in range(3)]
+    assert losses[-1] < losses[0], f"main-task loss should decrease on synthetic data: {losses[0]} -> {losses[-1]}"
+
+    assert not np.allclose(m.log_vars.detach().numpy(), log_vars_before.numpy()), \
+        "learned uncertainty weights must move away from their zero-init during training"
+    weights = m.learned_weights()
+    assert all(np.isfinite(v) and v > 0 for v in weights.values()), f"learned weights must be finite and positive: {weights}"
+
+    preds = m.predict(X)
+    assert preds.shape == (n,), preds.shape
+    assert np.isfinite(preds).all(), "predictions must be finite"
+
+    state = m.get_state()
+    m2 = build(dim=dim, n_fields=n_fields, k=8, hidden=[16, 8], lr=0.01, seed=2)
+    m2.set_state(state)
+    assert np.allclose(m.predict(X), m2.predict(X)), "get_state/set_state round-trip must reproduce predictions"
+
+
+def test_deepfm_listwise_forward_backward_reduces_loss():
+    """agent/model_zoo/deepfm_listwise.py: DeepFM trained with a per-user
+    listwise softmax loss instead of pointwise BCE. Loss decreases on a
+    synthetic padded batch, predict() still works row-wise (flat (N,
+    n_fields) input, not the padded (B, L, n_fields) training shape --
+    proves _Net.forward's reshape trick handles both), and padded
+    positions never leak into the loss (mask correctness): zeroing out a
+    padded position's label must not change the loss, since it's masked
+    out of the softmax entirely."""
+    from agent.model_zoo.deepfm_listwise import build
+
+    rng = np.random.default_rng(0)
+    B, L, n_fields, dim = 16, 10, 5, 200
+    X = rng.integers(0, dim, size=(B, L, n_fields)).astype(np.int32)
+    y = rng.integers(0, 2, size=(B, L)).astype(np.float32)
+    mask = np.ones((B, L), dtype=bool)
+    mask[:, 7:] = False  # last 3 slots per user are padding
+    y[~mask] = 0
+
+    m = build(dim=dim, n_fields=n_fields, k=8, hidden=[16, 8], lr=0.05, seed=0)
+    losses = [m.listwise_step(X, y, mask) for _ in range(20)]
+    assert losses[-1] < losses[0], f"loss should decrease on synthetic data: {losses[0]} -> {losses[-1]}"
+
+    preds = m.predict(X.reshape(-1, n_fields))
+    assert preds.shape == (B * L,), preds.shape
+    assert np.isfinite(preds).all(), "predictions must be finite"
+
+    # Flipping a PADDED position's label must not change the loss at all -- it's masked
+    # out of the softmax, so its "target" is never read.
+    m2 = build(dim=dim, n_fields=n_fields, k=8, hidden=[16, 8], lr=0.05, seed=0)
+    y_flipped = y.copy()
+    y_flipped[:, 7:] = 1 - y_flipped[:, 7:]  # flip only the padded (masked-out) labels
+    l1 = m2.listwise_step(X, y, mask)
+    m3 = build(dim=dim, n_fields=n_fields, k=8, hidden=[16, 8], lr=0.05, seed=0)
+    l2 = m3.listwise_step(X, y_flipped, mask)
+    assert abs(l1 - l2) < 1e-6, "flipping a padded/masked-out label must not change the loss"
+
+    state = m.get_state()
+    m4 = build(dim=dim, n_fields=n_fields, k=8, hidden=[16, 8], lr=0.05, seed=2)
+    m4.set_state(state)
+    assert np.allclose(m.predict(X.reshape(-1, n_fields)), m4.predict(X.reshape(-1, n_fields))), \
+        "get_state/set_state round-trip must reproduce predictions"
+
+
+def test_deepfm_pdaom_forward_backward_reduces_loss():
+    """agent/model_zoo/deepfm_pdaom.py: DeepFM trained with a pairwise
+    exponential AUC loss + per-user hard-pair mining. Loss decreases on a
+    synthetic padded pos/neg candidate batch, predict() works on flat
+    row-wise input, and -- the thing unique to hard mining -- a padded
+    candidate must never be selected as the "hardest" pair: masking
+    (via masked_fill to +-1e9 before min/max) must make the loss
+    identical whether or not padded slots contain wildly different field
+    ids, since real min/max selection should only ever look at the
+    masked, real candidates."""
+    from agent.model_zoo.deepfm_pdaom import build
+
+    rng = np.random.default_rng(0)
+    B, Kp, Kn, n_fields, dim = 16, 5, 5, 5, 200
+    Xp = rng.integers(0, dim, size=(B, Kp, n_fields)).astype(np.int32)
+    Xn = rng.integers(0, dim, size=(B, Kn, n_fields)).astype(np.int32)
+    mp = np.ones((B, Kp), dtype=bool); mp[:, 3:] = False
+    mn = np.ones((B, Kn), dtype=bool); mn[:, 3:] = False
+
+    m = build(dim=dim, n_fields=n_fields, k=8, hidden=[16, 8], lr=0.05, seed=0)
+    losses = [m.pdaom_step(Xp, mp, Xn, mn) for _ in range(20)]
+    assert losses[-1] < losses[0], f"loss should decrease on synthetic data: {losses[0]} -> {losses[-1]}"
+
+    preds = m.predict(Xp.reshape(-1, n_fields))
+    assert preds.shape == (B * Kp,), preds.shape
+    assert np.isfinite(preds).all(), "predictions must be finite"
+
+    # Changing ONLY the padded candidates' field ids must not change the loss at all.
+    m2 = build(dim=dim, n_fields=n_fields, k=8, hidden=[16, 8], lr=0.05, seed=0)
+    l1 = m2.pdaom_step(Xp, mp, Xn, mn)
+    Xp_altered_pad, Xn_altered_pad = Xp.copy(), Xn.copy()
+    Xp_altered_pad[:, 3:] = rng.integers(0, dim, size=(B, 2, n_fields))
+    Xn_altered_pad[:, 3:] = rng.integers(0, dim, size=(B, 2, n_fields))
+    m3 = build(dim=dim, n_fields=n_fields, k=8, hidden=[16, 8], lr=0.05, seed=0)
+    l2 = m3.pdaom_step(Xp_altered_pad, mp, Xn_altered_pad, mn)
+    assert abs(l1 - l2) < 1e-6, "changing only padded/masked-out candidates must not change the loss"
+
+    state = m.get_state()
+    m4 = build(dim=dim, n_fields=n_fields, k=8, hidden=[16, 8], lr=0.05, seed=2)
+    m4.set_state(state)
+    assert np.allclose(m.predict(Xp.reshape(-1, n_fields)), m4.predict(Xp.reshape(-1, n_fields))), \
+        "get_state/set_state round-trip must reproduce predictions"
+
+
+def test_load_watch_ratio_shape_and_range():
+    """agent/features.py's load_watch_ratio: row-aligned with load_aux_labels
+    (same split sizes), values normalized into [0, 1] by construction (clip
+    then divide by clip), and no leakage into the main label -- this is a
+    training TARGET only, never wired into any model's input fields."""
+    from agent.features import load_aux_labels, load_watch_ratio
+    from agent.paths import data_dir_available
+
+    if not data_dir_available():
+        print("    (skipped -- KuaiRand-Pure data not present in this environment)")
+        return
+
+    aux = load_aux_labels()
+    watch = load_watch_ratio()
+    for split in ("train", "valid", "test"):
+        assert len(watch[split]) == len(aux[split]), f"{split}: watch/aux row counts must match"
+        assert watch[split].min() >= 0.0 and watch[split].max() <= 1.0, \
+            f"{split}: watch ratio must be normalized into [0, 1], got range " \
+            f"[{watch[split].min()}, {watch[split].max()}]"
 
 
 def test_deepfm_bpr_forward_backward_reduces_loss():
@@ -816,6 +1067,8 @@ def main() -> int:
         test_evaluator_wrapper_matches_known_values,
         test_convergence_detector_epsilon_n_rule,
         test_convergence_detector_reads_organizer_epsilon_n,
+        test_convergence_detector_hits_iteration_cap_before_epsilon_n_rule,
+        test_convergence_detector_hits_wall_clock_cap,
         test_config_diff,
         test_fm_forward_backward_reduces_loss,
         test_deepfm_forward_backward_reduces_loss,
@@ -825,10 +1078,16 @@ def main() -> int:
         import torch  # noqa: F401
         tests.append(test_deepfm_mtl_forward_backward_reduces_loss)
         tests.append(test_deepfm_din_forward_backward_reduces_loss)
+        tests.append(test_deepfm_mtl_watch_forward_backward_reduces_loss)
+        tests.append(test_deepfm_din_mtl_forward_backward_reduces_loss)
+        tests.append(test_deepfm_mtl_uncertainty_forward_backward_reduces_loss)
+        tests.append(test_deepfm_listwise_forward_backward_reduces_loss)
+        tests.append(test_deepfm_pdaom_forward_backward_reduces_loss)
         tests.append(test_deepfm_bpr_forward_backward_reduces_loss)
     except ImportError:
         pass
     tests += [
+        test_load_watch_ratio_shape_and_range,
         test_research_map_basic,
         test_research_map_best_confirmed_node_skips_noise_floor,
         test_research_map_best_confirmed_node_searches_every_branch_not_just_one_lineage,

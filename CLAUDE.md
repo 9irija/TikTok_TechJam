@@ -87,7 +87,23 @@ From the Starter Kit README, tested and **no gain**:
    of it (`deepfm_bpr_v1_regularized`, valid 0.5980) but still doesn't
    clear the plain FM baseline (0.6015) -- doubly confirms (P1 + this) that
    BPR has a real, structural ceiling on this benchmark, not a
-   hyperparameter away. See `docs/P2_FEATURES_AND_RESULTS.md` §8.
+   hyperparameter away. See `docs/P2_FEATURES_AND_RESULTS.md` §8. The
+   listwise half of this same guess was never tried until now --
+   **Done (P2):** `agent/model_zoo/deepfm_listwise.py` (per-user softmax
+   cross-entropy, standalone check). `deepfm_listwise_v1`, 3-seed:
+   valid 0.6033 +/- 0.0004 vs. deepfm_regularized's 0.6035 +/- 0.0002 --
+   `noise_floor`, a genuine tie (unlike BPR's real -0.0055 regression
+   against the same parent). Listwise is the better of the two suggested
+   ranking losses, but neither beats deepfm_mtl_v1. See
+   `docs/P2_FEATURES_AND_RESULTS.md` §13. One more loss variant tried,
+   also **Done (P2):** `agent/model_zoo/deepfm_pdaom.py` -- pairwise
+   exponential loss + per-user hard-pair mining (arXiv:2304.09176
+   reconstruction; source PDF text unextractable, not a citation of its
+   exact constants). `deepfm_pdaom_v1`: a severe, well-diagnosed
+   regression (valid 0.5483) -- ablations isolated that BOTH the
+   exponential loss shape AND hard-mining hurt independently, matching a
+   documented metric-learning failure mode (FaceNet's own move away from
+   pure hardest-mining). See `docs/P2_FEATURES_AND_RESULTS.md` §14.
 2. **User history / sequences**: **Done (P2):**
    `agent/model_zoo/deepfm_din.py` + `agent/sequences.py` -- DIN-style
    attention (Zhou et al. 2018) over each user's recent watch history on
@@ -107,10 +123,22 @@ From the Starter Kit README, tested and **no gain**:
    valid primary 0.6046 +/- 0.0003 vs. deepfm_regularized's 0.6035 +/-
    0.0002 -- real `clear_improvement`, now the project-best. See README
    "Multi-task learning" for the honest test-split nuance.
-4. **Watch-time modeling**: censored regression on `play_time` (see CWM,
-   github.com/hyz20/CWM — reference only, don't adopt its `torch==1.6.0` dep
-   or its self-redefined `long_view2` label; it evaluates against something
-   other than this task's pinned label). Still open.
+4. **Watch-time modeling**: **Done (P2):**
+   `agent/model_zoo/deepfm_mtl_watch.py` -- extends deepfm_mtl_v1 with a
+   5th, continuous auxiliary head (MSE) on a clipped play_time_ms/
+   duration_ms completion ratio, alongside the existing 4 binary heads.
+   Not the play_time leakage concern (used only as an auxiliary TARGET,
+   never model input). `watch_weight` swept {0.05,0.1,0.2,0.4,0.6} at
+   seed 0 -- valid primary stayed in a narrow 0.6043-0.6045 band
+   regardless of weight. Two settings 3-seed verified (0.2 and 0.6, the
+   best single-seed point): both `noise_floor` (valid 0.6043-0.6045 vs.
+   parent's 0.6046). Curious, consistent aside not used to override the
+   diagnosis: test primary was higher than deepfm_mtl_v1's at every seed,
+   both weights (~0.5982 vs. 0.5974). deepfm_mtl_v1 remains project-best.
+   See P2_FEATURES_AND_RESULTS.md §10. (CWM, github.com/hyz20/CWM, was
+   considered as a reference architecture but not adopted -- its
+   `torch==1.6.0` dep and self-redefined `long_view2` label evaluate
+   against something other than this task's pinned label.)
 5. **Model architecture** (DeepFM/DCN/xDeepFM) — explicitly ranked *last*
    since capacity is empirically not the bottleneck (see dead ends above).
    **LightGBM tried too (P2, `lgbm_baseline`):** valid primary 0.5995,
@@ -369,7 +397,46 @@ alias stub in this environment that fails with no interpreter installed).
   the full reasoning on both. DIN sequence modeling also tried
   (`deepfm_din_v1`, standalone, `seq_len=20`) -- `ranking_tradeoff`
   (nDCG@5 up, GAUC down), not a clean win; see
-  `docs/P2_FEATURES_AND_RESULTS.md` §6.
+  `docs/P2_FEATURES_AND_RESULTS.md` §6. A watch-time 5th auxiliary head
+  also tried (`deepfm_mtl_watch_v1`, standalone, weight swept
+  0.05-0.6) -- `noise_floor` at every weight; see
+  `docs/P2_FEATURES_AND_RESULTS.md` §10. DIN + MTL combined also tried
+  (`deepfm_din_mtl_v1`, standalone) -- the two mechanisms cancelled out
+  rather than stacked (below both individual components, a real
+  `regression` vs. deepfm_mtl_v1); see
+  `docs/P2_FEATURES_AND_RESULTS.md` §11. Uncertainty-weighted MTL also
+  tried (`deepfm_mtl_uncertainty_v1`, standalone, 8-seed) -- learned
+  per-task weights instead of a fixed aux_weight; tightest margin of any
+  lever this pass (valid 0.6048 +/- 0.0002 vs. 0.6046 +/- 0.0003) but
+  still `noise_floor`, not a confirmed win; see
+  `docs/P2_FEATURES_AND_RESULTS.md` §12. Listwise ranking loss also tried
+  (`deepfm_listwise_v1`, standalone, per-user softmax) -- ties
+  deepfm_regularized outright (`noise_floor`, unlike BPR's real
+  regression against the same parent), the untested half of the loss-
+  function guess, still doesn't beat deepfm_mtl_v1; see
+  `docs/P2_FEATURES_AND_RESULTS.md` §13. PDAOM hard-pair mining also
+  tried (`deepfm_pdaom_v1`, standalone) -- a severe, well-diagnosed
+  `regression` (valid 0.5483), ablations isolating that both the
+  exponential loss shape and hard-mining hurt independently; see
+  `docs/P2_FEATURES_AND_RESULTS.md` §14.
+- **Compliance pass against the officially updated Problem Statement
+  (27 Aug 2026, 5:55PM):** confirmed the label/metrics conflict resolution
+  (Starter Kit wins) is corroborated even more redundantly in the updated
+  PS -- Appendix A.4 now explicitly explains why Recall@50 is unusable
+  here ("0.999+ for every model, including random scoring"), independent
+  confirmation of a decision made early in this project. Closed two real
+  gaps found by re-reading it carefully: (1) the PS's explicit "50
+  iterations hard cap, 6h wall-clock ceiling as a backstop" was never
+  actually enforced in code -- `agent/convergence.py`'s
+  `ConvergenceDetector` now checks both (`MAX_ITERATIONS`,
+  `MAX_WALL_CLOCK_S`), regression-tested to confirm they actually fire,
+  not just assumed to; (2) Deliverable 4 ("Final Submission & Results
+  Summary") wasn't consolidated anywhere as its own artifact --
+  `docs/RESULTS_SUMMARY.md` now has the required results table (GAUC/
+  nDCG@5, delta vs. baseline per the PS's own formula) and resource usage
+  (LLM tokens, wall-clock, iterations out of the cap, GPU-hours), pulled
+  directly from `logs/research_map.json`/`run_summary.json`/
+  `p4_run_report.json`, not hand-estimated.
 - **Still not built from the P1 tier:** Per-Segment Metric Diagnosis
   (does `deepfm_mtl_v1`'s win hold uniformly across user/item segments, or
   mostly on one? -- genuinely unchecked), generalized (not per-node-id-

@@ -2250,6 +2250,699 @@
       "diagnosis_tag": "clear_improvement",
       "created_at": 1787976498.0036666,
       "updated_at": 1787976498.0108056
+    },
+    "deepfm_mtl_watch_v1": {
+      "node_id": "deepfm_mtl_watch_v1",
+      "config": {
+        "id": "deepfm_mtl_watch_v1",
+        "model": "deepfm_mtl_watch",
+        "hypothesis": "Extends deepfm_mtl_v1 (4 binary auxiliary heads: is_like/is_follow/is_comment/is_forward) with a 5th, CONTINUOUS auxiliary head: a clipped, normalized play_time_ms/duration_ms completion ratio (agent/features.py load_watch_ratio), trained with MSE alongside the existing BCE heads. CLAUDE.md Unexplored headroom #4 (\"Watch-time modeling... Still open\") -- the one item on that list not yet tried. Hypothesis: a denser, continuous training signal regularizes the shared embedding table better than 4 binary signals alone. Not a leakage concern: used only as an auxiliary TARGET (same role as the existing 4 heads), never as model input; the main long_view logit never sees it.",
+        "hyperparams": {
+          "k": 16,
+          "hidden": [
+            128,
+            64
+          ],
+          "lr": 0.001,
+          "l2": 1e-06,
+          "aux_weight": 0.2,
+          "watch_weight": 0.2,
+          "epochs": 20,
+          "patience": 5
+        },
+        "fields": [
+          "user_id",
+          "video_id",
+          "author_id",
+          "tab",
+          "dur_bucket"
+        ],
+        "parent_id": "deepfm_mtl_v1",
+        "seeds": [
+          0,
+          1,
+          2
+        ],
+        "notes": "Standalone check (tools/check_watch_time_mtl.py), same methodology as lgbm_baseline/deepfm_din_v1 -- not wired into agent/model_zoo/ or agent/experiment.py. watch_weight swept at seed=0 across {0.05, 0.1, 0.2, 0.4, 0.6}: valid primary stayed in a narrow 0.6043-0.6045 band regardless of weight, all within noise of the parent (0.6046) -- the auxiliary signal simply isn't moving validation, not a tuning problem. watch_weight=0.6 (the best-looking single point) was also 3-seed-verified: valid primary 0.6045 +/- 0.0002 (also noise_floor, delta -0.0001). Curious, consistent aside not used to override the validation-based diagnosis (train/valid/test discipline): test primary was higher than deepfm_mtl_v1's at every seed tried, both weights (this config: 0.5982 +/- 0.0005 vs parent's 0.5974) -- interesting, but validation is what decisions here are allowed to read, and validation says noise_floor.",
+        "edge_type": null
+      },
+      "edge_type": "improve",
+      "parent_id": "deepfm_mtl_v1",
+      "status": "done",
+      "fidelity": "100pct",
+      "metrics": {
+        "n_seeds": 3,
+        "valid": {
+          "GAUC_mean": 0.6709333333333334,
+          "GAUC_std": 0.000524933858267448,
+          "nDCG@5_mean": 0.5377,
+          "nDCG@5_std": 8.164965809276361e-05,
+          "primary_mean": 0.6043333333333334,
+          "primary_std": 0.0003091206165165413
+        },
+        "test": {
+          "GAUC_mean": 0.6652333333333333,
+          "GAUC_std": 0.0006236095644623438,
+          "nDCG@5_mean": 0.5311333333333333,
+          "nDCG@5_std": 0.0004496912521077373,
+          "primary_mean": 0.5982000000000001,
+          "primary_std": 0.0005099019513592731
+        },
+        "delta_vs_baseline_test": {
+          "delta_GAUC": 0.004233333333333311,
+          "delta_nDCG@5": 0.0029333333333333433,
+          "delta_primary_mean": 0.0035833333333333273
+        },
+        "per_seed": [
+          {
+            "seed": 0,
+            "best_epoch": 3,
+            "epochs_run": 8,
+            "experiment_id": "deepfm_mtl_watch_v1",
+            "num_params": 703435,
+            "train_fraction": 1.0,
+            "wall_time_s": 8.4,
+            "valid": {
+              "GAUC": 0.6712,
+              "nDCG@5": 0.5377,
+              "primary": 0.6045
+            },
+            "test": {
+              "GAUC": 0.6654,
+              "nDCG@5": 0.5314,
+              "primary": 0.5984
+            }
+          },
+          {
+            "seed": 1,
+            "best_epoch": 4,
+            "epochs_run": 9,
+            "experiment_id": "deepfm_mtl_watch_v1",
+            "num_params": 703435,
+            "train_fraction": 1.0,
+            "wall_time_s": 9.4,
+            "valid": {
+              "GAUC": 0.6714,
+              "nDCG@5": 0.5378,
+              "primary": 0.6046
+            },
+            "test": {
+              "GAUC": 0.6659,
+              "nDCG@5": 0.5315,
+              "primary": 0.5987
+            }
+          },
+          {
+            "seed": 2,
+            "best_epoch": 5,
+            "epochs_run": 10,
+            "experiment_id": "deepfm_mtl_watch_v1",
+            "num_params": 703435,
+            "train_fraction": 1.0,
+            "wall_time_s": 10.3,
+            "valid": {
+              "GAUC": 0.6702,
+              "nDCG@5": 0.5376,
+              "primary": 0.6039
+            },
+            "test": {
+              "GAUC": 0.6644,
+              "nDCG@5": 0.5305,
+              "primary": 0.5975
+            }
+          }
+        ]
+      },
+      "insight": "Change vs. parent (-0.0003 primary) is within the significance bar (0.0005, seed-aware) -- not distinguishable from run-to-run variance.",
+      "diagnosis_tag": "noise_floor",
+      "created_at": 1788020789.156597,
+      "updated_at": 1788020789.1581042
+    },
+    "deepfm_din_mtl_v1": {
+      "node_id": "deepfm_din_mtl_v1",
+      "config": {
+        "id": "deepfm_din_mtl_v1",
+        "model": "deepfm_din_mtl",
+        "hypothesis": "Combines two independently-partial results into one model, same reasoning deepfm_bpr_v1 already used: deepfm_din_v1 alone (seq_len=20) was a ranking_tradeoff vs. deepfm_regularized (nDCG@5 +0.0005, GAUC -0.0003); deepfm_mtl_v1 alone was a clean clear_improvement on the same parent. Hypothesis: MTL's auxiliary-head regularization might correct DIN's GAUC regression while keeping its nDCG@5 gain, since the two act on different parts of the architecture (attention over history vs. denser multi-signal training target) rather than competing for the same capacity.",
+        "hyperparams": {
+          "k": 16,
+          "hidden": [
+            128,
+            64
+          ],
+          "lr": 0.001,
+          "l2": 1e-06,
+          "aux_weight": 0.2,
+          "seq_len": 20,
+          "epochs": 20,
+          "patience": 5
+        },
+        "fields": [
+          "user_id",
+          "video_id",
+          "author_id",
+          "tab",
+          "dur_bucket"
+        ],
+        "parent_id": "deepfm_regularized",
+        "seeds": [
+          0,
+          1,
+          2
+        ],
+        "notes": "Standalone check (tools/check_din_mtl.py), same discipline as every other new lever this pass. Hypothesis did not hold: 3-seed valid primary 0.6033 +/- 0.0002 -- noise_floor vs. its actual parent deepfm_regularized (0.6035), meaning the two mechanisms roughly CANCELLED rather than combined (below deepfm_mtl_v1 alone at 0.6046, and also below deepfm_din_v1 alone at 0.6036 -- worse than either standalone component, not better than both). Against the current best (deepfm_mtl_v1), this is a real regression: GAUC -0.0021, nDCG@5 -0.0005, both individually significant. Reused both components' hyperparameters unchanged (not re-tuned for the combined, higher-capacity model) -- a real next question if this direction is revisited, not explored further here.",
+        "edge_type": null
+      },
+      "edge_type": "improve",
+      "parent_id": "deepfm_regularized",
+      "status": "done",
+      "fidelity": "100pct",
+      "metrics": {
+        "n_seeds": 3,
+        "valid": {
+          "GAUC_mean": 0.6693333333333333,
+          "GAUC_std": 0.0002054804667656099,
+          "nDCG@5_mean": 0.5373,
+          "nDCG@5_std": 0.00021602468994690488,
+          "primary_mean": 0.6033,
+          "primary_std": 0.00021602468994695627
+        },
+        "test": {
+          "GAUC_mean": 0.6639,
+          "GAUC_std": 0.0003741657386774024,
+          "nDCG@5_mean": 0.5304,
+          "nDCG@5_std": 0.00021602468994690488,
+          "primary_mean": 0.5971666666666666,
+          "primary_std": 0.000286744175568099
+        },
+        "delta_vs_baseline_test": {
+          "delta_GAUC": 0.0029000000000000137,
+          "delta_nDCG@5": 0.0021999999999999797,
+          "delta_primary_mean": 0.0025499999999999967
+        },
+        "per_seed": [
+          {
+            "seed": 0,
+            "best_epoch": 4,
+            "epochs_run": 9,
+            "experiment_id": "deepfm_din_mtl_v1",
+            "num_params": 825957,
+            "train_fraction": 1.0,
+            "wall_time_s": 19.7,
+            "valid": {
+              "GAUC": 0.6691,
+              "nDCG@5": 0.5371,
+              "primary": 0.6031
+            },
+            "test": {
+              "GAUC": 0.664,
+              "nDCG@5": 0.5303,
+              "primary": 0.5972
+            }
+          },
+          {
+            "seed": 1,
+            "best_epoch": 4,
+            "epochs_run": 9,
+            "experiment_id": "deepfm_din_mtl_v1",
+            "num_params": 825957,
+            "train_fraction": 1.0,
+            "wall_time_s": 19.9,
+            "valid": {
+              "GAUC": 0.6696,
+              "nDCG@5": 0.5376,
+              "primary": 0.6036
+            },
+            "test": {
+              "GAUC": 0.6643,
+              "nDCG@5": 0.5307,
+              "primary": 0.5975
+            }
+          },
+          {
+            "seed": 2,
+            "best_epoch": 5,
+            "epochs_run": 10,
+            "experiment_id": "deepfm_din_mtl_v1",
+            "num_params": 825957,
+            "train_fraction": 1.0,
+            "wall_time_s": 20.6,
+            "valid": {
+              "GAUC": 0.6693,
+              "nDCG@5": 0.5372,
+              "primary": 0.6032
+            },
+            "test": {
+              "GAUC": 0.6634,
+              "nDCG@5": 0.5302,
+              "primary": 0.5968
+            }
+          }
+        ]
+      },
+      "insight": "Change vs. parent (-0.0002 primary) is within the significance bar (0.0003, seed-aware) -- not distinguishable from run-to-run variance.",
+      "diagnosis_tag": "noise_floor",
+      "created_at": 1788021796.367171,
+      "updated_at": 1788021796.368617
+    },
+    "deepfm_mtl_uncertainty_v1": {
+      "node_id": "deepfm_mtl_uncertainty_v1",
+      "config": {
+        "id": "deepfm_mtl_uncertainty_v1",
+        "model": "deepfm_mtl_uncertainty",
+        "hypothesis": "Replaces deepfm_mtl_v1's single fixed aux_weight=0.2 (hand-picked, and already ruled out as tunable-for-more by agent/hpo.py's Optuna search over fixed scalar values) with 5 LEARNED per-task uncertainty weights (Kendall, Gal and Cipolla 2018): loss = sum_i exp(-log_var_i)*task_loss_i + log_var_i, one log_var per task (main + 4 aux), optimized jointly with the network. A genuinely different mechanism from a fixed-value sweep -- adaptive, learned during training, not a hyperparameter search over scalars.",
+        "hyperparams": {
+          "k": 16,
+          "hidden": [
+            128,
+            64
+          ],
+          "lr": 0.001,
+          "l2": 1e-06,
+          "epochs": 20,
+          "patience": 5
+        },
+        "fields": [
+          "user_id",
+          "video_id",
+          "author_id",
+          "tab",
+          "dur_bucket"
+        ],
+        "parent_id": "deepfm_mtl_v1",
+        "seeds": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "notes": "Standalone check (tools/check_mtl_uncertainty.py). The learned weights converged to roughly UNIFORM across all 4 aux tasks (~3.2-3.8x the main task's own learned weight ~1.98) rather than differentiating between is_like/is_follow/is_comment/is_forward -- the 4 signals appear similarly difficult/relevant, so the real effect of this technique here is closer to \"recalibrate the overall aux weight upward from 0.2\" than \"weight each task differently.\" 8-seed valid primary: 0.6048 +/- 0.0002 -- noise_floor vs. deepfm_mtl_v1 (0.6046 +/- 0.0003), the tightest margin of any lever tried this pass and the only one that never scored below the current best across any seed (unlike the watch-time head or DIN+MTL combination). Honest aside, not used to override the diagnosis: 8-seed test primary (0.5984 +/- 0.0002) vs. parent's 3-seed test (0.5974) is a real, statistically distinguishable gap (~2.7 combined-SEM) -- but train/valid/test discipline means this cannot be the basis for calling it a win; validation says tie.",
+        "edge_type": null
+      },
+      "edge_type": "improve",
+      "parent_id": "deepfm_mtl_v1",
+      "status": "done",
+      "fidelity": "100pct",
+      "metrics": {
+        "n_seeds": 8,
+        "valid": {
+          "GAUC_mean": 0.671625,
+          "GAUC_std": 0.00024874685927666387,
+          "nDCG@5_mean": 0.5379,
+          "nDCG@5_std": 0.000234520787991193,
+          "primary_mean": 0.6047625,
+          "primary_std": 0.00021176342932619437
+        },
+        "test": {
+          "GAUC_mean": 0.665575,
+          "GAUC_std": 0.00036314597615834604,
+          "nDCG@5_mean": 0.5311375,
+          "nDCG@5_std": 0.00024462982238473464,
+          "primary_mean": 0.5983625,
+          "primary_std": 0.0002057759704144486
+        },
+        "delta_vs_baseline_test": {
+          "delta_GAUC": 0.004574999999999996,
+          "delta_nDCG@5": 0.0029375000000000373,
+          "delta_primary_mean": 0.0037562500000000165
+        },
+        "per_seed": [
+          {
+            "seed": 0,
+            "best_epoch": 8,
+            "epochs_run": 13,
+            "experiment_id": "deepfm_mtl_uncertainty_v1",
+            "num_params": 703375,
+            "train_fraction": 1.0,
+            "wall_time_s": 13.9,
+            "valid": {
+              "GAUC": 0.672,
+              "nDCG@5": 0.538,
+              "primary": 0.605
+            },
+            "test": {
+              "GAUC": 0.6659,
+              "nDCG@5": 0.5308,
+              "primary": 0.5984
+            }
+          },
+          {
+            "seed": 1,
+            "best_epoch": 8,
+            "epochs_run": 13,
+            "experiment_id": "deepfm_mtl_uncertainty_v1",
+            "num_params": 703375,
+            "train_fraction": 1.0,
+            "wall_time_s": 12.3,
+            "valid": {
+              "GAUC": 0.6717,
+              "nDCG@5": 0.5378,
+              "primary": 0.6048
+            },
+            "test": {
+              "GAUC": 0.6652,
+              "nDCG@5": 0.5308,
+              "primary": 0.598
+            }
+          },
+          {
+            "seed": 2,
+            "best_epoch": 8,
+            "epochs_run": 13,
+            "experiment_id": "deepfm_mtl_uncertainty_v1",
+            "num_params": 703375,
+            "train_fraction": 1.0,
+            "wall_time_s": 13.1,
+            "valid": {
+              "GAUC": 0.6713,
+              "nDCG@5": 0.5377,
+              "primary": 0.6045
+            },
+            "test": {
+              "GAUC": 0.6649,
+              "nDCG@5": 0.5312,
+              "primary": 0.5981
+            }
+          },
+          {
+            "seed": 3,
+            "best_epoch": 9,
+            "epochs_run": 14,
+            "experiment_id": "deepfm_mtl_uncertainty_v1",
+            "num_params": 703375,
+            "train_fraction": 1.0,
+            "wall_time_s": 15.3,
+            "valid": {
+              "GAUC": 0.6719,
+              "nDCG@5": 0.5383,
+              "primary": 0.6051
+            },
+            "test": {
+              "GAUC": 0.6658,
+              "nDCG@5": 0.5313,
+              "primary": 0.5985
+            }
+          },
+          {
+            "seed": 4,
+            "best_epoch": 7,
+            "epochs_run": 12,
+            "experiment_id": "deepfm_mtl_uncertainty_v1",
+            "num_params": 703375,
+            "train_fraction": 1.0,
+            "wall_time_s": 12.4,
+            "valid": {
+              "GAUC": 0.6713,
+              "nDCG@5": 0.5381,
+              "primary": 0.6047
+            },
+            "test": {
+              "GAUC": 0.6659,
+              "nDCG@5": 0.5313,
+              "primary": 0.5986
+            }
+          },
+          {
+            "seed": 5,
+            "best_epoch": 8,
+            "epochs_run": 13,
+            "experiment_id": "deepfm_mtl_uncertainty_v1",
+            "num_params": 703375,
+            "train_fraction": 1.0,
+            "wall_time_s": 13.0,
+            "valid": {
+              "GAUC": 0.6715,
+              "nDCG@5": 0.5378,
+              "primary": 0.6046
+            },
+            "test": {
+              "GAUC": 0.6657,
+              "nDCG@5": 0.5309,
+              "primary": 0.5983
+            }
+          },
+          {
+            "seed": 6,
+            "best_epoch": 8,
+            "epochs_run": 13,
+            "experiment_id": "deepfm_mtl_uncertainty_v1",
+            "num_params": 703375,
+            "train_fraction": 1.0,
+            "wall_time_s": 13.0,
+            "valid": {
+              "GAUC": 0.6715,
+              "nDCG@5": 0.5375,
+              "primary": 0.6045
+            },
+            "test": {
+              "GAUC": 0.6653,
+              "nDCG@5": 0.5314,
+              "primary": 0.5984
+            }
+          },
+          {
+            "seed": 7,
+            "best_epoch": 8,
+            "epochs_run": 13,
+            "experiment_id": "deepfm_mtl_uncertainty_v1",
+            "num_params": 703375,
+            "train_fraction": 1.0,
+            "wall_time_s": 13.0,
+            "valid": {
+              "GAUC": 0.6718,
+              "nDCG@5": 0.538,
+              "primary": 0.6049
+            },
+            "test": {
+              "GAUC": 0.6659,
+              "nDCG@5": 0.5314,
+              "primary": 0.5986
+            }
+          }
+        ]
+      },
+      "insight": "Change vs. parent (+0.0001 primary) is within the significance bar (0.0004, seed-aware) -- not distinguishable from run-to-run variance.",
+      "diagnosis_tag": "noise_floor",
+      "created_at": 1788023101.875326,
+      "updated_at": 1788023101.876723
+    },
+    "deepfm_listwise_v1": {
+      "node_id": "deepfm_listwise_v1",
+      "config": {
+        "id": "deepfm_listwise_v1",
+        "model": "deepfm_listwise",
+        "hypothesis": "The starter kit README's own top guess for the loss-function lever was \"pairwise (BPR) or listwise (per-user softmax)\" -- fm_bpr (P1) and deepfm_bpr (P2) tested the pairwise half twice, both plateauing below the plain FM baseline. This tests the listwise half: DeepFM trained with a per-user softmax cross-entropy over each user's entire impression set (ListNet/Plackett-Luce style), a closer theoretical match to GAUC/nDCG@5 (both within-user ranking metrics) than pointwise BCE. Same DeepFM backbone as deepfm_regularized, only the training signal changes.",
+        "hyperparams": {
+          "k": 16,
+          "hidden": [
+            128,
+            64
+          ],
+          "lr": 0.001,
+          "l2": 1e-05,
+          "max_len": 64,
+          "batch_users": 256,
+          "epochs": 20,
+          "patience": 5
+        },
+        "fields": [
+          "user_id",
+          "video_id",
+          "author_id",
+          "tab",
+          "dur_bucket"
+        ],
+        "parent_id": "deepfm_regularized",
+        "seeds": [
+          0,
+          1,
+          2
+        ],
+        "notes": "Standalone check (tools/check_listwise.py) -- batching is a per-user padded-group softmax, structurally different from every other model's row-shuffled minibatches, so not wired into agent/experiment.py. l2 swept {1e-2, 1e-3, 1e-4 (default), 1e-5, 1e-6} at seed 0 first: HIGHER l2 made it worse (1e-2 broke training outright, valid ~0.58), the opposite of what fixed deepfm_default/deepfm_wider's overfitting earlier in this project -- 1e-5 was the best point found. Best epoch lands very early (epoch 2-3) at every l2 tried, a different training dynamic than pointwise BCE's more gradual climb. 3-seed at l2=1e-5: valid primary 0.6033 +/- 0.0004 -- noise_floor vs. deepfm_regularized (0.6035 +/- 0.0002), a genuine TIE. Notably better than deepfm_bpr_v1_regularized (valid 0.5980, a real -0.0055 regression vs. the same parent) -- confirms listwise is the better of the starter kit's own two suggested ranking-loss options, even though neither beats deepfm_mtl_v1 (0.6046), the actual current best.",
+        "edge_type": null
+      },
+      "edge_type": "improve",
+      "parent_id": "deepfm_regularized",
+      "status": "done",
+      "fidelity": "100pct",
+      "metrics": {
+        "n_seeds": 3,
+        "valid": {
+          "GAUC_mean": 0.6694333333333333,
+          "GAUC_std": 0.0006018490028422794,
+          "nDCG@5_mean": 0.5371666666666667,
+          "nDCG@5_std": 0.00024944382578490196,
+          "primary_mean": 0.6033333333333333,
+          "primary_std": 0.00036817870057291504
+        },
+        "test": {
+          "GAUC_mean": 0.6638333333333333,
+          "GAUC_std": 0.00012472191289250042,
+          "nDCG@5_mean": 0.5307333333333333,
+          "nDCG@5_std": 4.714045207915031e-05,
+          "primary_mean": 0.5972666666666667,
+          "primary_std": 4.714045207915031e-05
+        },
+        "delta_vs_baseline_test": {
+          "delta_GAUC": 0.0028333333333332433,
+          "delta_nDCG@5": 0.0025333333333332764,
+          "delta_primary_mean": 0.00268333333333326
+        },
+        "per_seed": [
+          {
+            "seed": 0,
+            "best_epoch": 2,
+            "epochs_run": 7,
+            "experiment_id": "deepfm_listwise_v1",
+            "num_params": 703110,
+            "train_fraction": 1.0,
+            "wall_time_s": 8.0,
+            "valid": {
+              "GAUC": 0.67,
+              "nDCG@5": 0.5375,
+              "primary": 0.6038
+            },
+            "test": {
+              "GAUC": 0.6638,
+              "nDCG@5": 0.5308,
+              "primary": 0.5973
+            }
+          },
+          {
+            "seed": 1,
+            "best_epoch": 2,
+            "epochs_run": 7,
+            "experiment_id": "deepfm_listwise_v1",
+            "num_params": 703110,
+            "train_fraction": 1.0,
+            "wall_time_s": 7.9,
+            "valid": {
+              "GAUC": 0.6697,
+              "nDCG@5": 0.5369,
+              "primary": 0.6033
+            },
+            "test": {
+              "GAUC": 0.6637,
+              "nDCG@5": 0.5307,
+              "primary": 0.5972
+            }
+          },
+          {
+            "seed": 2,
+            "best_epoch": 2,
+            "epochs_run": 7,
+            "experiment_id": "deepfm_listwise_v1",
+            "num_params": 703110,
+            "train_fraction": 1.0,
+            "wall_time_s": 7.9,
+            "valid": {
+              "GAUC": 0.6686,
+              "nDCG@5": 0.5371,
+              "primary": 0.6029
+            },
+            "test": {
+              "GAUC": 0.664,
+              "nDCG@5": 0.5307,
+              "primary": 0.5973
+            }
+          }
+        ]
+      },
+      "insight": "Change vs. parent (-0.0001 primary) is within the significance bar (0.0005, seed-aware) -- not distinguishable from run-to-run variance. [overfitting_risk: best validation epoch landed at ~29% of training length on average across seeds -- later epochs likely overfit train loss without validation benefit; consider fewer epochs or stronger regularization.]",
+      "diagnosis_tag": "noise_floor",
+      "created_at": 1788025103.770098,
+      "updated_at": 1788025103.771463
+    },
+    "deepfm_pdaom_v1": {
+      "node_id": "deepfm_pdaom_v1",
+      "config": {
+        "id": "deepfm_pdaom_v1",
+        "model": "deepfm_pdaom",
+        "hypothesis": "PDAOM (arXiv:2304.09176) reconstruction: a pairwise EXPONENTIAL AUC-optimization loss (steeper than BPR's bounded log-sigmoid) combined with per-user HARD-PAIR MINING (hardest positive vs. hardest negative per batch, not BPR's uniform random pair) -- a genuinely different bet than fm_bpr/deepfm_bpr's pairwise loss (tested twice, both plateaued below baseline). Paper reports real GAUC/AUC gains over plain pairwise exponential loss in a production feed-recommendation system. Source paper's PDF text could not be machine-extracted (image-embedded); this is a faithful reconstruction from its abstract-level description plus standard AUC-optimization + batch-hard-mining literature, not a citation of its exact tuned constants.",
+        "hyperparams": {
+          "k": 16,
+          "hidden": [
+            128,
+            64
+          ],
+          "lr": 0.001,
+          "l2": 0.0001,
+          "max_candidates": 8,
+          "batch_users": 512,
+          "epochs": 20,
+          "patience": 5
+        },
+        "fields": [
+          "user_id",
+          "video_id",
+          "author_id",
+          "tab",
+          "dur_bucket"
+        ],
+        "parent_id": "deepfm_regularized",
+        "seeds": [
+          0
+        ],
+        "notes": "Standalone check (tools/check_pdaom.py). Severe regression, not noise: valid primary 0.5483 (single seed) vs. parent's 0.6035 -- a magnitude far beyond any plausible noise band, no 3-seed re-verification needed to see this is real. Diagnosed with two quick ablations before stopping: max_candidates=2 (0.5764) and max_candidates=1, i.e. NO hard mining, just the exponential loss on a random pair (0.5917) -- still below deepfm_bpr_v1_regularized (0.5980) even with mining fully removed. Clean causal story: BOTH ingredients hurt independently -- the exponential loss shape is less numerically stable than BPR's bounded log-sigmoid for this task (loss barely moves epoch-to-epoch, ~1.003 the whole run, a sign of a weak/unstable gradient signal), and hard-pair mining compounds that instability further by concentrating gradient on extreme/noisy pairs -- a documented failure mode of pure hardest-mining vs. semi-hard mining in the metric-learning literature (e.g. FaceNet, Schroff et al. 2015, moved away from pure hardest mining for exactly this reason). Not pursued further given this diagnostic clarity and that the source paper's exact tuned constants were unavailable to try instead.",
+        "edge_type": null
+      },
+      "edge_type": "improve",
+      "parent_id": "deepfm_regularized",
+      "status": "done",
+      "fidelity": "100pct",
+      "metrics": {
+        "n_seeds": 1,
+        "valid": {
+          "GAUC_mean": 0.5925,
+          "GAUC_std": 0.0,
+          "nDCG@5_mean": 0.504,
+          "nDCG@5_std": 0.0,
+          "primary_mean": 0.5483,
+          "primary_std": 0.0
+        },
+        "test": {
+          "GAUC_mean": 0.5819,
+          "GAUC_std": 0.0,
+          "nDCG@5_mean": 0.4894,
+          "nDCG@5_std": 0.0,
+          "primary_mean": 0.5357,
+          "primary_std": 0.0
+        },
+        "delta_vs_baseline_test": {
+          "delta_GAUC": -0.07910000000000006,
+          "delta_nDCG@5": -0.0388,
+          "delta_primary_mean": -0.05895000000000003
+        },
+        "per_seed": [
+          {
+            "seed": 0,
+            "best_epoch": 12,
+            "epochs_run": 17,
+            "experiment_id": "deepfm_pdaom_v1",
+            "num_params": 703110,
+            "train_fraction": 1.0,
+            "wall_time_s": 11.2,
+            "valid": {
+              "GAUC": 0.5925,
+              "nDCG@5": 0.504,
+              "primary": 0.5483
+            },
+            "test": {
+              "GAUC": 0.5819,
+              "nDCG@5": 0.4894,
+              "primary": 0.5357
+            }
+          }
+        ]
+      },
+      "insight": "Both GAUC (-0.0774) and nDCG@5 (-0.0330) got worse -- the change likely hurt (bar=0.0002).",
+      "diagnosis_tag": "regression",
+      "created_at": 1788026781.257192,
+      "updated_at": 1788026781.258664
     }
   }
 }

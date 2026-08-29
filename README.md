@@ -113,6 +113,11 @@ run-scoped, so a later run never overwrites an earlier one's folders),
 `submission_valid.csv` / `submission_test.csv` (format-validated against the
 organizer's `submit.py --check` logic).
 
+**Final Submission & Results Summary (Problem Statement §2.5 Deliverable
+4 — results table with delta over baseline, plus resource usage: LLM
+tokens, wall-clock, iterations out of the 50-cap, GPU-hours):**
+[`docs/RESULTS_SUMMARY.md`](docs/RESULTS_SUMMARY.md).
+
 ## Results (current project-best, 3-seed verified)
 
 Live numbers are always in `logs/analysis_report.md` / `logs/research_map.json`.
@@ -317,6 +322,82 @@ even the plain FM baseline (0.6015). Doubly confirms — P1's FM_BPR rounds,
 and this DeepFM_BPR attempt — that BPR has a real, structural ceiling on
 this benchmark, not a hyperparameter away. Full detail:
 [`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §8.
+
+**Watch-time multi-task head — a thoroughly-swept `noise_floor`, the last
+item on the starter kit's own headroom list.** `agent/model_zoo/deepfm_mtl_watch.py`
+extends `deepfm_mtl_v1` with a 5th auxiliary head — a continuous
+`play_time_ms/duration_ms` completion ratio (MSE), alongside the existing
+4 binary heads (BCE). Not the usual `play_time_ms` leakage concern: used
+only as an auxiliary training *target*, exactly the role the other 4
+heads already play — the scored `long_view` logit never sees it.
+`watch_weight` swept `{0.05, 0.1, 0.2, 0.4, 0.6}` at seed 0 first: valid
+primary stayed in a narrow 0.6043–0.6045 band regardless of weight. Two
+settings 3-seed-verified (`deepfm_mtl_watch_v1` at `watch_weight=0.2`, and
+`0.6`, the best single-seed point): both `noise_floor` (valid
+0.6043–0.6045 vs. parent's 0.6046). Honestly-reported aside, not used to
+override the diagnosis: test primary was consistently *higher* than
+`deepfm_mtl_v1`'s at every seed tried, both weights (~0.5982 vs. 0.5974) —
+validation is what any decision here is allowed to read, and validation
+says noise floor. `deepfm_mtl_v1` remains the project-best. Full detail:
+[`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §10.
+
+**Combining DIN + MTL — the two mechanisms cancel out, not stack.**
+`agent/model_zoo/deepfm_din_mtl.py`: DIN's attention block and MTL's 4
+auxiliary heads in one model, hypothesis being that MTL's regularization
+might correct DIN's GAUC regression while keeping its nDCG@5 gain.
+It didn't — the combined model (`deepfm_din_mtl_v1`, 3-seed: valid
+0.6033 ± 0.0002) lands *below both* individual components (DIN alone:
+0.6036; MTL alone: 0.6046), `noise_floor` vs. its actual parent
+(`deepfm_regularized`) and a real `regression` vs. the current best.
+Plausible reason: both components' hyperparameters were reused unchanged
+rather than re-tuned for the combined, higher-capacity model. Full detail:
+[`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §11.
+
+**Uncertainty-weighted MTL — the closest thing to a tie, still not a
+confirmed win.** `agent/model_zoo/deepfm_mtl_uncertainty.py`: replaces
+`deepfm_mtl_v1`'s single fixed `aux_weight=0.2` (already ruled out as
+tunable-for-more by HPO's fixed-value search) with 5 **learned** per-task
+uncertainty weights (Kendall et al. 2018), optimized jointly with the
+network. Pushed to 8 seeds given how close early results looked: valid
+0.6048 ± 0.0002 vs. parent's 0.6046 ± 0.0003 — `noise_floor`, the tightest
+margin of anything tried this pass and the only lever that never scored
+below the current best on any seed, but still inside the significance
+bar. Honest aside: the 8-seed test-primary gap (0.5984 vs. 0.5974) is
+itself statistically real, but train/valid/test discipline means only
+validation drives the decision here, and validation says tie.
+`deepfm_mtl_v1` remains the project-best. Full detail:
+[`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §12.
+
+**Listwise ranking loss — ties the pointwise baseline, unlike pairwise
+BPR.** The starter kit's own top guess for the loss-function lever was
+"pairwise (BPR) or listwise (per-user softmax)"; BPR was tested twice and
+lost by a real margin both times, but listwise was never actually tried.
+`agent/model_zoo/deepfm_listwise.py`: same DeepFM backbone, trained with
+a per-user softmax cross-entropy over each user's whole impression set
+(standalone check, `tools/check_listwise.py` — batching by user, not
+row, doesn't fit the existing training loop). 3-seed result:
+`deepfm_listwise_v1` valid 0.6033 ± 0.0004 vs. `deepfm_regularized`'s
+0.6035 ± 0.0002 — `noise_floor`, a genuine tie, compared to BPR's real
+−0.0055 regression against the same parent. Confirms listwise is the
+better ranking-loss choice here, though neither beats `deepfm_mtl_v1`
+(0.6046), the actual current best. Full detail:
+[`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §13.
+
+**PDAOM hard-pair mining — a real, well-diagnosed regression.** One more
+loss-function bet (arXiv:2304.09176): a pairwise exponential loss +
+per-user hard-pair mining (hardest positive/negative each batch, not
+BPR's random pair). Source PDF text couldn't be machine-extracted, so
+`agent/model_zoo/deepfm_pdaom.py` is a faithful reconstruction from its
+abstract-level description, not the paper's exact tuned constants —
+stated upfront. Result: a severe regression (valid 0.5483, well below
+even BPR's 0.5980), diagnosed with two quick ablations rather than left a
+mystery: even with hard-mining fully removed, the exponential loss alone
+still trails BPR (0.5917 vs. 0.5980), and mining compounds the
+instability further as the candidate pool grows (0.5917 → 0.5764 →
+0.5483). Matches a documented metric-learning failure mode (FaceNet
+moved away from pure hardest-mining for the same reason: the hardest
+example in a batch is often a noisy outlier). Full detail:
+[`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §14.
 
 **Does the win hold on genuinely unbiased data?** Every result above is
 drawn from TikTok's own recommendation-biased logs. `log_random_...csv`
