@@ -54,30 +54,37 @@ using label `long_view` and metrics `GAUC` / `nDCG@5`.
 
 ### Why no GPU was used
 
-Every model in this project trains in single-digit minutes on one CPU
-core — including the torch models (`deepfm_mtl`, `deepfm_din`,
-`deepfm_bpr`, and P2's later variants). The organizer's own baseline
-reproduces in ~40s on a single CPU core (starter kit README). Phase 0's
-full run (self-check → 4 predefined experiments → convergence,
-`logs/run_summary.json`) took **18.1 minutes** wall-clock, **0
-GPU-hours**, 0 manual interventions, and converged automatically. The
-current project-best (`deepfm_mtl_v1`) trains in a few minutes per seed on
-CPU alone.
+The problem statement is explicit that compute is not the binding
+constraint on this benchmark: 100 iterations of the official baseline
+complete in well under an hour on a single CPU core with no GPU (the
+organizer's own `baseline.py` alone reproduces it in ~40s per run —
+starter kit README). GPU-hours and LLM tokens are reported for
+Feasibility & Practicality scoring, but they're not something to spend
+just because the budget technically allows it — they're what the PS
+actually measures against wall-clock hours, not a quota to fill, and
+unnecessary GPU usage is a real cost with no upside unless it produces a
+genuine, validated score improvement.
 
-The problem statement scores GPU-hours and LLM tokens for Feasibility &
-Practicality — not as a cap to stay under, but as a real cost with no
-upside unless it buys a validated score improvement. This project's own
-evidence backs that directly: 8 of the last 10 real P2 modeling attempts
-came back flat or negative (`docs/P2_FEATURES_AND_RESULTS.md`), a pattern
-that describes hitting this benchmark's actual learning-problem ceiling,
-not a compute ceiling. More epochs or a bigger network on an already-
-plateaued or overfitting model burns compute for nothing — it doesn't buy
-a better result (`deepfm_pdaom_v1` and the first `deepfm_bpr_v1` attempt
-were both fixed by *less* capacity/training, via diagnosed
-`overfitting_risk`, not more). Reaching for GPU only makes sense for a
-specific candidate that's genuinely CPU-infeasible within budget (e.g. a
-much larger architecture, or the bonus KuaiRand-1k/27k benchmarks) — not
-as a default, and not something this project has needed yet.
+Our own numbers back this up directly. Phase 0's full run (self-check →
+4 predefined experiments → convergence, `logs/run_summary.json`) — the
+project's first complete, automatic convergence — took **18.1 minutes**
+wall-clock, **4 iterations**, **0 GPU-hours**, 0 manual interventions, all
+CPU-only. Every model built since, including all of P2's torch models
+(`deepfm_mtl`, `deepfm_din`, `deepfm_bpr`, and the later variants),
+trains in single-digit minutes per seed on one CPU core — the current
+project-best (`deepfm_mtl_v1`) included.
+
+This project's later evidence makes the case even more directly: 8 of the
+last 10 real P2 modeling attempts came back flat or negative
+(`docs/P2_FEATURES_AND_RESULTS.md`), a pattern that describes hitting this
+benchmark's actual learning-problem ceiling, not a compute ceiling. More
+epochs or a bigger network on an already-plateaued or overfitting model
+burns compute for nothing — it doesn't buy a better result
+(`deepfm_pdaom_v1` and the first `deepfm_bpr_v1` attempt were both fixed
+by *less* capacity/training, via diagnosed `overfitting_risk`, not more).
+We'll reach for GPU only if a specific candidate — a genuinely larger
+architecture, or the bonus KuaiRand-1k/27k benchmarks — is CPU-infeasible
+within the compute budget, not as a default. That hasn't happened yet.
 
 ## Datasets and assets used
 
