@@ -110,6 +110,7 @@ def p1_candidate_pool(map: ResearchMap) -> list[ExperimentConfig]:
     ]
     candidates.extend(_engineered_feature_candidates(map))
     candidates.extend(_multi_task_candidates(map))
+    candidates.extend(_deepfm_bpr_candidates(map))
     candidates.extend(_diagnosis_driven_candidates(map))
     return [c for c in candidates if c.id not in map.nodes]
 
@@ -198,6 +199,54 @@ def _multi_task_candidates(map: ResearchMap) -> list[ExperimentConfig]:
         edge_type="improve",
         notes="agent/model_zoo/deepfm_mtl.py -- first torch model in the Model Zoo; agent/experiment.py's "
               "is_mtl branch feeds it agent/features.py's load_aux_labels() alongside (X, y).",
+    )]
+
+
+def _deepfm_bpr_candidates(map: ResearchMap) -> list[ExperimentConfig]:
+    """Combines two independently-partial P1/P2 results instead of trying a
+    third, unrelated idea: `fm_bpr` (P1) showed the loss/metric-alignment
+    direction is real but plateaued ~0.002 below the FM baseline in plain
+    FM form after 3 diagnosis-driven rounds; the deep component
+    (`deepfm`/`deepfm_regularized`) independently, separately proved to
+    help. Neither was ever combined with the other -- flagged in this
+    project's own roadmap notes as "a natural, cheap extension of what's
+    already built" since before the P1 rounds even concluded.
+
+    parent_id is deliberately `deepfm_regularized`, NOT `best_confirmed_node()`
+    (currently `deepfm_mtl_v1`): the comparison this candidate is actually
+    designed to make is "does BPR's pairwise objective help the SAME
+    DeepFM architecture deepfm_regularized already validated," holding
+    everything else (fields, k, hidden, l2) fixed -- deepfm_mtl_v1 has a
+    different hyperparameter shape (aux_weight, MTL heads) that would
+    confound the comparison, not isolate it.
+    """
+    parent = map.nodes.get("deepfm_regularized")
+    if parent is None or parent.status != "done" or "deepfm_bpr_v1" in map.nodes:
+        return []
+    try:
+        import torch  # noqa: F401
+    except ImportError:
+        return []  # torch not installed in this environment -- skip, don't fail the whole pool
+
+    base_hp = {k: v for k, v in parent.config.hyperparams.items() if k in ("k", "hidden", "l2")}
+    base_hp["lr"] = 0.001
+    return [ExperimentConfig(
+        id="deepfm_bpr_v1", model="deepfm_bpr",
+        hypothesis=(
+            f"Combines two independently-partial results rather than a new, unrelated idea: fm_bpr's "
+            f"pairwise loss (P1, real loss/metric-alignment signal, plateaued ~0.002 below the FM "
+            f"baseline in plain FM form) with '{parent.node_id}'s deep architecture (valid primary "
+            f"{(parent.metrics or {}).get('valid', {}).get('primary_mean')}), which independently proved "
+            f"to help. Same fields/k/hidden/l2 as the parent, so any effect is attributable to the "
+            f"pairwise-vs-pointwise objective change alone -- exactly the same isolation discipline "
+            f"fm_bpr_default used against fm_baseline_repro."
+        ),
+        hyperparams=base_hp, fields=list(parent.config.fields), parent_id="deepfm_regularized", seeds=[0],
+        edge_type="improve",
+        notes="agent/model_zoo/deepfm_bpr.py -- first torch model wired directly into the real pipeline "
+              "(registry.py + agent/experiment.py's existing is_bpr branch) rather than standalone-checked "
+              "first, since the bpr_step/predict contract fm_bpr already validated in P1 carries over "
+              "with zero training-loop changes needed.",
     )]
 
 

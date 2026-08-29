@@ -226,6 +226,39 @@ def test_deepfm_din_forward_backward_reduces_loss():
         "get_state/set_state round-trip must reproduce predictions"
 
 
+def test_deepfm_bpr_forward_backward_reduces_loss():
+    """P2's third torch model (agent/model_zoo/deepfm_bpr.py): DeepFM's
+    architecture trained on fm_bpr.py's pairwise objective instead of
+    pointwise logloss. Goes through the REAL Model Zoo registry (build_model),
+    not a direct import, since this is the first torch model integrated
+    into the actual pipeline (agent/experiment.py's existing is_bpr branch)
+    rather than standalone-checked first -- proving that integration path
+    actually works end-to-end, same shape of test as fm_bpr's own."""
+    from agent.model_zoo.fm_bpr import build_user_pos_neg_index, sample_bpr_batches
+
+    rng = np.random.default_rng(0)
+    n, n_fields, dim = 2000, 5, 200
+    X = rng.integers(0, dim, size=(n, n_fields)).astype(np.int32)
+    y = rng.integers(0, 2, size=n).astype(np.float32)
+    users = [f"u{rng.integers(0, 50)}" for _ in range(n)]
+
+    user_index = build_user_pos_neg_index(users, y)
+    assert len(user_index) > 0, "synthetic data should produce at least one user with both a positive and negative row"
+
+    m = build_model("deepfm_bpr", dim=dim, n_fields=n_fields, k=8, hidden=[16, 8], lr=0.05, seed=0)
+    batch_rng = np.random.default_rng(1)
+    losses = [m.bpr_step(xp, xn) for xp, xn in sample_bpr_batches(batch_rng, X, user_index, n_batches=30, batch_size=64)]
+    assert losses[-1] < losses[0], f"BPR loss should decrease on synthetic data: {losses[0]} -> {losses[-1]}"
+
+    preds = m.predict(X)
+    assert preds.shape == (n,), preds.shape
+    assert np.isfinite(preds).all(), "predictions must be finite"
+    state = m.get_state()
+    m2 = build_model("deepfm_bpr", dim=dim, n_fields=n_fields, k=8, hidden=[16, 8], lr=0.05, seed=2)
+    m2.set_state(state)
+    assert np.allclose(m.predict(X), m2.predict(X)), "get_state/set_state round-trip must reproduce predictions"
+
+
 def test_research_map_basic():
     import tempfile
     from agent.research_map import ResearchMap
@@ -792,6 +825,7 @@ def main() -> int:
         import torch  # noqa: F401
         tests.append(test_deepfm_mtl_forward_backward_reduces_loss)
         tests.append(test_deepfm_din_forward_backward_reduces_loss)
+        tests.append(test_deepfm_bpr_forward_backward_reduces_loss)
     except ImportError:
         pass
     tests += [
