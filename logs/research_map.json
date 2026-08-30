@@ -3044,6 +3044,247 @@
       "diagnosis_tag": "regression",
       "created_at": 1788032911.2717035,
       "updated_at": 1788032911.2799075
+    },
+    "deepfm_mtl_click_v1": {
+      "node_id": "deepfm_mtl_click_v1",
+      "config": {
+        "id": "deepfm_mtl_click_v1",
+        "model": "deepfm_mtl_click",
+        "hypothesis": "Adds is_click as a 5th auxiliary head to 'deepfm_mtl_v1''s proven multi-task recipe (valid primary 0.6046394259487893) -- not a new architecture or a refinement of the existing training dynamics, but more of the one signal category that's already worked: a genuinely new, denser auxiliary signal. Checked directly against the raw log before building anything: is_click's positive rate (~45.9%) is roughly 25-450x denser than any of the 4 existing auxiliary signals (0.1-1.8% each), a qualitatively different kind of training signal, not just a 5th sparse-engagement flavor. Same fields/k/hidden/l2/aux_weight as the parent, so the added signal is the only variable.",
+        "hyperparams": {
+          "k": 16,
+          "lr": 0.001,
+          "l2": 0.0001,
+          "batch": 8192,
+          "epochs": 20,
+          "patience": 5,
+          "hidden": [
+            128,
+            64
+          ],
+          "aux_weight": 0.2
+        },
+        "fields": [
+          "user_id",
+          "video_id",
+          "author_id",
+          "tab",
+          "dur_bucket"
+        ],
+        "parent_id": "deepfm_mtl_v1",
+        "seeds": [
+          0
+        ],
+        "notes": "agent/model_zoo/deepfm_mtl_click.py -- reuses agent/experiment.py's is_mtl branch via the new model-declared aux_fields attribute (AUX_LABEL_FIELDS_WITH_CLICK), wired directly into the real pipeline, not standalone-checked first.",
+        "edge_type": "improve"
+      },
+      "edge_type": "improve",
+      "parent_id": "deepfm_mtl_v1",
+      "status": "done",
+      "fidelity": "100pct",
+      "metrics": {
+        "n_seeds": 3,
+        "valid": {
+          "GAUC_mean": 0.6715910010675183,
+          "GAUC_std": 0.0005029339701755688,
+          "nDCG@5_mean": 0.5379080035361283,
+          "nDCG@5_std": 0.00033573659302826565,
+          "primary_mean": 0.6047495023018233,
+          "primary_std": 0.0003536728673442793
+        },
+        "test": {
+          "GAUC_mean": 0.6639700870831096,
+          "GAUC_std": 0.0006007580006830908,
+          "nDCG@5_mean": 0.5306246814035996,
+          "nDCG@5_std": 0.00035219266162172223,
+          "primary_mean": 0.5972973842433547,
+          "primary_std": 0.00046637285366734244
+        },
+        "delta_vs_baseline_test": {
+          "delta_GAUC": 0.0029700870831095294,
+          "delta_nDCG@5": 0.002424681403599638,
+          "delta_primary_mean": 0.0026973842433545836
+        },
+        "per_seed": [
+          {
+            "experiment_id": "deepfm_mtl_click_v1",
+            "seed": 0,
+            "best_epoch": 14,
+            "epochs_run": 19,
+            "valid": {
+              "GAUC": 0.6716062063536076,
+              "nDCG@5": 0.5383473652048333,
+              "primary": 0.6049767857792204
+            },
+            "test": {
+              "GAUC": 0.6645299024726441,
+              "nDCG@5": 0.530767954819733,
+              "primary": 0.5976489286461886
+            },
+            "wall_time_s": 274.796875,
+            "num_params": 703435,
+            "train_loss_curve": [
+              0.5802656497274127,
+              0.5129214359181268,
+              0.5088393500873021,
+              0.5081409601228578,
+              0.5072998962232045,
+              0.5068844446114131,
+              0.5062547854014805,
+              0.5055854216217994,
+              0.5050018812928881,
+              0.5041840555412429,
+              0.5033253695283617,
+              0.5025489724108151,
+              0.5018958619662693,
+              0.5007024049758911,
+              0.49957540460995264,
+              0.497696191072464,
+              0.4960217671734946,
+              0.49494612706559044,
+              0.49431238515036446
+            ],
+            "valid_primary_curve": [
+              0.5986676077340696,
+              0.6018081296455376,
+              0.6026160794181468,
+              0.6018929628647184,
+              0.6026804210772669,
+              0.6028229709446697,
+              0.6039586176030143,
+              0.6033852169685924,
+              0.603217049696875,
+              0.60412697298398,
+              0.6037727745651443,
+              0.6047073178135108,
+              0.6041460200968825,
+              0.6049767857792204,
+              0.6039975745790149,
+              0.6021354101228373,
+              0.6018730683521064,
+              0.6012631580119062,
+              0.6009445281094656
+            ],
+            "train_fraction": 1.0
+          },
+          {
+            "experiment_id": "deepfm_mtl_click_v1",
+            "seed": 1,
+            "best_epoch": 12,
+            "epochs_run": 17,
+            "valid": {
+              "GAUC": 0.6721992234540001,
+              "nDCG@5": 0.5378442059366085,
+              "primary": 0.6050217146953043
+            },
+            "test": {
+              "GAUC": 0.6642436415011445,
+              "nDCG@5": 0.5309661597551985,
+              "primary": 0.5976049006281714
+            },
+            "wall_time_s": 210.625,
+            "num_params": 703435,
+            "train_loss_curve": [
+              0.5807376750877925,
+              0.5132786278213773,
+              0.5090644170131002,
+              0.5078502497502736,
+              0.5072022510426385,
+              0.5067537003329822,
+              0.505934462589877,
+              0.5054204276629857,
+              0.5049396657517978,
+              0.5043634284819876,
+              0.5039133363536425,
+              0.503440548479557,
+              0.5028688283903259,
+              0.5021896341017315,
+              0.5009891773973193,
+              0.4995971930878503,
+              0.49757068710667746
+            ],
+            "valid_primary_curve": [
+              0.5984412072619919,
+              0.601468265981375,
+              0.6022832368061775,
+              0.603154879424566,
+              0.601724396915535,
+              0.6018081321994333,
+              0.602910708361684,
+              0.6023354286470113,
+              0.6034736299163277,
+              0.6026741576802994,
+              0.6038703228318929,
+              0.6050217146953043,
+              0.603473714778164,
+              0.6041559423962202,
+              0.6033923336318283,
+              0.6023278223693147,
+              0.6018223594312544
+            ],
+            "train_fraction": 1.0
+          },
+          {
+            "experiment_id": "deepfm_mtl_click_v1",
+            "seed": 2,
+            "best_epoch": 11,
+            "epochs_run": 16,
+            "valid": {
+              "GAUC": 0.6709675733949475,
+              "nDCG@5": 0.5375324394669431,
+              "primary": 0.6042500064309453
+            },
+            "test": {
+              "GAUC": 0.6631367172755402,
+              "nDCG@5": 0.5301399296358675,
+              "primary": 0.5966383234557039
+            },
+            "wall_time_s": 146.953125,
+            "num_params": 703435,
+            "train_loss_curve": [
+              0.5794385535376413,
+              0.5132311222808702,
+              0.5086175173521041,
+              0.5075154164007731,
+              0.5066551353250232,
+              0.5058699495026043,
+              0.5050996648413795,
+              0.5044144707066672,
+              0.5038577912109239,
+              0.5031612928424563,
+              0.5025187677570752,
+              0.5020297452807426,
+              0.5011830423559461,
+              0.49987068729741235,
+              0.49857978735651287,
+              0.4970032123582704
+            ],
+            "valid_primary_curve": [
+              0.5983951061185074,
+              0.6004901005620444,
+              0.6020954858667048,
+              0.6020147242637954,
+              0.6025868157080516,
+              0.602985880584779,
+              0.6035182632244513,
+              0.6041839360345835,
+              0.603020556660333,
+              0.6033599985916777,
+              0.6042500064309453,
+              0.6036684852895235,
+              0.6041404341373735,
+              0.6033934634672415,
+              0.6021032766944662,
+              0.6016309465886336
+            ],
+            "train_fraction": 1.0
+          }
+        ]
+      },
+      "insight": "Change vs. parent (+0.0001 primary) is within the significance bar (0.0006, seed-aware) -- not distinguishable from run-to-run variance.",
+      "diagnosis_tag": "noise_floor",
+      "created_at": 1788052588.6077526,
+      "updated_at": 1788053399.5511746
     }
   }
 }

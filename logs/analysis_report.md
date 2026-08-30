@@ -1,11 +1,11 @@
 # Run & Iteration Log -- Analysis Report
 
-_Generated 2026-08-30 03:50:48 from `logs\run_log.jsonl`_
+_Generated 2026-08-30 11:27:14 from `logs\run_log.jsonl`_
 
 ## Run overview
 
 - **Run ID:** `run_20260827_201247`
-- **Iterations:** 15 total -- 15 succeeded, 0 failed after recovery was exhausted
+- **Iterations:** 16 total -- 16 succeeded, 0 failed after recovery was exhausted
 - **Converged:** True (epsilon=0.002, N=3, per organizer's baseline_scores.json)
 - **Validation-best:** `iter_004` (valid primary = 0.6028)
 - **Manual interventions:** 0 (lower is better -- this is what judges use to score Autonomy)
@@ -15,8 +15,8 @@ _Generated 2026-08-30 03:50:48 from `logs\run_log.jsonl`_
 ## Validation-primary trajectory
 
 ```
-▇▇▇▇▆▇▆▆▇ ▇█▂▆▇
-min=0.5683  max=0.6049  n=15
+▇▇▇▇▆▇▆▆▇ ▇▇▂▆▇█
+min=0.5683  max=0.6050  n=16
 ```
 
 ## Per-iteration log
@@ -38,6 +38,7 @@ min=0.5683  max=0.6049  n=15
 | iter_001 | `deepfm_bpr_v1` | deepfm_bpr | ok | 0.5819 | -0.0233 | 186.5s | 0 | Combines two independently-partial results rather than a new, unrelated idea: fm_bpr's pairwise loss... |
 | iter_001 | `deepfm_bpr_v1_regularized` | deepfm_bpr | ok | 0.5980 | -0.0019 | 247.7s | 0 | Directly acts on deepfm_bpr_v1's own diagnosis, same pattern that worked for fm_bpr_default->fm_bpr_... |
 | iter_001 | `deepfm_mtl_pcgrad_v1` | deepfm_mtl_pcgrad | ok | 0.6027 | +0.0025 | 163.7s | 3 | Refines 'deepfm_mtl_v1''s own multi-task mechanism (valid primary 0.6046394259487893) rather than tr... |
+| iter_001 | `deepfm_mtl_click_v1` | deepfm_mtl_click | ok | 0.6050 | +0.0030 | 404.4s | 0 | Adds is_click as a 5th auxiliary head to 'deepfm_mtl_v1''s proven multi-task recipe (valid primary 0... |
 
 _Δ vs baseline is computed on the locally-held test split for tracking parity with the organizer's own baseline.py; it is never used to pick a config -- only the Valid primary column drives Convergence Detector / config-selection decisions, per Task Requirement 2 (train+validation only)._
 
@@ -58,6 +59,7 @@ _Δ vs baseline is computed on the locally-held test split for tracking parity w
 - **iter_001** (`deepfm_bpr_v1`): root config, no prior iteration to diff against.
 - **iter_001** (`deepfm_bpr_v1_regularized`): root config, no prior iteration to diff against.
 - **iter_001** (`deepfm_mtl_pcgrad_v1`): root config, no prior iteration to diff against.
+- **iter_001** (`deepfm_mtl_click_v1`): root config, no prior iteration to diff against.
 
 ## Error / recovery events
 

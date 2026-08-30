@@ -1,0 +1,14 @@
+# iter_001 -- deepfm_mtl_click_v1
+
+## Hypothesis
+Adds is_click as a 5th auxiliary head to 'deepfm_mtl_v1''s proven multi-task recipe (valid primary 0.6046394259487893) -- not a new architecture or a refinement of the existing training dynamics, but more of the one signal category that's already worked: a genuinely new, denser auxiliary signal. Checked directly against the raw log before building anything: is_click's positive rate (~45.9%) is roughly 25-450x denser than any of the 4 existing auxiliary signals (0.1-1.8% each), a qualitatively different kind of training signal, not just a 5th sparse-engagement flavor. Same fields/k/hidden/l2/aux_weight as the parent, so the added signal is the only variable.
+
+## Notes
+agent/model_zoo/deepfm_mtl_click.py -- reuses agent/experiment.py's is_mtl branch via the new model-declared aux_fields attribute (AUX_LABEL_FIELDS_WITH_CLICK), wired directly into the real pipeline, not standalone-checked first.
+
+## Diff vs previous iteration
+```json
+{
+  "__root__": true
+}
+```

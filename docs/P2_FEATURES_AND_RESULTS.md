@@ -851,6 +851,60 @@ stopping point for refining the multi-task mechanism itself; `deepfm_mtl_v1`
 remains the project-best, now via two independent refinement attempts
 that both confirm its original recipe rather than improve on it.
 
+## 18. `is_click` as a 5th auxiliary head (`deepfm_mtl_click_v1`) — well-reasoned, still a tie
+
+Built after explicit direction to find what would actually work before
+implementing it — real evidence was checked first, not another guess.
+Two real findings came out of that check before any model code was
+written:
+
+- **`video_features_statistic_pure.csv` (organizer-provided, never used
+  anywhere in this project) was investigated as a new safe feature source
+  and explicitly declined**, not silently skipped: verified via the
+  KuaiRand paper's own description ([alphaXiv](https://www.alphaxiv.org/audio/2208.08696),
+  [kuairand.com](https://kuairand.com/)) that its statistics are averaged
+  over the *entire* one-month collection window (2022-04-08 to
+  2022-05-08) — overlapping both the valid and test date ranges. Using it
+  as an input feature would leak future engagement into training, a real
+  leakage vector caught by checking before building, not a hypothetical
+  risk. `user_features_pure.csv` (confirmed static/time-independent —
+  same sources) is safe but genuinely untested, a real next candidate.
+- **The raw log was sampled directly (500K rows) before writing any
+  code**: `is_click`'s positive rate (~45.9%) is 25–450x denser than
+  `deepfm_mtl_v1`'s existing 4 auxiliary signals (`is_like` 1.8%,
+  `is_follow`/`is_forward` ~0.095% each, `is_comment` 0.25%) — a
+  genuinely different-character signal, not a 5th flavor of the same
+  sparse-engagement idea. `is_hate` (~0.04%, too sparse) and
+  `is_profile_enter` (~2.5%, reasonable but would confound attribution if
+  bundled with `is_click`) were checked and set aside to keep this
+  experiment isolated to one variable.
+
+`agent/model_zoo/deepfm_mtl_click.py`: `deepfm_mtl.py`'s exact
+architecture, `aux_heads` extended to 5 outputs. Wired directly into the
+real pipeline (`parent_id=deepfm_mtl_v1`, same fields/k/hidden/l2/
+aux_weight — `is_click` is the only variable):
+
+| | Valid primary | vs. parent |
+|---|---|---|
+| Single seed | 0.6050 | +0.0003 (looked promising) |
+| **3-seed mean** | **0.6047 ± 0.0004** | **+0.0001, `noise_floor`** |
+| Parent (`deepfm_mtl_v1`) | 0.6046 ± 0.0003 | — |
+
+**Honest conclusion: a well-reasoned candidate that still came back a
+tie, not a win.** Worth being explicit about why the reasoning didn't
+pay off, not just reporting the number: the a priori case rested on
+signal *density* (`is_click` is common, the other four are rare), but the
+real pattern across all 5 signals suggests what actually matters is
+correlation *strength* with `long_view`, not raw frequency. `is_like`/
+`is_follow`/`is_comment`/`is_forward` are rare precisely because they're
+strong, deliberate positive actions — a reliable proxy for genuine
+enjoyment. `is_click` is common precisely because it's a low-commitment
+action (opening/starting a video, not finishing or valuing it) — a much
+weaker proxy for the same thing `long_view` measures. Density bought nothing
+here; correlation quality, which this candidate didn't actually improve
+on, is the more likely real driver of what made the original 4 signals
+work. `deepfm_mtl_v1` remains the project-best.
+
 ## Net effect on the project-best
 
 | | Valid primary (3-seed) | Test primary (3-seed mean) | vs. official baseline (test) |

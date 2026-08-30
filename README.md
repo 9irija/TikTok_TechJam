@@ -475,6 +475,23 @@ beats the original simple, fixed-weight recipe; a coherent signal that
 whatever mild gradient conflict exists here isn't noise to remove. Full
 detail: [`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §17.
 
+**Checked real evidence before building the next candidate, per explicit
+direction — one real leakage risk caught, one well-reasoned idea that
+still came back a tie.** Investigated the organizer's own unused
+`video_features_statistic_pure.csv` as a new safe feature source and
+declined it: verified (not assumed) that its statistics are averaged over
+the *entire* collection window, overlapping valid/test dates — using it
+as input would leak future engagement. Sampled the raw log directly
+instead: `is_click` (~45.9% positive) is far denser than
+`deepfm_mtl_v1`'s existing 4 auxiliary signals (0.1–1.8% each).
+`agent/model_zoo/deepfm_mtl_click.py` adds it as a 5th head. Result,
+3-seed: valid primary 0.6047 ± 0.0004 vs. parent's 0.6046 ± 0.0003 —
+`noise_floor`, a tie. Likely reason: density isn't what made the original
+4 signals work — they're rare because they're *strong* deliberate
+positive actions; `is_click` is common because it's a weak, low-
+commitment one. Full detail:
+[`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §18.
+
 ## Engineered features — a real negative result, and a real bug it surfaced
 
 `agent/features.py` adds 4 new fields on top of the starter kit's base 5:

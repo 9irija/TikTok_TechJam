@@ -1,0 +1,127 @@
+{
+  "run_id": "run_20260830_090912",
+  "iteration_id": "iter_001",
+  "timestamp": 1788052588.616313,
+  "status": "ok",
+  "config_id": "deepfm_mtl_click_v1",
+  "model": "deepfm_mtl_click",
+  "hypothesis": "Adds is_click as a 5th auxiliary head to 'deepfm_mtl_v1''s proven multi-task recipe (valid primary 0.6046394259487893) -- not a new architecture or a refinement of the existing training dynamics, but more of the one signal category that's already worked: a genuinely new, denser auxiliary signal. Checked directly against the raw log before building anything: is_click's positive rate (~45.9%) is roughly 25-450x denser than any of the 4 existing auxiliary signals (0.1-1.8% each), a qualitatively different kind of training signal, not just a 5th sparse-engagement flavor. Same fields/k/hidden/l2/aux_weight as the parent, so the added signal is the only variable.",
+  "parent_id": "deepfm_mtl_v1",
+  "code_diff": {
+    "__root__": true
+  },
+  "hyperparams": {
+    "k": 16,
+    "lr": 0.001,
+    "l2": 0.0001,
+    "batch": 8192,
+    "epochs": 20,
+    "patience": 5,
+    "hidden": [
+      128,
+      64
+    ],
+    "aux_weight": 0.2
+  },
+  "metrics": {
+    "n_seeds": 1,
+    "valid": {
+      "GAUC_mean": 0.6716062063536076,
+      "GAUC_std": 0.0,
+      "nDCG@5_mean": 0.5383473652048333,
+      "nDCG@5_std": 0.0,
+      "primary_mean": 0.6049767857792204,
+      "primary_std": 0.0
+    },
+    "test": {
+      "GAUC_mean": 0.6645299024726441,
+      "GAUC_std": 0.0,
+      "nDCG@5_mean": 0.530767954819733,
+      "nDCG@5_std": 0.0,
+      "primary_mean": 0.5976489286461886,
+      "primary_std": 0.0
+    },
+    "delta_vs_baseline_test": {
+      "delta_GAUC": 0.003529902472644064,
+      "delta_nDCG@5": 0.0025679548197330426,
+      "delta_primary_mean": 0.0030489286461885534
+    },
+    "per_seed": [
+      {
+        "experiment_id": "deepfm_mtl_click_v1",
+        "seed": 0,
+        "best_epoch": 14,
+        "epochs_run": 19,
+        "valid": {
+          "GAUC": 0.6716062063536076,
+          "nDCG@5": 0.5383473652048333,
+          "primary": 0.6049767857792204
+        },
+        "test": {
+          "GAUC": 0.6645299024726441,
+          "nDCG@5": 0.530767954819733,
+          "primary": 0.5976489286461886
+        },
+        "wall_time_s": 358.625,
+        "num_params": 703435,
+        "train_loss_curve": [
+          0.5802656497274127,
+          0.5129214359181268,
+          0.5088393500873021,
+          0.5081409601228578,
+          0.5072998962232045,
+          0.5068844446114131,
+          0.5062547854014805,
+          0.5055854216217994,
+          0.5050018812928881,
+          0.5041840555412429,
+          0.5033253695283617,
+          0.5025489724108151,
+          0.5018958619662693,
+          0.5007024049758911,
+          0.49957540460995264,
+          0.497696191072464,
+          0.4960217671734946,
+          0.49494612706559044,
+          0.49431238515036446
+        ],
+        "valid_primary_curve": [
+          0.5986676077340696,
+          0.6018081296455376,
+          0.6026160794181468,
+          0.6018929628647184,
+          0.6026804210772669,
+          0.6028229709446697,
+          0.6039586176030143,
+          0.6033852169685924,
+          0.603217049696875,
+          0.60412697298398,
+          0.6037727745651443,
+          0.6047073178135108,
+          0.6041460200968825,
+          0.6049767857792204,
+          0.6039975745790149,
+          0.6021354101228373,
+          0.6018730683521064,
+          0.6012631580119062,
+          0.6009445281094656
+        ],
+        "train_fraction": 1.0
+      }
+    ]
+  },
+  "wall_time_s": 404.390625,
+  "recovery_events": [],
+  "convergence": null,
+  "fidelity_info": {
+    "final_stage": "100pct",
+    "killed_at": null,
+    "kill_reason": null,
+    "stage_wall_times_s": {
+      "1pct": 16.390625,
+      "10pct": 29.375,
+      "100pct": 358.625
+    },
+    "estimated_time_saved_s": null
+  }
+}

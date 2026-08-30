@@ -432,7 +432,18 @@ alias stub in this environment that fails with no interpreter installed).
   `regression` (-0.0019) against deepfm_mtl_v1. Both refinement angles on
   the multi-task mechanism (magnitude, direction) now tried; neither
   beats the original fixed-weight recipe. See
-  `docs/P2_FEATURES_AND_RESULTS.md` §17.
+  `docs/P2_FEATURES_AND_RESULTS.md` §17. `is_click` as a 5th aux head
+  also tried (`deepfm_mtl_click_v1`, wired directly into the real
+  pipeline) -- checked real evidence first (KuaiRand paper confirms
+  video_features_statistic_pure.csv is averaged over the full dataset
+  period including valid/test dates, declined as a leakage risk; raw log
+  sampled directly, is_click's ~45.9% positive rate is far denser than
+  the existing 4 aux signals' 0.1-1.8%). Result: 3-seed valid
+  0.6047 +/- 0.0004 vs. parent's 0.6046 +/- 0.0003 -- `noise_floor`, a
+  tie despite the strong a priori reasoning. Likely explanation: density
+  isn't what made the original 4 signals work -- they're rare because
+  they're strong deliberate actions, not because rarity itself helps. See
+  `docs/P2_FEATURES_AND_RESULTS.md` §18.
 - **Compliance pass against the officially updated Problem Statement
   (27 Aug 2026, 5:55PM):** confirmed the label/metrics conflict resolution
   (Starter Kit wins) is corroborated even more redundantly in the updated

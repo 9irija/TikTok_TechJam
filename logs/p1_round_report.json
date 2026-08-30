@@ -1,36 +1,36 @@
 {
-  "run_id": "run_20260830_033515",
+  "run_id": "run_20260830_090912",
   "seeded_from_phase0": 0,
   "candidates_considered": 1,
   "ranking": [
     {
-      "id": "deepfm_mtl_pcgrad_v1",
+      "id": "deepfm_mtl_click_v1",
       "score": 1.7830584437762418e-06,
-      "reasoning": "gain=+0.0006 (Extrapolated at half of parent's own gain over its parent (+0.0012 -> projected +0.0006), diminishing-returns prior.) | confidence=0.30 (based on 0 prior scored node(s) in this family) | novelty=1.00 ('deepfm_mtl_pcgrad' is an entirely new model family in the Research Map -- maximum novelty.) | cost~=100s (1 seed(s))"
+      "reasoning": "gain=+0.0006 (Extrapolated at half of parent's own gain over its parent (+0.0012 -> projected +0.0006), diminishing-returns prior.) | confidence=0.30 (based on 0 prior scored node(s) in this family) | novelty=1.00 ('deepfm_mtl_click' is an entirely new model family in the Research Map -- maximum novelty.) | cost~=100s (1 seed(s))"
     }
   ],
   "results": [
     {
       "rank": 1,
-      "config_id": "deepfm_mtl_pcgrad_v1",
+      "config_id": "deepfm_mtl_click_v1",
       "status": "ok",
       "final_stage": "100pct",
       "killed_at": null,
       "kill_reason": null,
       "diagnosis": {
-        "tag": "regression",
-        "insight": "Both GAUC (-0.0028) and nDCG@5 (-0.0011) got worse -- the change likely hurt (bar=0.0004)."
+        "tag": "noise_floor",
+        "insight": "Change vs. parent (+0.0003 primary) is within the significance bar (0.0004, seed-aware) -- not distinguishable from run-to-run variance."
       },
-      "wall_time_s": 163.71875,
+      "wall_time_s": 404.390625,
       "estimated_time_saved_s": null
     }
   ],
   "resource_totals": {
-    "wall_time_total_s": 163.71875,
+    "wall_time_total_s": 404.390625,
     "estimated_time_saved_by_early_termination_s": 0.0
   },
   "research_map_summary": {
-    "total_nodes": 23,
+    "total_nodes": 24,
     "by_model": {
       "fm": {
         "count": 3,
@@ -109,16 +109,22 @@
         "done": 1,
         "failed": 0,
         "killed": 0
+      },
+      "deepfm_mtl_click": {
+        "count": 1,
+        "done": 1,
+        "failed": 0,
+        "killed": 0
       }
     },
     "by_edge_type": {
       "draft": 2,
-      "improve": 18,
+      "improve": 19,
       "debug": 3
     },
     "best_node_id": "deepfm_mtl_v1",
     "best_valid_primary": 0.6046394259487893,
-    "raw_leaderboard_node_id": "deepfm_mtl_uncertainty_v1",
+    "raw_leaderboard_node_id": "deepfm_mtl_click_v1",
     "diagnosis_tags_seen": [
       "baseline_match",
       "clear_improvement",
