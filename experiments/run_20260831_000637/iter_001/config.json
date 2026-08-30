@@ -1,0 +1,31 @@
+{
+  "id": "deepfm_mtl_aux_weight_tuning",
+  "model": "deepfm_mtl",
+  "hypothesis": "Auxiliary engagement signals (is_like, is_follow, is_comment, is_forward) are extremely sparse (0.1% to 1.8% positive rate). A standard auxiliary weight of 0.2 may exert excessive gradient force on the shared embedding space for these rare events. Reducing aux_weight to 0.05 will preserve the multi-task regularization benefit while keeping shared representations primarily optimized for the main long_view target.",
+  "hyperparams": {
+    "k": 16,
+    "lr": 0.001,
+    "l2": 1e-05,
+    "batch": 2048,
+    "epochs": 20,
+    "patience": 3,
+    "hidden": [
+      64,
+      32
+    ],
+    "aux_weight": 0.05
+  },
+  "fields": [
+    "user_id",
+    "video_id",
+    "author_id",
+    "tab",
+    "dur_bucket"
+  ],
+  "parent_id": "deepfm_mtl_v1",
+  "seeds": [
+    0
+  ],
+  "notes": "LLM-proposed (Phase 4 Research Strategist). priority=0.85",
+  "edge_type": "improve"
+}

@@ -12,19 +12,12 @@ metric, and error/recovery event it produces along the way.
 > Full problem statement + team brainstorm: [`docs/TikTok TechJam Hackathon.md`](docs/TikTok%20TechJam%20Hackathon.md).
 > Operational project context (architecture, task-definition caveat, roadmap): [`CLAUDE.md`](CLAUDE.md).
 
-**For judges, the fastest path through this repo:** the four required
-deliverables are [`docs/RESULTS_SUMMARY.md`](docs/RESULTS_SUMMARY.md)
-(Deliverable 4 — the consolidated results table, resource usage, and an
-honest autonomy breakdown), [`logs/run_log.jsonl`](logs/run_log.jsonl) +
-[`docs/dashboard.html`](docs/dashboard.html) (Deliverable 3 — the Run &
-Iteration Log, as a persistent tree you can click through, not just a flat
-file), `submission_valid.csv`/`submission_test.csv` (Deliverable 2 — the
-final submission, regenerated on demand by
-[`tools/generate_submission.py`](tools/generate_submission.py)), and this
-README + [`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md)
-(Deliverable 1 — the technical report). The one-line score: **0.6046
-valid primary, +0.0028 over the official baseline on hidden test, 3-seed
-verified** — see "Results" just below for the full table.
+**For judges:** [`docs/DELIVERABLES.md`](docs/DELIVERABLES.md) maps this
+repo directly onto the Problem Statement's own 4 numbered deliverables and
+3 Task Requirements, file path by file path — the fastest way to find
+anything specific. The one-line score: **0.6046 valid primary, +0.0028
+over the official baseline on hidden test, 3-seed verified** — see
+"Results" just below for the full table.
 
 **Contents:** [Results](#results-current-project-best-3-seed-verified) ·
 [P1](#p1-results-three-rounds--each-acts-on-the-previous-rounds-own-diagnosis) ·
@@ -130,8 +123,16 @@ tar xzf KuaiRand-Pure.tar.gz && rm KuaiRand-Pure.tar.gz
 cd ..
 ```
 
-Windows note: use `python` (not `python3`, which is a Microsoft Store alias
-stub with no interpreter behind it in some environments).
+Windows notes: use `python` (not `python3`, which is a Microsoft Store alias
+stub with no interpreter behind it in some environments). The organizer's
+own `kuairand-starter-kit/submit.py --check` prints a Unicode checkmark
+(`✓`) in its success message, which crashes with `UnicodeEncodeError` on a
+default Windows console (cp1252, not UTF-8) — a real console-encoding
+quirk, not a submission-format problem: run with `PYTHONIOENCODING=utf-8`
+set first, or note that the crash happens *after* every real validation
+check already passed (Python would raise at the actual failing check, not
+at the final success print). Verified directly against both
+`submission_valid.csv`/`submission_test.csv` this way — both pass cleanly.
 
 ## Steps to reproduce results
 

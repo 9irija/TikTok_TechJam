@@ -1,0 +1,101 @@
+{
+  "run_id": "run_20260831_000637",
+  "iteration_id": "iter_001",
+  "timestamp": 1788106257.70557,
+  "status": "ok",
+  "config_id": "deepfm_mtl_aux_weight_tuning",
+  "model": "deepfm_mtl",
+  "hypothesis": "Auxiliary engagement signals (is_like, is_follow, is_comment, is_forward) are extremely sparse (0.1% to 1.8% positive rate). A standard auxiliary weight of 0.2 may exert excessive gradient force on the shared embedding space for these rare events. Reducing aux_weight to 0.05 will preserve the multi-task regularization benefit while keeping shared representations primarily optimized for the main long_view target.",
+  "parent_id": "deepfm_mtl_v1",
+  "code_diff": {
+    "__root__": true
+  },
+  "hyperparams": {
+    "k": 16,
+    "lr": 0.001,
+    "l2": 1e-05,
+    "batch": 2048,
+    "epochs": 20,
+    "patience": 3,
+    "hidden": [
+      64,
+      32
+    ],
+    "aux_weight": 0.05
+  },
+  "metrics": {
+    "n_seeds": 1,
+    "valid": {
+      "GAUC_mean": 0.6699666229078632,
+      "GAUC_std": 0.0,
+      "nDCG@5_mean": 0.5372577398572754,
+      "nDCG@5_std": 0.0,
+      "primary_mean": 0.6036121813825693,
+      "primary_std": 0.0
+    },
+    "test": {
+      "GAUC_mean": 0.6651650981428127,
+      "GAUC_std": 0.0,
+      "nDCG@5_mean": 0.5308163227220076,
+      "nDCG@5_std": 0.0,
+      "primary_mean": 0.5979907104324101,
+      "primary_std": 0.0
+    },
+    "delta_vs_baseline_test": {
+      "delta_GAUC": 0.004165098142812629,
+      "delta_nDCG@5": 0.0026163227220076246,
+      "delta_primary_mean": 0.0033907104324101267
+    },
+    "per_seed": [
+      {
+        "experiment_id": "deepfm_mtl_aux_weight_tuning",
+        "seed": 0,
+        "best_epoch": 3,
+        "epochs_run": 6,
+        "valid": {
+          "GAUC": 0.6699666229078632,
+          "nDCG@5": 0.5372577398572754,
+          "primary": 0.6036121813825693
+        },
+        "test": {
+          "GAUC": 0.6651650981428127,
+          "nDCG@5": 0.5308163227220076,
+          "primary": 0.5979907104324101
+        },
+        "wall_time_s": 161.046875,
+        "num_params": 691850,
+        "train_loss_curve": [
+          0.5433121174039807,
+          0.5082980516136334,
+          0.5046620310741513,
+          0.5024229750624695,
+          0.49874846311452997,
+          0.4938045904093746
+        ],
+        "valid_primary_curve": [
+          0.6011505036019484,
+          0.6029487447220905,
+          0.6036121813825693,
+          0.6030215485309361,
+          0.6027631731157954,
+          0.5999502310135637
+        ],
+        "train_fraction": 1.0
+      }
+    ]
+  },
+  "wall_time_s": 205.796875,
+  "recovery_events": [],
+  "convergence": null,
+  "fidelity_info": {
+    "final_stage": "100pct",
+    "killed_at": null,
+    "kill_reason": null,
+    "stage_wall_times_s": {
+      "1pct": 17.953125,
+      "10pct": 26.796875,
+      "100pct": 161.046875
+    },
+    "estimated_time_saved_s": null
+  }
+}

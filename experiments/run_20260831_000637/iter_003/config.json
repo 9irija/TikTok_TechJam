@@ -1,0 +1,31 @@
+{
+  "id": "deepfm_mtl_capacity_v1",
+  "model": "deepfm_mtl",
+  "hypothesis": "deepfm_mtl_v1 currently holds the highest validation score (0.6046). Previous attempts to modify deepfm_mtl focused on loss weighting (aux_weight_tuning, focal_soft) or auxiliary task structures (deep_heads, click), which either regressed or hit noise floors. Expanding the deep MLP component capacity from [64, 32] to [128, 64] while retaining the proven auxiliary weight (0.2) and embedding dimension (k=16) will allow the shared feature interactions and high-level representations to better capture complex user-item signals across tasks without over-regularizing the main long_view predictor.",
+  "hyperparams": {
+    "k": 16,
+    "lr": 0.001,
+    "l2": 1e-05,
+    "batch": 2048,
+    "epochs": 15,
+    "patience": 3,
+    "hidden": [
+      128,
+      64
+    ],
+    "aux_weight": 0.2
+  },
+  "fields": [
+    "user_id",
+    "video_id",
+    "author_id",
+    "tab",
+    "dur_bucket"
+  ],
+  "parent_id": "deepfm_mtl_v1",
+  "seeds": [
+    0
+  ],
+  "notes": "LLM-proposed (Phase 4 Research Strategist). priority=0.85",
+  "edge_type": "improve"
+}

@@ -220,5 +220,30 @@ def run_p4(data_dir: str | None = None, timeout_s: float = 240.0,
         "estimated_time_saved_by_early_termination_s": total_time_saved,
     }
     report["research_map_summary"] = map.explored_summary()
-    (LOGS_DIR / "p4_run_report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
+
+    # p4_run_report.json used to be fully overwritten by every invocation -- a
+    # real gap: `llm_tokens_total` is the one number in this whole project the
+    # PS explicitly scores (Feasibility & Practicality's "total token
+    # consumption... across the run"), and it was silently losing every prior
+    # round's total the moment a second `python run_p4.py` was ever run.
+    # Carry an explicit, clearly-separate cumulative total forward instead of
+    # letting each round's own (correct, real) number stand in for the whole
+    # project's.
+    report_path = LOGS_DIR / "p4_run_report.json"
+    prev_cumulative_tokens, prev_cumulative_wall_s, prev_rounds = 0, 0.0, 0
+    if report_path.exists():
+        try:
+            prev = json.loads(report_path.read_text(encoding="utf-8"))
+            cum = prev.get("cumulative_across_all_p4_rounds", {})
+            prev_cumulative_tokens = cum.get("llm_tokens_total_all_rounds", prev.get("resource_totals", {}).get("llm_tokens_total", 0))
+            prev_cumulative_wall_s = cum.get("wall_time_total_s_all_rounds", prev.get("resource_totals", {}).get("wall_time_total_s", 0.0))
+            prev_rounds = cum.get("num_p4_rounds", 1)
+        except (json.JSONDecodeError, OSError):
+            pass  # no prior report, or it's malformed -- start the cumulative count fresh from this round
+    report["cumulative_across_all_p4_rounds"] = {
+        "llm_tokens_total_all_rounds": prev_cumulative_tokens + total_llm_tokens,
+        "wall_time_total_s_all_rounds": prev_cumulative_wall_s + wall_time_total_s,
+        "num_p4_rounds": prev_rounds + 1,
+    }
+    report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
     return report

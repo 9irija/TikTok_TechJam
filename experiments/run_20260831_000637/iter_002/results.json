@@ -1,0 +1,136 @@
+{
+  "run_id": "run_20260831_000637",
+  "iteration_id": "iter_002",
+  "timestamp": 1788106521.3551812,
+  "status": "ok",
+  "config_id": "deepfm_mtl_focal_soft_v1",
+  "model": "deepfm_mtl_focal",
+  "hypothesis": "deepfm_mtl_focal_v1 regressed because focal_gamma=2.0 was overly aggressive in down-weighting well-classified negatives on highly imbalanced recommendation signals. Relaxing focal_gamma to 1.0 with aux_weight=0.1 will softly focus gradient updates on hard impression pairs without destabilizing the multi-task embedding representations established in deepfm_mtl_v1.",
+  "parent_id": "deepfm_mtl_v1",
+  "code_diff": {
+    "hyperparams": {
+      "before": {
+        "k": 16,
+        "lr": 0.001,
+        "l2": 1e-05,
+        "batch": 2048,
+        "epochs": 20,
+        "patience": 3,
+        "hidden": [
+          64,
+          32
+        ],
+        "aux_weight": 0.05
+      },
+      "after": {
+        "k": 16,
+        "lr": 0.001,
+        "l2": 1e-05,
+        "batch": 2048,
+        "epochs": 20,
+        "patience": 3,
+        "hidden": [
+          64,
+          32
+        ],
+        "aux_weight": 0.1,
+        "focal_gamma": 1.0,
+        "focal_alpha": 0.5
+      }
+    },
+    "model": {
+      "before": "deepfm_mtl",
+      "after": "deepfm_mtl_focal"
+    }
+  },
+  "hyperparams": {
+    "k": 16,
+    "lr": 0.001,
+    "l2": 1e-05,
+    "batch": 2048,
+    "epochs": 20,
+    "patience": 3,
+    "hidden": [
+      64,
+      32
+    ],
+    "aux_weight": 0.1,
+    "focal_gamma": 1.0,
+    "focal_alpha": 0.5
+  },
+  "metrics": {
+    "n_seeds": 1,
+    "valid": {
+      "GAUC_mean": 0.6692747693723702,
+      "GAUC_std": 0.0,
+      "nDCG@5_mean": 0.5364698546950716,
+      "nDCG@5_std": 0.0,
+      "primary_mean": 0.6028723120337209,
+      "primary_std": 0.0
+    },
+    "test": {
+      "GAUC_mean": 0.6640808564098906,
+      "GAUC_std": 0.0,
+      "nDCG@5_mean": 0.5306434393502534,
+      "nDCG@5_std": 0.0,
+      "primary_mean": 0.5973621478800719,
+      "primary_std": 0.0
+    },
+    "delta_vs_baseline_test": {
+      "delta_GAUC": 0.003080856409890531,
+      "delta_nDCG@5": 0.0024434393502533736,
+      "delta_primary_mean": 0.0027621478800719523
+    },
+    "per_seed": [
+      {
+        "experiment_id": "deepfm_mtl_focal_soft_v1",
+        "seed": 0,
+        "best_epoch": 3,
+        "epochs_run": 6,
+        "valid": {
+          "GAUC": 0.6692747693723702,
+          "nDCG@5": 0.5364698546950716,
+          "primary": 0.6028723120337209
+        },
+        "test": {
+          "GAUC": 0.6640808564098906,
+          "nDCG@5": 0.5306434393502534,
+          "primary": 0.5973621478800719
+        },
+        "wall_time_s": 156.5,
+        "num_params": 691850,
+        "train_loss_curve": [
+          0.13671643801006791,
+          0.12874562823377203,
+          0.1280275186704051,
+          0.12754264535335658,
+          0.12677194636088118,
+          0.12586991590411006
+        ],
+        "valid_primary_curve": [
+          0.601278866067204,
+          0.6027212396063816,
+          0.6028723120337209,
+          0.6025856739040536,
+          0.6023189630161891,
+          0.6016406244413591
+        ],
+        "train_fraction": 1.0
+      }
+    ]
+  },
+  "wall_time_s": 203.53125,
+  "recovery_events": [],
+  "convergence": null,
+  "fidelity_info": {
+    "final_stage": "100pct",
+    "killed_at": null,
+    "kill_reason": null,
+    "stage_wall_times_s": {
+      "1pct": 19.40625,
+      "10pct": 27.625,
+      "100pct": 156.5
+    },
+    "estimated_time_saved_s": null
+  }
+}

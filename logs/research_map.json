@@ -4063,6 +4063,301 @@
       "diagnosis_tag": "noise_floor",
       "created_at": 1788102739.4264092,
       "updated_at": 1788105292.79968
+    },
+    "deepfm_mtl_aux_weight_tuning": {
+      "node_id": "deepfm_mtl_aux_weight_tuning",
+      "config": {
+        "id": "deepfm_mtl_aux_weight_tuning",
+        "model": "deepfm_mtl",
+        "hypothesis": "Auxiliary engagement signals (is_like, is_follow, is_comment, is_forward) are extremely sparse (0.1% to 1.8% positive rate). A standard auxiliary weight of 0.2 may exert excessive gradient force on the shared embedding space for these rare events. Reducing aux_weight to 0.05 will preserve the multi-task regularization benefit while keeping shared representations primarily optimized for the main long_view target.",
+        "hyperparams": {
+          "k": 16,
+          "lr": 0.001,
+          "l2": 1e-05,
+          "batch": 2048,
+          "epochs": 20,
+          "patience": 3,
+          "hidden": [
+            64,
+            32
+          ],
+          "aux_weight": 0.05
+        },
+        "fields": [
+          "user_id",
+          "video_id",
+          "author_id",
+          "tab",
+          "dur_bucket"
+        ],
+        "parent_id": "deepfm_mtl_v1",
+        "seeds": [
+          0
+        ],
+        "notes": "LLM-proposed (Phase 4 Research Strategist). priority=0.85",
+        "edge_type": "improve"
+      },
+      "edge_type": "improve",
+      "parent_id": "deepfm_mtl_v1",
+      "status": "done",
+      "fidelity": "100pct",
+      "metrics": {
+        "n_seeds": 1,
+        "valid": {
+          "GAUC_mean": 0.6699666229078632,
+          "GAUC_std": 0.0,
+          "nDCG@5_mean": 0.5372577398572754,
+          "nDCG@5_std": 0.0,
+          "primary_mean": 0.6036121813825693,
+          "primary_std": 0.0
+        },
+        "test": {
+          "GAUC_mean": 0.6651650981428127,
+          "GAUC_std": 0.0,
+          "nDCG@5_mean": 0.5308163227220076,
+          "nDCG@5_std": 0.0,
+          "primary_mean": 0.5979907104324101,
+          "primary_std": 0.0
+        },
+        "delta_vs_baseline_test": {
+          "delta_GAUC": 0.004165098142812629,
+          "delta_nDCG@5": 0.0026163227220076246,
+          "delta_primary_mean": 0.0033907104324101267
+        },
+        "per_seed": [
+          {
+            "experiment_id": "deepfm_mtl_aux_weight_tuning",
+            "seed": 0,
+            "best_epoch": 3,
+            "epochs_run": 6,
+            "valid": {
+              "GAUC": 0.6699666229078632,
+              "nDCG@5": 0.5372577398572754,
+              "primary": 0.6036121813825693
+            },
+            "test": {
+              "GAUC": 0.6651650981428127,
+              "nDCG@5": 0.5308163227220076,
+              "primary": 0.5979907104324101
+            },
+            "wall_time_s": 161.046875,
+            "num_params": 691850,
+            "train_loss_curve": [
+              0.5433121174039807,
+              0.5082980516136334,
+              0.5046620310741513,
+              0.5024229750624695,
+              0.49874846311452997,
+              0.4938045904093746
+            ],
+            "valid_primary_curve": [
+              0.6011505036019484,
+              0.6029487447220905,
+              0.6036121813825693,
+              0.6030215485309361,
+              0.6027631731157954,
+              0.5999502310135637
+            ],
+            "train_fraction": 1.0
+          }
+        ]
+      },
+      "insight": "Both GAUC (-0.0015) and nDCG@5 (-0.0006) got worse -- the change likely hurt (bar=0.0004).",
+      "diagnosis_tag": "regression",
+      "created_at": 1788106257.683263,
+      "updated_at": 1788106257.6941478
+    },
+    "deepfm_mtl_focal_soft_v1": {
+      "node_id": "deepfm_mtl_focal_soft_v1",
+      "config": {
+        "id": "deepfm_mtl_focal_soft_v1",
+        "model": "deepfm_mtl_focal",
+        "hypothesis": "deepfm_mtl_focal_v1 regressed because focal_gamma=2.0 was overly aggressive in down-weighting well-classified negatives on highly imbalanced recommendation signals. Relaxing focal_gamma to 1.0 with aux_weight=0.1 will softly focus gradient updates on hard impression pairs without destabilizing the multi-task embedding representations established in deepfm_mtl_v1.",
+        "hyperparams": {
+          "k": 16,
+          "lr": 0.001,
+          "l2": 1e-05,
+          "batch": 2048,
+          "epochs": 20,
+          "patience": 3,
+          "hidden": [
+            64,
+            32
+          ],
+          "aux_weight": 0.1,
+          "focal_gamma": 1.0,
+          "focal_alpha": 0.5
+        },
+        "fields": [
+          "user_id",
+          "video_id",
+          "author_id",
+          "tab",
+          "dur_bucket"
+        ],
+        "parent_id": "deepfm_mtl_v1",
+        "seeds": [
+          0
+        ],
+        "notes": "LLM-proposed (Phase 4 Research Strategist). priority=0.85",
+        "edge_type": "improve"
+      },
+      "edge_type": "improve",
+      "parent_id": "deepfm_mtl_v1",
+      "status": "done",
+      "fidelity": "100pct",
+      "metrics": {
+        "n_seeds": 1,
+        "valid": {
+          "GAUC_mean": 0.6692747693723702,
+          "GAUC_std": 0.0,
+          "nDCG@5_mean": 0.5364698546950716,
+          "nDCG@5_std": 0.0,
+          "primary_mean": 0.6028723120337209,
+          "primary_std": 0.0
+        },
+        "test": {
+          "GAUC_mean": 0.6640808564098906,
+          "GAUC_std": 0.0,
+          "nDCG@5_mean": 0.5306434393502534,
+          "nDCG@5_std": 0.0,
+          "primary_mean": 0.5973621478800719,
+          "primary_std": 0.0
+        },
+        "delta_vs_baseline_test": {
+          "delta_GAUC": 0.003080856409890531,
+          "delta_nDCG@5": 0.0024434393502533736,
+          "delta_primary_mean": 0.0027621478800719523
+        },
+        "per_seed": [
+          {
+            "experiment_id": "deepfm_mtl_focal_soft_v1",
+            "seed": 0,
+            "best_epoch": 3,
+            "epochs_run": 6,
+            "valid": {
+              "GAUC": 0.6692747693723702,
+              "nDCG@5": 0.5364698546950716,
+              "primary": 0.6028723120337209
+            },
+            "test": {
+              "GAUC": 0.6640808564098906,
+              "nDCG@5": 0.5306434393502534,
+              "primary": 0.5973621478800719
+            },
+            "wall_time_s": 156.5,
+            "num_params": 691850,
+            "train_loss_curve": [
+              0.13671643801006791,
+              0.12874562823377203,
+              0.1280275186704051,
+              0.12754264535335658,
+              0.12677194636088118,
+              0.12586991590411006
+            ],
+            "valid_primary_curve": [
+              0.601278866067204,
+              0.6027212396063816,
+              0.6028723120337209,
+              0.6025856739040536,
+              0.6023189630161891,
+              0.6016406244413591
+            ],
+            "train_fraction": 1.0
+          }
+        ]
+      },
+      "insight": "Both GAUC (-0.0022) and nDCG@5 (-0.0014) got worse -- the change likely hurt (bar=0.0004).",
+      "diagnosis_tag": "regression",
+      "created_at": 1788106521.3344204,
+      "updated_at": 1788106521.3445706
+    },
+    "deepfm_mtl_capacity_v1": {
+      "node_id": "deepfm_mtl_capacity_v1",
+      "config": {
+        "id": "deepfm_mtl_capacity_v1",
+        "model": "deepfm_mtl",
+        "hypothesis": "deepfm_mtl_v1 currently holds the highest validation score (0.6046). Previous attempts to modify deepfm_mtl focused on loss weighting (aux_weight_tuning, focal_soft) or auxiliary task structures (deep_heads, click), which either regressed or hit noise floors. Expanding the deep MLP component capacity from [64, 32] to [128, 64] while retaining the proven auxiliary weight (0.2) and embedding dimension (k=16) will allow the shared feature interactions and high-level representations to better capture complex user-item signals across tasks without over-regularizing the main long_view predictor.",
+        "hyperparams": {
+          "k": 16,
+          "lr": 0.001,
+          "l2": 1e-05,
+          "batch": 2048,
+          "epochs": 15,
+          "patience": 3,
+          "hidden": [
+            128,
+            64
+          ],
+          "aux_weight": 0.2
+        },
+        "fields": [
+          "user_id",
+          "video_id",
+          "author_id",
+          "tab",
+          "dur_bucket"
+        ],
+        "parent_id": "deepfm_mtl_v1",
+        "seeds": [
+          0
+        ],
+        "notes": "LLM-proposed (Phase 4 Research Strategist). priority=0.85",
+        "edge_type": "improve"
+      },
+      "edge_type": "improve",
+      "parent_id": "deepfm_mtl_v1",
+      "status": "done",
+      "fidelity": "100pct",
+      "metrics": {
+        "n_seeds": 1,
+        "valid": {
+          "GAUC_mean": 0.6698454357048573,
+          "GAUC_std": 0.0,
+          "nDCG@5_mean": 0.5373048118313598,
+          "nDCG@5_std": 0.0,
+          "primary_mean": 0.6035751237681086,
+          "primary_std": 0.0
+        },
+        "test": {
+          "GAUC_mean": 0.6652655994101665,
+          "GAUC_std": 0.0,
+          "nDCG@5_mean": 0.5309310408735253,
+          "nDCG@5_std": 0.0,
+          "primary_mean": 0.5980983201418459,
+          "primary_std": 0.0
+        },
+        "per_seed": [
+          {
+            "experiment_id": "deepfm_mtl_capacity_v1",
+            "seed": 0,
+            "best_epoch": 3,
+            "epochs_run": 6,
+            "valid": {
+              "GAUC": 0.6698454357048573,
+              "nDCG@5": 0.5373048118313598,
+              "primary": 0.6035751237681086
+            },
+            "test": {
+              "GAUC": 0.6652655994101665,
+              "nDCG@5": 0.5309310408735253,
+              "primary": 0.5980983201418459
+            },
+            "wall_time_s": 401.5,
+            "num_params": null,
+            "train_fraction": 1.0
+          }
+        ],
+        "delta_vs_baseline_test": {
+          "delta_GAUC": 0.004265599410166465,
+          "delta_nDCG@5": 0.00273104087352527,
+          "delta_primary_mean": 0.0034983201418458676
+        }
+      },
+      "insight": "Both GAUC (-0.0016) and nDCG@5 (-0.0005) got worse -- the change likely hurt (bar=0.0004). [Re-run with a generous 1500s timeout after the original Phase 4 round genuinely timed out at 240s -- batch=2048 (4x smaller than the parent deepfm_mtl_v1 batch of 8192) needs real wall-clock time per epoch (~65s/epoch here) the original per-stage budget did not give it. Not a bug in the config or training loop -- confirmed by successfully completing this identical config with more time.]",
+      "diagnosis_tag": "regression",
+      "created_at": 1788107091.7227986,
+      "updated_at": 1788107690.5454156
     }
   }
 }

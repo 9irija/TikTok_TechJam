@@ -1,0 +1,98 @@
+{
+  "run_id": "run_20260831_000637",
+  "iteration_id": "iter_003",
+  "timestamp": 1788107091.7439418,
+  "status": "failed",
+  "config_id": "deepfm_mtl_capacity_v1",
+  "model": "deepfm_mtl",
+  "hypothesis": "deepfm_mtl_v1 currently holds the highest validation score (0.6046). Previous attempts to modify deepfm_mtl focused on loss weighting (aux_weight_tuning, focal_soft) or auxiliary task structures (deep_heads, click), which either regressed or hit noise floors. Expanding the deep MLP component capacity from [64, 32] to [128, 64] while retaining the proven auxiliary weight (0.2) and embedding dimension (k=16) will allow the shared feature interactions and high-level representations to better capture complex user-item signals across tasks without over-regularizing the main long_view predictor.",
+  "parent_id": "deepfm_mtl_v1",
+  "code_diff": {
+    "hyperparams": {
+      "before": {
+        "k": 16,
+        "lr": 0.001,
+        "l2": 1e-05,
+        "batch": 2048,
+        "epochs": 20,
+        "patience": 3,
+        "hidden": [
+          64,
+          32
+        ],
+        "aux_weight": 0.1,
+        "focal_gamma": 1.0,
+        "focal_alpha": 0.5
+      },
+      "after": {
+        "k": 16,
+        "lr": 0.001,
+        "l2": 1e-05,
+        "batch": 2048,
+        "epochs": 15,
+        "patience": 3,
+        "hidden": [
+          128,
+          64
+        ],
+        "aux_weight": 0.2
+      }
+    },
+    "model": {
+      "before": "deepfm_mtl_focal",
+      "after": "deepfm_mtl"
+    }
+  },
+  "hyperparams": {
+    "k": 16,
+    "lr": 0.001,
+    "l2": 1e-05,
+    "batch": 2048,
+    "epochs": 15,
+    "patience": 3,
+    "hidden": [
+      128,
+      64
+    ],
+    "aux_weight": 0.2
+  },
+  "metrics": null,
+  "wall_time_s": 51.140625,
+  "recovery_events": [
+    {
+      "kind": "timeout",
+      "message": "Experiment 'deepfm_mtl_capacity_v1' (seed=0) exceeded 240s wall-clock budget; process terminated.",
+      "attempt": 1,
+      "timestamp": 1788106851.648515
+    },
+    {
+      "kind": "fallback",
+      "message": "All 1 attempt(s) of 'deepfm_mtl_capacity_v1' failed; falling back to a 5-epoch degraded run so this iteration still logs a real result.",
+      "attempt": 2,
+      "timestamp": 1788106851.6487994
+    },
+    {
+      "kind": "timeout",
+      "message": "Experiment 'deepfm_mtl_capacity_v1' (seed=0) exceeded 240s wall-clock budget; process terminated.",
+      "attempt": 2,
+      "timestamp": 1788107091.7225387
+    },
+    {
+      "kind": "abandoned",
+      "message": "Degraded fallback for 'deepfm_mtl_capacity_v1' also failed -- abandoning this experiment; orchestrator proceeds to the next config.",
+      "attempt": 3,
+      "timestamp": 1788107091.7227554
+    }
+  ],
+  "convergence": null,
+  "fidelity_info": {
+    "final_stage": "10pct",
+    "killed_at": "100pct",
+    "kill_reason": "training failed / timed out at this fidelity (see recovery events)",
+    "stage_wall_times_s": {
+      "1pct": 20.03125,
+      "10pct": 31.109375
+    },
+    "estimated_time_saved_s": 311.09375
+  }
+}

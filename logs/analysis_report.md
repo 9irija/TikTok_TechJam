@@ -1,20 +1,20 @@
 # Run & Iteration Log -- Analysis Report
 
-_Generated 2026-08-30 23:58:08 from `logs\run_log.jsonl`_
+_Generated 2026-08-31 00:35:16 from `logs\run_log.jsonl`_
 
 ## Project-best (across all phases -- the actual current result)
 
 - **Node:** `deepfm_mtl_v1` (deepfm_mtl) -- diagnosis `clear_improvement`, 3-seed
 - **Valid primary:** 0.6046 +/- 0.0003
 - **Test primary:** 0.5974 +/- 0.0006 (+0.0028 vs. official baseline)
-- Research Map total: 30 nodes explored across every phase (Foundation/P1/Phase 4/P2) -- see `docs/dashboard.html` for the full tree.
+- Research Map total: 33 nodes explored across every phase (Foundation/P1/Phase 4/P2) -- see `docs/dashboard.html` for the full tree.
 
 ## Phase 0's own convergence run
 
 _The literal single continuous run the Problem Statement's convergence rule describes (read baseline -> iterate -> converge automatically, no LLM yet) -- superseded as "the project result" by the section above, kept here as its own correctly-scoped record, not the whole project's outcome._
 
 - **Run ID:** `run_20260827_201247`
-- **Iterations:** 30 total -- 30 succeeded, 0 failed after recovery was exhausted
+- **Iterations:** 34 total -- 33 succeeded, 1 failed after recovery was exhausted
 - **Converged:** True (epsilon=0.002, N=3, per organizer's baseline_scores.json)
 - **Validation-best (this run only):** `iter_004` (valid primary = 0.6028)
 - **Manual interventions (this run only):** 0 (lower is better -- this is what judges use to score Autonomy; see docs/RESULTS_SUMMARY.md's own Autonomy breakdown for the whole-project picture)
@@ -24,8 +24,8 @@ _The literal single continuous run the Problem Statement's convergence rule desc
 ## Validation-primary trajectory
 
 ```
-▇▇▇▇▇▇▇▇▇▂▇▇▄▇▇█▇▇▇▇▇▇▇▇ ▅▇▇▇▇
-min=0.5483  max=0.6050  n=30
+▇▇▇▇▇▇▇▇▇▂▇▇▄▇▇█▇▇▇▇▇▇▇▇ ▅▇▇▇▇▇▇▇
+min=0.5483  max=0.6050  n=33
 ```
 
 Official FM baseline (validation): **0.6016** -- reference line for the trajectory above.
@@ -64,6 +64,10 @@ Official FM baseline (validation): **0.6016** -- reference line for the trajecto
 | deepfm_mtl_deep_heads_v1 | `deepfm_mtl_deep_heads_v1` | deepfm_mtl_deep_heads | ok | 0.6038 | +0.0027 | 1774.5s | 0 | Every prior MTL refinement (uncertainty-weighting, PCGrad) changed how much the auxiliary losses cou... |
 | deepfm_mtl_gnn_init_v1 | `deepfm_mtl_gnn_init_v1` | deepfm_mtl | ok | 0.6045 | +0.0029 | not recorded | 0 | A genuinely different mechanism from every other lever tried: every prior attempt changed the loss, ... |
 | deepfm_mtl_gnn_feature_v1 | `deepfm_mtl_gnn_feature_v1` | deepfm_mtl_gnn_feature | ok | 0.6047 | +0.0033 | not recorded | 0 | Direct diagnosis-driven follow-up to deepfm_mtl_gnn_init_v1 (P2 Sec.27), which found graph-propagate... |
+| iter_001 | `deepfm_mtl_aux_weight_tuning` | deepfm_mtl | ok | 0.6036 | +0.0034 | 205.8s | 0 | Auxiliary engagement signals (is_like, is_follow, is_comment, is_forward) are extremely sparse (0.1%... |
+| iter_002 | `deepfm_mtl_focal_soft_v1` | deepfm_mtl_focal | ok | 0.6029 | +0.0028 | 203.5s | 0 | deepfm_mtl_focal_v1 regressed because focal_gamma=2.0 was overly aggressive in down-weighting well-c... |
+| iter_003 | `deepfm_mtl_capacity_v1` | deepfm_mtl | failed | -- | -- | 51.1s | 4 | deepfm_mtl_v1 currently holds the highest validation score (0.6046). Previous attempts to modify dee... |
+| deepfm_mtl_capacity_v1_retry | `deepfm_mtl_capacity_v1` | deepfm_mtl | ok | 0.6036 | +0.0035 | 401.5s | 0 | deepfm_mtl_v1 currently holds the highest validation score (0.6046). Previous attempts to modify dee... |
 
 _Δ vs baseline is computed on the locally-held test split for tracking parity with the organizer's own baseline.py; it is never used to pick a config -- only the Valid primary column drives Convergence Detector / config-selection decisions, per Task Requirement 2 (train+validation only)._
 
@@ -99,6 +103,10 @@ _Δ vs baseline is computed on the locally-held test split for tracking parity w
 - **deepfm_mtl_deep_heads_v1** (`deepfm_mtl_deep_heads_v1`): `edge_type`: improve → None, `hyperparams`: {'k': 16, 'lr': 0.001, 'l2': 0.0001, 'batch': 8192, 'epochs': 20, 'patience': 5, 'hidden': [128, 64], 'aux_weight': 0.2} → {'k': 16, 'hidden': [128, 64], 'lr': 0.001, 'l2': 0.0001, 'aux_weight': 0.2, 'head_hidden': 32, 'epochs': 20, 'patience': 5, 'batch': 8192}, `model`: deepfm_mtl → deepfm_mtl_deep_heads, `parent_id`: deepfm_regularized → deepfm_mtl_v1
 - **deepfm_mtl_gnn_init_v1** (`deepfm_mtl_gnn_init_v1`): `edge_type`: improve → None, `hyperparams`: {'k': 16, 'lr': 0.001, 'l2': 0.0001, 'batch': 8192, 'epochs': 20, 'patience': 5, 'hidden': [128, 64], 'aux_weight': 0.2} → {'k': 16, 'hidden': [128, 64], 'lr': 0.001, 'l2': 0.0001, 'aux_weight': 0.2, 'epochs': 20, 'patience': 5, 'batch': 8192, 'gnn_init_n_layers': 2}, `parent_id`: deepfm_regularized → deepfm_mtl_v1
 - **deepfm_mtl_gnn_feature_v1** (`deepfm_mtl_gnn_feature_v1`): `hyperparams`: {'k': 16, 'hidden': [128, 64], 'lr': 0.001, 'l2': 0.0001, 'aux_weight': 0.2, 'epochs': 20, 'patience': 5, 'batch': 8192, 'gnn_init_n_layers': 2} → {'k': 16, 'hidden': [128, 64], 'lr': 0.001, 'l2': 0.0001, 'aux_weight': 0.2, 'epochs': 20, 'patience': 5, 'batch': 8192, 'gnn_n_layers': 2}, `model`: deepfm_mtl → deepfm_mtl_gnn_feature, `parent_id`: deepfm_mtl_v1 → deepfm_mtl_gnn_init_v1
+- **iter_001** (`deepfm_mtl_aux_weight_tuning`): root config, no prior iteration to diff against.
+- **iter_002** (`deepfm_mtl_focal_soft_v1`): `hyperparams`: {'k': 16, 'lr': 0.001, 'l2': 1e-05, 'batch': 2048, 'epochs': 20, 'patience': 3, 'hidden': [64, 32], 'aux_weight': 0.05} → {'k': 16, 'lr': 0.001, 'l2': 1e-05, 'batch': 2048, 'epochs': 20, 'patience': 3, 'hidden': [64, 32], 'aux_weight': 0.1, 'focal_gamma': 1.0, 'focal_alpha': 0.5}, `model`: deepfm_mtl → deepfm_mtl_focal
+- **iter_003** (`deepfm_mtl_capacity_v1`): `hyperparams`: {'k': 16, 'lr': 0.001, 'l2': 1e-05, 'batch': 2048, 'epochs': 20, 'patience': 3, 'hidden': [64, 32], 'aux_weight': 0.1, 'focal_gamma': 1.0, 'focal_alpha': 0.5} → {'k': 16, 'lr': 0.001, 'l2': 1e-05, 'batch': 2048, 'epochs': 15, 'patience': 3, 'hidden': [128, 64], 'aux_weight': 0.2}, `model`: deepfm_mtl_focal → deepfm_mtl
+- **deepfm_mtl_capacity_v1_retry** (`deepfm_mtl_capacity_v1`): `hyperparams`: {'k': 16, 'lr': 0.001, 'l2': 0.0001, 'batch': 8192, 'epochs': 20, 'patience': 5, 'hidden': [128, 64], 'aux_weight': 0.2} → {'k': 16, 'lr': 0.001, 'l2': 1e-05, 'batch': 2048, 'epochs': 15, 'patience': 3, 'hidden': [128, 64], 'aux_weight': 0.2}, `parent_id`: deepfm_regularized → deepfm_mtl_v1
 
 ## Error / recovery events
 
@@ -108,6 +116,10 @@ _Δ vs baseline is computed on the locally-held test split for tracking parity w
 - **iter_001** [timeout] attempt 1: Experiment 'deepfm_mtl_pcgrad_v1' (seed=0) exceeded 600s wall-clock budget; process terminated.
 - **iter_001** [fallback] attempt 2: All 1 attempt(s) of 'deepfm_mtl_pcgrad_v1' failed; falling back to a 5-epoch degraded run so this iteration still logs a real result.
 - **iter_001** [retry] attempt 2: Retry #1 of 'deepfm_mtl_pcgrad_v1' succeeded.
+- **iter_003** [timeout] attempt 1: Experiment 'deepfm_mtl_capacity_v1' (seed=0) exceeded 240s wall-clock budget; process terminated.
+- **iter_003** [fallback] attempt 2: All 1 attempt(s) of 'deepfm_mtl_capacity_v1' failed; falling back to a 5-epoch degraded run so this iteration still logs a real result.
+- **iter_003** [timeout] attempt 2: Experiment 'deepfm_mtl_capacity_v1' (seed=0) exceeded 240s wall-clock budget; process terminated.
+- **iter_003** [abandoned] attempt 3: Degraded fallback for 'deepfm_mtl_capacity_v1' also failed -- abandoning this experiment; orchestrator proceeds to the next config.
 
 ## Manual interventions
 

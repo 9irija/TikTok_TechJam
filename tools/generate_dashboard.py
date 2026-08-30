@@ -67,6 +67,9 @@ PHASE_OVERRIDES: dict[str, tuple[str, bool]] = {
     "deepfm_mtl_deep_heads_v1": ("P2", False),
     "deepfm_mtl_gnn_init_v1": ("P2", False),
     "deepfm_mtl_gnn_feature_v1": ("P2", False),
+    "deepfm_mtl_aux_weight_tuning": ("P4", True),
+    "deepfm_mtl_focal_soft_v1": ("P4", True),
+    "deepfm_mtl_capacity_v1": ("P4", True),
 }
 
 # diagnosis_tag (agent/diagnosis.py) -> (dashboard visual tag, tagLabel)
