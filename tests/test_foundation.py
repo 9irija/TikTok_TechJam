@@ -703,6 +703,81 @@ def test_deepfm_mtl_focal_forward_backward_reduces_loss():
     assert np.allclose(m.predict(X), m2.predict(X)), "get_state/set_state round-trip must reproduce predictions"
 
 
+def test_lambdarank_delta_ndcg5_math_on_hand_derived_cases():
+    """Targeted correctness check of agent/model_zoo/deepfm_lambdarank.py's
+    delta-nDCG@5 weighting -- the highest-risk new math in this project
+    (a real formula, not just "loss decreases on synthetic data"), checked
+    against hand-derived values before ever training on real data.
+    """
+    from agent.model_zoo.deepfm_lambdarank import dcg_discount, delta_ndcg5_for_pair, idcg_at_5
+
+    # dcg_discount: 1/log2(rank+1), rank 1-indexed.
+    assert abs(dcg_discount(1) - 1.0) < 1e-9, dcg_discount(1)
+    assert abs(dcg_discount(2) - 0.6309297535714575) < 1e-9, dcg_discount(2)
+    assert abs(dcg_discount(5) - 0.38685280723454163) < 1e-9, dcg_discount(5)
+
+    # idcg_at_5: capped at 5 positives regardless of how many more exist.
+    assert idcg_at_5(0) == 0.0
+    assert abs(idcg_at_5(3) - 2.1309297535714578) < 1e-9, idcg_at_5(3)
+    assert idcg_at_5(10) == idcg_at_5(5), "idcg@5 must be capped at 5 positives, not grow past it"
+
+    # delta_ndcg5_for_pair: a positive at rank 1 swapped with a negative at rank 2 (user has 2
+    # positives total) -- hand-derived: |discount(1)-discount(2)| / idcg5(2) = 0.22629...
+    delta = delta_ndcg5_for_pair(rank_pos=1, rank_neg=2, idcg5=idcg_at_5(2))
+    assert abs(delta - 0.22629438553091677) < 1e-9, delta
+
+    # A pair entirely below rank 5 contributes exactly 0 -- nDCG@5 is blind to swaps outside the top 5.
+    delta_below = delta_ndcg5_for_pair(rank_pos=10, rank_neg=11, idcg5=idcg_at_5(2))
+    assert delta_below == 0.0, f"a pair entirely below rank 5 must contribute zero weight, got {delta_below}"
+
+    # A pair straddling the rank-5 cutoff (positive AT rank 5, negative just below it) is still
+    # weighted -- the positive's own discount still counts even though the negative's doesn't.
+    delta_straddle = delta_ndcg5_for_pair(rank_pos=5, rank_neg=6, idcg5=idcg_at_5(1))
+    assert delta_straddle > 0.0, "a pair with one rank inside the top 5 must contribute nonzero weight"
+
+    # idcg5=0 (a user with zero positives) must never divide by zero.
+    assert delta_ndcg5_for_pair(rank_pos=1, rank_neg=2, idcg5=0.0) == 0.0
+
+
+def test_deepfm_lambdarank_step_reduces_loss_and_handles_edge_cases():
+    """Standard shape of test (loss decreases, predict/get_state/set_state
+    behave) PLUS the two edge cases unique to LambdaRank's per-user pair
+    sampling: a batch where every user is single-class (no positive/negative
+    pair exists anywhere) must return 0.0 and not crash; a real mixed batch
+    must produce a finite, decreasing loss."""
+    from agent.model_zoo.deepfm_lambdarank import build
+
+    rng = np.random.default_rng(0)
+    n_fields, dim, L, B = 5, 200, 16, 8
+    m = build(dim=dim, n_fields=n_fields, k=8, hidden=[16, 8], lr=0.05, max_pairs_per_user=5, seed=0)
+
+    # Edge case: every "user" (row in the batch) is single-class (all positive) -- zero eligible pairs.
+    X_pad = rng.integers(0, dim, size=(B, L, n_fields)).astype(np.int32)
+    y_all_pos = np.ones((B, L), dtype=np.float32)
+    mask = np.ones((B, L), dtype=bool)
+    loss_no_pairs = m.lambdarank_step(X_pad, y_all_pos, mask)
+    assert loss_no_pairs == 0.0, "a batch with zero eligible pairs must return 0.0, not crash"
+
+    # Real mixed batch: each user has both classes -- loss should be finite and should decrease
+    # over repeated steps on the same fixed batch.
+    y_mixed = (rng.uniform(size=(B, L)) < 0.4).astype(np.float32)
+    y_mixed[:, 0] = 1.0  # guarantee at least one positive per user
+    y_mixed[:, 1] = 0.0  # guarantee at least one negative per user
+    losses = [m.lambdarank_step(X_pad, y_mixed, mask) for _ in range(20)]
+    assert all(np.isfinite(losses)), f"all losses must be finite: {losses}"
+    assert losses[-1] < losses[0], f"loss should decrease on a fixed synthetic batch: {losses[0]} -> {losses[-1]}"
+
+    X_flat = X_pad.reshape(-1, n_fields)
+    preds = m.predict(X_flat)
+    assert preds.shape == (B * L,)
+    assert np.isfinite(preds).all()
+
+    state = m.get_state()
+    m2 = build(dim=dim, n_fields=n_fields, k=8, hidden=[16, 8], lr=0.05, max_pairs_per_user=5, seed=2)
+    m2.set_state(state)
+    assert np.allclose(m.predict(X_flat), m2.predict(X_flat)), "get_state/set_state round-trip must reproduce predictions"
+
+
 def test_load_aux_labels_with_click_field_matches_default_on_shared_columns():
     """Real-data check: agent/features.py's load_aux_labels(fields=...)
     parameter must return the SAME values for the original 4 columns
@@ -1240,6 +1315,39 @@ def test_research_strategist_rejects_and_retries_an_invalid_proposal():
         assert proposal2 is None, "exhausting all validation retries must return None, not raise"
 
 
+def test_dead_ends_section_generated_live_from_research_map_tags():
+    """Regression test for the exact staleness gap docs/PHASE4_RESULTS.md
+    Sec.6 flagged: the LLM prompt's dead-ends guidance used to be a
+    hand-maintained string in _MODEL_HYPERPARAM_DOCS that went stale the
+    moment a NEW dead end was confirmed (this project hit it for real --
+    fm_bpr's old hardcoded note kept telling the LLM "'deepfm_bpr' is NOT
+    a valid model name" long after deepfm_bpr had actually been built and
+    registered). _dead_ends_section must instead reflect whatever's
+    ACTUALLY in the Research Map at call time, with zero manual upkeep."""
+    import tempfile
+    from agent.research_map import ResearchMap
+    from agent.research_strategist import _dead_ends_section
+
+    with tempfile.TemporaryDirectory() as d:
+        map = ResearchMap(Path(d) / "map.json")
+
+        # A fresh map has no dead ends yet.
+        assert "none confirmed" in _dead_ends_section(map)
+
+        # Add a regression-tagged node for a NEW model family never mentioned in
+        # _MODEL_HYPERPARAM_DOCS's old hand-written notes.
+        cfg = ExperimentConfig(id="some_new_model_v1", model="some_new_model", hypothesis="h")
+        map.add_node(cfg, edge_type="improve")
+        map.update_node("some_new_model_v1", status="done", diagnosis_tag="regression",
+                         metrics={"valid": {"primary_mean": 0.50}})
+
+        section = _dead_ends_section(map)
+        assert "some_new_model" in section and "some_new_model_v1" in section, (
+            f"a brand-new model's confirmed regression must appear automatically, got: {section}"
+        )
+        assert "[regression]" in section
+
+
 def test_recovery_catches_broken_config():
     from agent.recovery import run_with_recovery
     bad_config = ExperimentConfig(
@@ -1300,6 +1408,8 @@ def main() -> int:
         tests.append(test_deepfm_mtl_click_forward_backward_reduces_loss)
         tests.append(test_focal_loss_downweights_easy_examples_relative_to_bce)
         tests.append(test_deepfm_mtl_focal_forward_backward_reduces_loss)
+        tests.append(test_lambdarank_delta_ndcg5_math_on_hand_derived_cases)
+        tests.append(test_deepfm_lambdarank_step_reduces_loss_and_handles_edge_cases)
     except ImportError:
         pass
     tests += [
@@ -1313,6 +1423,7 @@ def main() -> int:
         test_research_critic_rejects_duplicate_and_confirmed_dead_end,
         test_research_strategist_accepts_a_valid_proposal,
         test_research_strategist_rejects_and_retries_an_invalid_proposal,
+        test_dead_ends_section_generated_live_from_research_map_tags,
         test_multi_fidelity_time_saved_estimate,
         test_sequences_recent_history_never_leaks_the_future,
     ]

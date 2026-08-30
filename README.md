@@ -492,6 +492,23 @@ positive actions; `is_click` is common because it's a weak, low-
 commitment one. Full detail:
 [`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §18.
 
+**Brainstormed a genuinely different lever instead of another variant —
+focal loss, also a regression.** Explicit brainstorm for a mechanism that
+changes *which examples matter* during training, not another architecture/
+signal/refinement — top pick, motivated directly by the per-segment
+diagnosis (§15: worse on mid-popularity items). `agent/model_zoo/deepfm_mtl_focal.py`
+replaces the main task's BCE with focal loss (Lin et al. 2017). Result:
+valid primary 0.6030, a real regression (−0.0016) — not an overfitting
+artifact this time (healthy epoch curve). Likely reason: focal loss
+targets *extreme* imbalance (1:1000-style); this benchmark's ~31-34%
+positive rate is mild, so down-weighting "easy" examples plausibly
+discards useful signal rather than fixing real class swamping. **Ten
+distinct refinements of `deepfm_mtl_v1` have now been tried and none has
+beaten the original recipe** — a real signal that this benchmark's
+ceiling for incremental training-time changes looks genuine, not a
+search-effort problem. Full detail:
+[`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §19.
+
 ## Engineered features — a real negative result, and a real bug it surfaced
 
 `agent/features.py` adds 4 new fields on top of the starter kit's base 5:

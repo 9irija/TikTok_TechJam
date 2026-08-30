@@ -905,6 +905,61 @@ here; correlation quality, which this candidate didn't actually improve
 on, is the more likely real driver of what made the original 4 signals
 work. `deepfm_mtl_v1` remains the project-best.
 
+## 19. Focal loss on the main task (`deepfm_mtl_focal_v1`) — the top brainstorm pick, also a regression
+
+From an explicit brainstorm for a genuinely different lever (not another
+architecture, signal, or MTL-mechanism refinement — all three categories
+already exhausted or tied at that point): focal loss (Lin et al. 2017)
+changes WHICH EXAMPLES MATTER during training by down-weighting ones the
+model already gets confidently right, concentrating gradient on the hard
+ones. Directly motivated by the per-segment diagnosis (§15), which found
+`deepfm_mtl_v1` measurably worse on mid-popularity items specifically —
+plain BCE trains every row uniformly regardless of that difficulty.
+`agent/model_zoo/deepfm_mtl_focal.py`: `deepfm_mtl_v1`'s exact
+architecture, main-task BCE replaced with focal loss (`gamma=2.0`, the
+paper's default; `alpha=0.5`, symmetric — isolates the hard-example
+effect from class-balance correction, a separate question this dataset's
+mild ~31-34% imbalance doesn't obviously need).
+
+| | Valid primary | vs. parent |
+|---|---|---|
+| `deepfm_mtl_focal_v1` | 0.6030 | **−0.0016**, `regression` (GAUC −0.0020, nDCG@5 −0.0012, both past the 0.0004 bar) |
+| `deepfm_mtl_v1` (parent, current best) | 0.6046 | — |
+
+Not an overfitting artifact (best epoch landed at 12/17, a healthy
+ratio, unlike PDAOM/PCGrad/the first BPR attempt's early collapses) —
+genuinely a worse optimum, not a training-dynamics problem a
+regularization fix would recover.
+
+**Honest read, and a coherent reason, not just a number:** focal loss was
+designed for *extreme* class imbalance (the original paper's object-
+detection setting is roughly 1:1000 foreground:background). This
+benchmark's positive rate is ~31-34% — a mild imbalance, nowhere near
+what the technique targets. Down-weighting "easy" examples in a roughly-
+balanced dataset likely just discards genuinely useful, confidently-
+correct training signal rather than fixing a real swamping problem, since
+there's no large majority class drowning out a rare one here. The per-
+segment difficulty gap that motivated this candidate is real, but it's
+plausibly a *structural* property of those items (less training data per
+item, not individual "hard examples" in the focal-loss sense) — a
+different kind of problem than per-example reweighting addresses.
+`deepfm_mtl_v1` remains the project-best.
+
+**Pattern worth naming plainly across §10-§19 as a group:** ten different,
+genuinely distinct refinements of or additions to the one thing that
+worked (`deepfm_mtl_v1`) have now been tried — watch-time signal, DIN
+combination, uncertainty weighting, listwise loss, PDAOM, PCGrad,
+`is_click`, focal loss, plus the two architecture-level BPR/DIN attempts
+before them — and none has beaten the original, simple, first-attempt
+recipe. That's a genuine, informative signal in its own right: this
+benchmark's specific ceiling for this general family of approaches looks
+real, not a search-effort problem. The honest next question isn't "try
+another variant of the same kind" — it's whether a structurally different
+lever (e.g. a metric-aware pairwise weighting like LambdaRank, or a
+cascade/two-stage framing) is worth the larger engineering investment, or
+whether this is close to the practical ceiling for this dataset size and
+task.
+
 ## Net effect on the project-best
 
 | | Valid primary (3-seed) | Test primary (3-seed mean) | vs. official baseline (test) |

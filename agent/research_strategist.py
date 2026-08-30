@@ -43,17 +43,51 @@ from .model_zoo import MODELS
 from .research_map import ResearchMap
 
 _MODEL_HYPERPARAM_DOCS = {
-    "fm": "hyperparams: k (int, embedding dim), lr (float), l2 (float), batch (int), epochs (int), patience (int). "
-          "NOTE: k=8/16/32 already tested with no effect (starter kit's own ablation, independently reproduced "
-          "in this Research Map) -- don't propose a pure capacity change without a new angle.",
+    "fm": "hyperparams: k (int, embedding dim), lr (float), l2 (float), batch (int), epochs (int), patience (int).",
     "deepfm": "hyperparams: same as fm, plus hidden (list of exactly 2 ints, e.g. [64,32] -- the MLP deep component's layer sizes).",
-    "fm_bpr": "hyperparams: same as fm. Trained with pairwise BPR ranking loss instead of pointwise logloss. "
-              "NOTE: 3 rounds of fm_bpr hyperparameter tuning already happened in this Research Map (see history) -- "
-              "training-dynamics problems (overfitting, too-fast convergence) are already fixed; a 4th pure "
-              "hyperparameter retune of plain fm_bpr is low-value. A structurally different angle (e.g. combining "
-              "BPR with the deepfm architecture -- 'deepfm_bpr' is NOT a valid model name yet, don't propose it "
-              "unless you are also told it exists) would be more novel than another lr/l2 tweak.",
+    "fm_bpr": "hyperparams: same as fm. Trained with pairwise BPR ranking loss instead of pointwise logloss.",
+    "deepfm_mtl": "hyperparams: same as deepfm, plus aux_weight (float, typically ~0.2). Shares deepfm's embedding "
+                  "table with 4 auxiliary sigmoid heads (is_like/is_follow/is_comment/is_forward) trained jointly "
+                  "-- only the main long_view logit is ever scored.",
+    "deepfm_bpr": "hyperparams: same as deepfm. deepfm's architecture trained on fm_bpr's pairwise objective "
+                  "instead of pointwise logloss.",
+    "deepfm_mtl_pcgrad": "hyperparams: same as deepfm_mtl. Resolves gradient DIRECTION conflict between the main "
+                         "and auxiliary tasks on their shared parameters (PCGrad, Yu et al. 2020) before combining "
+                         "them, instead of a plain summed loss.",
+    "deepfm_mtl_click": "hyperparams: same as deepfm_mtl. Adds is_click as a 5th auxiliary head (a dense, "
+                        "~46%-positive-rate signal, vs. the other 4 signals' 0.1-1.8% each).",
+    "deepfm_mtl_focal": "hyperparams: same as deepfm_mtl, plus focal_gamma (float, paper default 2.0) and "
+                        "focal_alpha (float, 0.5 is class-balance-neutral). Replaces the main task's BCE with "
+                        "focal loss (Lin et al. 2017) -- down-weights already-easy examples so gradient "
+                        "concentrates on ones the model still gets wrong.",
 }
+
+
+def _dead_ends_section(map: ResearchMap) -> str:
+    """Generates the "known non-starters" guidance from the Research Map's
+    own diagnosis tags at prompt-build time, rather than a hand-maintained
+    string baked into `_MODEL_HYPERPARAM_DOCS` (the exact gap
+    `docs/PHASE4_RESULTS.md` Sec.6 flagged: a static list goes stale the
+    moment a NEW dead end is confirmed after the file was last hand-edited
+    -- this project hit that directly: the old hardcoded fm_bpr note was
+    still telling the LLM "'deepfm_bpr' is NOT a valid model name" long
+    after deepfm_bpr had actually been built, registered, and even
+    confirmed as its own real dead end in P2). Groups every `regression`/
+    `noise_floor`-tagged `done` node by model family so the LLM sees
+    exactly what's already been tried and didn't work, current as of
+    THIS call, not whenever this file was last edited.
+    """
+    by_model: dict[str, list[str]] = {}
+    for n in map.done_nodes():
+        if n.diagnosis_tag in ("regression", "noise_floor", "mixed", "ranking_tradeoff"):
+            by_model.setdefault(n.config.model, []).append(f"{n.node_id} [{n.diagnosis_tag}]")
+    if not by_model:
+        return "(none confirmed yet)"
+    lines = []
+    for model, entries in sorted(by_model.items()):
+        lines.append(f'- "{model}": {len(entries)} non-improving result(s) already in the history -- '
+                     f'{", ".join(entries)}. Don\'t repeat these exact configs without a genuinely new angle.')
+    return "\n".join(lines)
 
 
 class ValidationError(Exception):
@@ -89,6 +123,7 @@ def _build_prompt(map: ResearchMap, budget: dict[str, Any], retry_note: str = ""
 
     model_docs = "\n".join(f'- "{m}": {_MODEL_HYPERPARAM_DOCS.get(m, "no documented hyperparams")}'
                             for m in sorted(MODELS))
+    dead_ends = _dead_ends_section(map)
 
     return f"""You are the Research Strategist for an autonomous ML research agent working on the
 KuaiRand-Pure recommendation benchmark (TikTok TechJam 2026 challenge).
@@ -103,6 +138,10 @@ CURRENT BEST in the Research Map: {summary['best_node_id']} at valid primary = {
 
 AVAILABLE MODELS (you may ONLY propose one of these model names -- never invent a new one):
 {model_docs}
+
+KNOWN DEAD ENDS (generated live from the Research Map's own diagnosis tags, not a hand-maintained
+list -- always current as of this call):
+{dead_ends}
 
 RESEARCH MAP HISTORY (most recent {len(recent)} of {summary['total_nodes']} total nodes -- read the
 diagnosis insights carefully, they explain WHY each result happened, not just what it was):

@@ -3285,6 +3285,133 @@
       "diagnosis_tag": "noise_floor",
       "created_at": 1788052588.6077526,
       "updated_at": 1788053399.5511746
+    },
+    "deepfm_mtl_focal_v1": {
+      "node_id": "deepfm_mtl_focal_v1",
+      "config": {
+        "id": "deepfm_mtl_focal_v1",
+        "model": "deepfm_mtl_focal",
+        "hypothesis": "Replaces 'deepfm_mtl_v1''s main-task BCE with focal loss (Lin et al. 2017) -- a genuinely different lever than any architecture, auxiliary-signal, or MTL-mechanism change already tried: it changes which examples matter during training, not the model or the signal set. Directly motivated by the per-segment diagnosis (P2_FEATURES_AND_RESULTS.md Sec.15), which found ranking quality measurably worse on mid-popularity items specifically -- plain BCE trains every row uniformly regardless of that per-segment difficulty; focal loss's (1-p_t)^gamma modulating factor should automatically reallocate gradient toward harder examples across the dataset. gamma=2.0 (paper default), alpha=0.5 (neutral -- isolates the hard-example effect from class-balance correction, a separate question this dataset's mild ~31-34% imbalance doesn't obviously need). Same fields/k/hidden/l2/aux_weight/aux_heads as the parent, so the loss function is the only variable.",
+        "hyperparams": {
+          "k": 16,
+          "lr": 0.001,
+          "l2": 0.0001,
+          "batch": 8192,
+          "epochs": 20,
+          "patience": 5,
+          "hidden": [
+            128,
+            64
+          ],
+          "aux_weight": 0.2,
+          "focal_gamma": 2.0,
+          "focal_alpha": 0.5
+        },
+        "fields": [
+          "user_id",
+          "video_id",
+          "author_id",
+          "tab",
+          "dur_bucket"
+        ],
+        "parent_id": "deepfm_mtl_v1",
+        "seeds": [
+          0
+        ],
+        "notes": "agent/model_zoo/deepfm_mtl_focal.py -- reuses agent/experiment.py's existing is_mtl branch (same mtl_step(X,y,aux) contract, default aux_fields), wired directly into the real pipeline, not standalone-checked first.",
+        "edge_type": "improve"
+      },
+      "edge_type": "improve",
+      "parent_id": "deepfm_mtl_v1",
+      "status": "done",
+      "fidelity": "100pct",
+      "metrics": {
+        "n_seeds": 1,
+        "valid": {
+          "GAUC_mean": 0.6694261358668042,
+          "GAUC_std": 0.0,
+          "nDCG@5_mean": 0.5366688821158677,
+          "nDCG@5_std": 0.0,
+          "primary_mean": 0.603047508991336,
+          "primary_std": 0.0
+        },
+        "test": {
+          "GAUC_mean": 0.6619710914015782,
+          "GAUC_std": 0.0,
+          "nDCG@5_mean": 0.5300989364777656,
+          "nDCG@5_std": 0.0,
+          "primary_mean": 0.596035013939672,
+          "primary_std": 0.0
+        },
+        "delta_vs_baseline_test": {
+          "delta_GAUC": 0.0009710914015781391,
+          "delta_nDCG@5": 0.0018989364777656226,
+          "delta_primary_mean": 0.0014350139396718808
+        },
+        "per_seed": [
+          {
+            "experiment_id": "deepfm_mtl_focal_v1",
+            "seed": 0,
+            "best_epoch": 12,
+            "epochs_run": 17,
+            "valid": {
+              "GAUC": 0.6694261358668042,
+              "nDCG@5": 0.5366688821158677,
+              "primary": 0.603047508991336
+            },
+            "test": {
+              "GAUC": 0.6619710914015782,
+              "nDCG@5": 0.5300989364777656,
+              "primary": 0.596035013939672
+            },
+            "wall_time_s": 263.546875,
+            "num_params": 703370,
+            "train_loss_curve": [
+              0.07583191341587475,
+              0.06746418023748058,
+              0.0663152136440788,
+              0.06589997299015522,
+              0.065652967776571,
+              0.06547523263309683,
+              0.06537585859852178,
+              0.06527629542563643,
+              0.06521356249494212,
+              0.06511305102280208,
+              0.06504489630460739,
+              0.06500889366226537,
+              0.06493918065513883,
+              0.06491177773901395,
+              0.0648471178220851,
+              0.06481887064874173,
+              0.06477463538093227
+            ],
+            "valid_primary_curve": [
+              0.5912700207603778,
+              0.5978565731806826,
+              0.5978627037095904,
+              0.5987973132358198,
+              0.5998997016051268,
+              0.6000551414979014,
+              0.6002586294247055,
+              0.6013044558347844,
+              0.6008622935714556,
+              0.6019526779839921,
+              0.6010939634210556,
+              0.603047508991336,
+              0.6018154954716379,
+              0.6025493623985301,
+              0.60130791576027,
+              0.6009973684886768,
+              0.6013143063316866
+            ],
+            "train_fraction": 1.0
+          }
+        ]
+      },
+      "insight": "Both GAUC (-0.0020) and nDCG@5 (-0.0012) got worse -- the change likely hurt (bar=0.0004).",
+      "diagnosis_tag": "regression",
+      "created_at": 1788062699.7050097,
+      "updated_at": 1788062699.7093747
     }
   }
 }
