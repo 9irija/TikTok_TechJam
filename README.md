@@ -641,6 +641,37 @@ project-best after **eleven** structurally different levers tried beyond
 its own original recipe. Full detail:
 [`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §25.
 
+**Two more, picked deliberately as the strongest remaining candidates —
+deeper auxiliary heads, and a genuinely non-standard mechanism (graph-
+propagated embedding init) — both real null results, not regressions.**
+`deepfm_mtl_v1` maps all 4 auxiliary tasks through one shared
+`nn.Linear`, no task-specific nonlinearity — `agent/model_zoo/deepfm_mtl_deep_heads.py`
+gives each task its own small private MLP instead, the one MTL refinement
+angle (capacity) never tried alongside weighting (§12) and gradient
+combination (§17). 3-seed result: 0.6038 ± 0.0008 vs. parent's
+0.6046 ± 0.0003 — `noise_floor`. Then, explicitly requested as a
+non-standard idea once the standard toolbox was exhausted: every lever
+tried so far still treats embeddings as a lookup table learned from
+scratch — `tools/check_gnn_init.py` instead pre-initializes the
+user_id/video_id embedding rows via LightGCN-style (He et al. 2020)
+graph propagation over the train-split `is_click=1` interaction graph
+(math verified on synthetic data before touching real data: users sharing
+a neighbor end up measurably more similar post-propagation, cosine
+similarity 0.76 vs. −0.15 for users that don't), instead of random init.
+3-seed result: 0.6045 ± 0.0003 — an even cleaner null (−0.0001) than the
+deeper heads. Caught a real bug in the verification process itself before
+it produced a misleading result: the standard multi-seed re-training path
+rebuilds a model via the plain registry, which would have silently
+skipped the graph-init overlay and verified plain random-init
+`deepfm_mtl` by mistake — caught before running it. Plausible reason both
+come back null: with only ~700K parameters and Adam's adaptive updates,
+~10-12 epochs is enough to converge past whatever advantage an initial
+condition encoded — this benchmark's learnable signal at this data volume
+looks substantially extracted already, not quietly left on the table by
+one training detail. `deepfm_mtl_v1` remains the project-best after
+**twelve** structurally different levers. Full detail:
+[`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §26-27.
+
 ## Engineered features — a real negative result, and a real bug it surfaced
 
 `agent/features.py` adds 4 new fields on top of the starter kit's base 5:
@@ -747,9 +778,18 @@ and declined with a stated reason.
   architecture-level lever, landed exactly on the significance bar against
   its parent — `mixed`, not a win, still below `deepfm_mtl_v1`. SWA (§25),
   the last untried item from this project's original brainstorm, came back
-  a genuine null (−0.0002) rather than a regression. `deepfm_mtl_v1`
-  remains the project-best after **eleven** structurally different
-  directions tried beyond it.
+  a genuine null (−0.0002) rather than a regression. Two more, picked
+  deliberately as the strongest remaining candidates when asked to keep
+  pushing: deeper auxiliary heads (§26, 0.6038 ± 0.0008, `noise_floor`)
+  and, explicitly requested as a non-standard mechanism once the standard
+  toolbox was exhausted, LightGCN-style graph-propagated embedding
+  initialization (§27, 0.6045 ± 0.0003, an even cleaner null). Both
+  verified math-first on synthetic data before touching real data; the
+  graph-init check also caught a real bug in the verification tooling
+  itself (the standard re-training path would have silently skipped the
+  graph-init overlay it was supposed to be verifying) before it produced
+  a misleading result. `deepfm_mtl_v1` remains the project-best after
+  **twelve** structurally different directions tried beyond it.
 
 **Research loop — still open, genuinely:**
 - **Phase 4 has only run a handful of iterations.** A longer run would show

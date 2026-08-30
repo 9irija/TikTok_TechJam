@@ -1336,6 +1336,109 @@ filtering a huge candidate pool before an expensive final ranker) doesn't
 have a natural analogue when there's no candidate-generation step in the
 task to begin with. `deepfm_mtl_v1` remains the project-best.
 
+## 26. Deeper auxiliary heads (`deepfm_mtl_deep_heads_v1`) — capacity wasn't the bottleneck either
+
+Every prior MTL refinement changed *how much* the auxiliary losses count
+(uncertainty-weighting, §12) or *how their gradients combine* with the
+main task's (PCGrad, §17) — never whether the aux heads have enough
+capacity to extract a clean signal in the first place. `deepfm_mtl_v1`
+maps all 4 auxiliary tasks through ONE shared `nn.Linear(hidden[-1], 4)`
+— literally the same weight matrix for every task, no task-specific
+nonlinearity. `agent/model_zoo/deepfm_mtl_deep_heads.py` gives each task
+its own small private MLP (`Linear(128→32)→ReLU→Linear(32→1)`) instead —
+same shared trunk/embeddings, main task unchanged, only the auxiliary
+heads' capacity is the variable being isolated. Registered directly in
+`agent/model_zoo/registry.py` (reuses the existing `is_mtl` branch, no new
+training-loop code).
+
+Single seed first: valid primary 0.6048, near-identical training curve
+shape to `deepfm_mtl_v1`'s own (best epoch 12/17 both times) — close
+enough to the parent to need verification.
+
+3-seed verified (`parent_id=deepfm_mtl_v1`):
+
+| | Valid primary | vs. parent |
+|---|---|---|
+| `deepfm_mtl_deep_heads_v1` | 0.6038 ± 0.0008 | −0.0008, `noise_floor` (bar=0.0010) |
+| `deepfm_mtl_v1` (parent, current best) | 0.6046 ± 0.0003 | — |
+
+**Honest read:** giving the auxiliary tasks independent capacity doesn't
+help — the shared-linear-layer bottleneck wasn't actually limiting
+anything. Plausible reason: the 4 auxiliary signals
+(`is_like`/`is_follow`/`is_comment`/`is_forward`) are all downstream of
+the same latent "did this user genuinely enjoy this video" factor (the
+same hypothesis `deepfm_mtl_v1`'s own design was built on) — if that's
+right, a SHARED projection is actually the theoretically correct
+inductive bias for these 4 tasks, not a compromise forced by insufficient
+capacity; giving them independent heads just adds free parameters without
+a genuine specialization need, explaining the clean noise_floor rather
+than either a clear win or a clear loss. `deepfm_mtl_v1` remains the
+project-best.
+
+## 27. Graph-propagated embedding initialization (LightGCN-style) — a genuinely different mechanism, still a null result
+
+Requested explicitly as a "non-standard" attempt after §20-26 exhausted
+the standard toolbox (loss functions, architectures, ensembling,
+checkpoint averaging, auxiliary-head capacity) without a win. Every prior
+lever still treats embeddings as a pure lookup table learned from scratch
+via gradient descent alone. This instead injects collaborative-filtering
+STRUCTURE *before* training starts: LightGCN (He et al. 2020) -- normalized
+bipartite-graph propagation over user-video interactions -- used to
+initialize `deepfm_mtl_v1`'s user_id/video_id embedding rows instead of
+random init. A genuinely different mechanism, not a variant of anything
+already tried.
+
+`tools/check_gnn_init.py`: graph built from TRAIN-split `is_click=1` rows
+only (528,845 of 1,141,112) -- a distinct auxiliary signal from the
+scored `long_view` label, same discipline as the 4 MTL aux heads, not a
+circular use of the target. 2-layer symmetric-normalized-adjacency
+propagation (`agent/features.py`'s `load_aux_labels` reused for `is_click`,
+`data.encode()`'s own indices reused directly for graph node ids -- no
+re-derived vocab, no drift risk), rescaled to match `deepfm_mtl.py`'s own
+init std before overwriting 32,568 of 40,260 embedding-table rows (every
+untouched row -- `author_id`/`tab`/`dur_bucket`, and any never-clicked
+user/video -- keeps the model's own random init). The propagation math
+itself was verified on hand-constructed synthetic data *before* touching
+real data: two users sharing a graph neighbor end up measurably more
+similar after propagation (cosine similarity 0.76) than two users with no
+shared neighbor (−0.15) -- confirms the mechanism does what it's supposed
+to before ever trusting a real-data number from it.
+
+3-seed result (same architecture/loss/hyperparameters as `deepfm_mtl_v1`
+throughout -- embedding initialization is the only variable):
+
+| | Valid primary | vs. `deepfm_mtl_v1` |
+|---|---|---|
+| `deepfm_mtl_gnn_init_v1` | 0.6045 ± 0.0003 | −0.0001, `noise_floor` (bar=0.0005) |
+| `deepfm_mtl_v1` (parent, current best) | 0.6046 ± 0.0003 | — |
+
+**Honest read:** the graph-propagated initialization makes essentially no
+difference -- an even cleaner null than §26's deeper auxiliary heads
+(−0.0001 vs −0.0008). Plausible reason: with only 703,110 trainable
+parameters and Adam's adaptive per-parameter updates, ~10-12 epochs of
+full-batch-equivalent gradient descent is enough to move the embeddings
+well past whatever information the initial condition encoded -- the model
+converges to essentially the same solution regardless of starting point,
+the same way two different random seeds already do (§4's `fm_seed_variance`
+finding, extended here to structured vs. random init, not just two random
+seeds). This is itself informative: it suggests the ~0.27 headroom to the
+oracle ceiling (CLAUDE.md) isn't sitting in embedding *initialization*
+either -- reinforcing, from yet another angle, that this benchmark's
+learnable signal at this data volume has been substantially extracted by
+`deepfm_mtl_v1`'s combination of embedding crossing + multi-task
+regularization, not that any one training detail was quietly leaving
+value on the table. A real regression test caught a subtle bug in the
+verification process itself before it produced a misleading result:
+`tools/verify_multiseed.py`'s standard re-training path rebuilds a model
+via the plain registry (`deepfm_mtl.build()`), which would silently skip
+the graph-init overlay entirely and 3-seed-verify plain random-init
+`deepfm_mtl` instead -- caught before running it, so seeds 1/2 were run
+directly through `check_gnn_init.py` (the actual treatment) instead.
+`deepfm_mtl_v1` remains the project-best, now confirmed against **twelve**
+structurally different levers, two of which (§26, §27) were built and
+verified specifically in response to a direct request for a genuinely
+different mechanism, not just another standard-toolbox variant.
+
 ## Net effect on the project-best
 
 | | Valid primary (3-seed) | Test primary (3-seed mean) | vs. official baseline (test) |

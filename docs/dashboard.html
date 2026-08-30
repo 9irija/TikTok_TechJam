@@ -302,13 +302,14 @@
   <div class="eyebrow">Autonomous ML Research Agent · KuaiRand-Pure</div>
   <h1 class="title">Research Map</h1>
   <p class="subtitle">
-    Every experiment this agent has run, as a persistent tree — not a flat log. 27 nodes across
+    Every experiment this agent has run, as a persistent tree — not a flat log. 29 nodes across
     four build phases: Foundation (hand-authored), Differentiators (best-first selection + diagnosis-driven
     iteration), an LLM Research Strategist that reads this exact map to decide what to try next, and P2
     (engineered features, multi-task learning, LightGBM, hyperparameter search, DIN sequence modeling,
     DeepFM_BPR, watch-time multi-task, combined DIN+MTL, uncertainty-weighted MTL, listwise ranking loss,
-    PDAOM hard-pair mining, PCGrad gradient surgery, is_click, focal-loss, LambdaRank, and DCNv2 variants —
-    fifteen of which came back honest negative or mixed results).
+    PDAOM hard-pair mining, PCGrad gradient surgery, is_click, focal-loss, LambdaRank, DCNv2, deeper MTL
+    heads, and graph-propagated embedding init variants — seventeen of which came back honest negative
+    or mixed results).
   </p>
 
   <div class="headline-card">
@@ -337,8 +338,8 @@
     <div class="tiles">
       <div class="tile">
         <div class="label">Nodes explored</div>
-        <div class="value tnum">27</div>
-        <div class="sub">4 Foundation · 4 Differentiators · 2 LLM-proposed · 17 P2</div>
+        <div class="value tnum">29</div>
+        <div class="sub">4 Foundation · 4 Differentiators · 2 LLM-proposed · 19 P2</div>
       </div>
       <div class="tile">
         <div class="label">Manual interventions</div>
@@ -565,6 +566,14 @@
       valid:0.6039, delta:0.0005, tag:"warning", tagLabel:"mixed",
       hyp:"The one specific architecture named in this project roadmap alongside Wide&Deep, never tried -- built for completeness given every other capacity/architecture lever tested came back flat or negative. Replaces DeepFM/deepfm_regularized's FM 2nd-order interaction term with a Cross Network (Wang et al. 2020, DCNv2): n_cross_layers stacked explicit-cross layers run in parallel with a plain deep MLP tower, both reading the same flattened embedding. Same base hyperparameters as deepfm_regularized (k=16, hidden=[128,64], lr=0.001, l2=1e-4) so architecture is the only variable.",
       insight:"Mixed/inconclusive signal (GAUC +0.0004, nDCG@5 +0.0005, primary +0.0005, bar=0.0004)." },
+    { id:"deepfm_mtl_deep_heads_v1", model:"deepfm_mtl_deep_heads", edge:"improve", parent:"deepfm_mtl_v1", phase:"P2", llm:false,
+      valid:0.6038, delta:-0.0008, tag:"neutral", tagLabel:"noise floor",
+      hyp:"Every prior MTL refinement (uncertainty-weighting, PCGrad) changed how much the auxiliary losses count or how their gradients combine with the main task -- never whether the aux heads have enough capacity to extract a clean signal. deepfm_mtl_v1 maps all 4 auxiliary tasks through ONE shared nn.Linear(hidden[-1], 4) -- the same weight matrix for every task, no task-specific nonlinearity. This gives each task its own small private MLP (Linear->ReLU->Linear, head_hidden=32) instead. Same shared trunk/embeddings, main task unchanged -- only the auxiliary heads capacity is the variable being isolated.",
+      insight:"Change vs. parent (-0.0008 primary) is within the significance bar (0.0010, seed-aware) -- not distinguishable from run-to-run variance." },
+    { id:"deepfm_mtl_gnn_init_v1", model:"deepfm_mtl", edge:"improve", parent:"deepfm_mtl_v1", phase:"P2", llm:false,
+      valid:0.6045, delta:-0.0001, tag:"neutral", tagLabel:"noise floor",
+      hyp:"A genuinely different mechanism from every other lever tried: every prior attempt changed the loss, architecture, training signal, or combined already-trained models, but all still treat embeddings as a pure lookup table learned from scratch via gradient descent. This instead injects collaborative-filtering structure BEFORE training: LightGCN-style (He et al. 2020) 2-layer normalized-adjacency propagation over the train-split user-video is_click=1 graph, used to initialize deepfm_mtl_v1's user_id/video_id embedding rows (rescaled to match the random init's own std) instead of random init. Same architecture/loss/hyperparameters as deepfm_mtl_v1 -- only the embedding INITIALIZATION is the variable being isolated.",
+      insight:"Change vs. parent (-0.0001 primary) is within the significance bar (0.0005, seed-aware) -- not distinguishable from run-to-run variance." },
   ];
   var BASELINE = 0.6016;
   var BEST_ID = "deepfm_mtl_v1";

@@ -3668,6 +3668,298 @@
       "diagnosis_tag": "mixed",
       "created_at": 1788077009.9046242,
       "updated_at": 1788077632.666083
+    },
+    "deepfm_mtl_deep_heads_v1": {
+      "node_id": "deepfm_mtl_deep_heads_v1",
+      "config": {
+        "id": "deepfm_mtl_deep_heads_v1",
+        "model": "deepfm_mtl_deep_heads",
+        "hypothesis": "Every prior MTL refinement (uncertainty-weighting, PCGrad) changed how much the auxiliary losses count or how their gradients combine with the main task -- never whether the aux heads have enough capacity to extract a clean signal. deepfm_mtl_v1 maps all 4 auxiliary tasks through ONE shared nn.Linear(hidden[-1], 4) -- the same weight matrix for every task, no task-specific nonlinearity. This gives each task its own small private MLP (Linear->ReLU->Linear, head_hidden=32) instead. Same shared trunk/embeddings, main task unchanged -- only the auxiliary heads capacity is the variable being isolated.",
+        "hyperparams": {
+          "k": 16,
+          "hidden": [
+            128,
+            64
+          ],
+          "lr": 0.001,
+          "l2": 0.0001,
+          "aux_weight": 0.2,
+          "head_hidden": 32,
+          "epochs": 20,
+          "patience": 5,
+          "batch": 8192
+        },
+        "fields": [
+          "user_id",
+          "video_id",
+          "author_id",
+          "tab",
+          "dur_bucket"
+        ],
+        "parent_id": "deepfm_mtl_v1",
+        "seeds": [
+          0
+        ],
+        "notes": "Registered in agent/model_zoo/registry.py, runs through the normal is_mtl branch in agent/experiment.py, no new training-loop code needed.",
+        "edge_type": null
+      },
+      "edge_type": "improve",
+      "parent_id": "deepfm_mtl_v1",
+      "status": "done",
+      "fidelity": "100pct",
+      "metrics": {
+        "n_seeds": 3,
+        "valid": {
+          "GAUC_mean": 0.6702253623646663,
+          "GAUC_std": 0.0013817714494070053,
+          "nDCG@5_mean": 0.5373653846374629,
+          "nDCG@5_std": 0.0004143450853750397,
+          "primary_mean": 0.6037953735010646,
+          "primary_std": 0.0008460557919746598
+        },
+        "test": {
+          "GAUC_mean": 0.6638652029845161,
+          "GAUC_std": 0.0008996025442896318,
+          "nDCG@5_mean": 0.5306468950621034,
+          "nDCG@5_std": 0.000524346543545412,
+          "primary_mean": 0.5972560490233096,
+          "primary_std": 0.0007091939438273464
+        },
+        "delta_vs_baseline_test": {
+          "delta_GAUC": 0.002865202984516091,
+          "delta_nDCG@5": 0.0024468950621033825,
+          "delta_primary_mean": 0.0026560490233097367
+        },
+        "per_seed": [
+          {
+            "experiment_id": "deepfm_mtl_deep_heads_v1",
+            "seed": 0,
+            "best_epoch": 12,
+            "epochs_run": 17,
+            "valid": {
+              "GAUC": 0.6717417690965609,
+              "nDCG@5": 0.5379459291570317,
+              "primary": 0.6048438491267962
+            },
+            "test": {
+              "GAUC": 0.6646232462302443,
+              "nDCG@5": 0.5311898877934886,
+              "primary": 0.5979065670118664
+            },
+            "wall_time_s": 1439.8,
+            "num_params": 711562,
+            "train_fraction": 1.0
+          },
+          {
+            "experiment_id": "deepfm_mtl_deep_heads_v1",
+            "seed": 1,
+            "best_epoch": 9,
+            "epochs_run": 14,
+            "valid": {
+              "GAUC": 0.6705345490282739,
+              "nDCG@5": 0.5370062006931783,
+              "primary": 0.6037703748607262
+            },
+            "test": {
+              "GAUC": 0.6643710287692557,
+              "nDCG@5": 0.5308127522339968,
+              "primary": 0.5975918905016262
+            },
+            "wall_time_s": 209.390625,
+            "num_params": 711562,
+            "train_loss_curve": [
+              0.5807139583996364,
+              0.5134505122900009,
+              0.5091899863311222,
+              0.5079182790858405,
+              0.507216177880764,
+              0.5066766855972153,
+              0.5057830878666469,
+              0.5050880097917148,
+              0.5043657775436129,
+              0.503065063910825,
+              0.5014886326023511,
+              0.4999604640262468,
+              0.49840730854443144,
+              0.4965621198926653
+            ],
+            "valid_primary_curve": [
+              0.5985997211445804,
+              0.6017463256121474,
+              0.6024163098127374,
+              0.603558957295383,
+              0.6020709242209505,
+              0.6023524466626049,
+              0.6031941198271284,
+              0.6029684178848548,
+              0.6037703748607262,
+              0.6032492156071176,
+              0.6037441908126457,
+              0.6035401744816726,
+              0.6019548992262629,
+              0.6012062552865789
+            ],
+            "train_fraction": 1.0
+          },
+          {
+            "experiment_id": "deepfm_mtl_deep_heads_v1",
+            "seed": 2,
+            "best_epoch": 5,
+            "epochs_run": 5,
+            "valid": {
+              "GAUC": 0.6683997689691642,
+              "nDCG@5": 0.5371440240621786,
+              "primary": 0.6027718965156714
+            },
+            "test": {
+              "GAUC": 0.6626013339540483,
+              "nDCG@5": 0.5299380451588246,
+              "primary": 0.5962696895564364
+            },
+            "wall_time_s": 125.296875,
+            "num_params": 711562,
+            "train_loss_curve": [
+              0.5806235807282584,
+              0.5136315117989267,
+              0.5091053641268185,
+              0.5079555866973741,
+              0.5070627180593354
+            ],
+            "valid_primary_curve": [
+              0.5981410186650782,
+              0.6005708392147586,
+              0.6021602259003098,
+              0.6022629756640552,
+              0.6027718965156714
+            ],
+            "train_fraction": 1.0
+          }
+        ]
+      },
+      "insight": "Change vs. parent (-0.0008 primary) is within the significance bar (0.0010, seed-aware) -- not distinguishable from run-to-run variance.",
+      "diagnosis_tag": "noise_floor",
+      "created_at": 1788096962.1947443,
+      "updated_at": 1788099153.5357955
+    },
+    "deepfm_mtl_gnn_init_v1": {
+      "node_id": "deepfm_mtl_gnn_init_v1",
+      "config": {
+        "id": "deepfm_mtl_gnn_init_v1",
+        "model": "deepfm_mtl",
+        "hypothesis": "A genuinely different mechanism from every other lever tried: every prior attempt changed the loss, architecture, training signal, or combined already-trained models, but all still treat embeddings as a pure lookup table learned from scratch via gradient descent. This instead injects collaborative-filtering structure BEFORE training: LightGCN-style (He et al. 2020) 2-layer normalized-adjacency propagation over the train-split user-video is_click=1 graph, used to initialize deepfm_mtl_v1's user_id/video_id embedding rows (rescaled to match the random init's own std) instead of random init. Same architecture/loss/hyperparameters as deepfm_mtl_v1 -- only the embedding INITIALIZATION is the variable being isolated.",
+        "hyperparams": {
+          "k": 16,
+          "hidden": [
+            128,
+            64
+          ],
+          "lr": 0.001,
+          "l2": 0.0001,
+          "aux_weight": 0.2,
+          "epochs": 20,
+          "patience": 5,
+          "batch": 8192,
+          "gnn_init_n_layers": 2
+        },
+        "fields": [
+          "user_id",
+          "video_id",
+          "author_id",
+          "tab",
+          "dur_bucket"
+        ],
+        "parent_id": "deepfm_mtl_v1",
+        "seeds": [
+          0
+        ],
+        "notes": "Standalone check (tools/check_gnn_init.py) -- overwrites a normal deepfm_mtl model's V embedding rows post-construction, before training; not wired into agent/experiment.py (the graph-propagation pre-computation step does not fit the normal training-loop interface). Correctness of the propagation math verified on hand-constructed synthetic data before ever touching real data (users sharing a neighbor end up measurably more similar than users that do not: cos_sim 0.76 vs -0.15).",
+        "edge_type": null
+      },
+      "edge_type": "improve",
+      "parent_id": "deepfm_mtl_v1",
+      "status": "done",
+      "fidelity": "100pct",
+      "metrics": {
+        "n_seeds": 3,
+        "valid": {
+          "GAUC_mean": 0.6713,
+          "GAUC_std": 0.0004966554808583755,
+          "nDCG@5_mean": 0.5378000000000001,
+          "nDCG@5_std": 0.00014142135623734626,
+          "primary_mean": 0.6045333333333334,
+          "primary_std": 0.0003091206165165413
+        },
+        "test": {
+          "GAUC_mean": 0.6641333333333334,
+          "GAUC_std": 0.0003091206165165413,
+          "nDCG@5_mean": 0.5308,
+          "nDCG@5_std": 0.00016329931618557254,
+          "primary_mean": 0.5974666666666667,
+          "primary_std": 0.0002624669291337498
+        },
+        "delta_vs_baseline_test": {
+          "delta_GAUC": 0.0031333333333333213,
+          "delta_nDCG@5": 0.0026000000000000467,
+          "delta_primary_mean": 0.002866666666666684
+        },
+        "per_seed": [
+          {
+            "seed": 0,
+            "best_epoch": 12,
+            "epochs_run": 17,
+            "valid": {
+              "GAUC": 0.6717,
+              "nDCG@5": 0.5379,
+              "primary": 0.6048
+            },
+            "test": {
+              "GAUC": 0.6643,
+              "nDCG@5": 0.5308,
+              "primary": 0.5976
+            },
+            "wall_time_s": null,
+            "num_params": 703110
+          },
+          {
+            "seed": 1,
+            "best_epoch": 12,
+            "epochs_run": 17,
+            "valid": {
+              "GAUC": 0.6716,
+              "nDCG@5": 0.5379,
+              "primary": 0.6047
+            },
+            "test": {
+              "GAUC": 0.6644,
+              "nDCG@5": 0.531,
+              "primary": 0.5977
+            },
+            "wall_time_s": null,
+            "num_params": 703110
+          },
+          {
+            "seed": 2,
+            "best_epoch": 8,
+            "epochs_run": 13,
+            "valid": {
+              "GAUC": 0.6706,
+              "nDCG@5": 0.5376,
+              "primary": 0.6041
+            },
+            "test": {
+              "GAUC": 0.6637,
+              "nDCG@5": 0.5306,
+              "primary": 0.5971
+            },
+            "wall_time_s": null,
+            "num_params": 703110
+          }
+        ]
+      },
+      "insight": "Change vs. parent (-0.0001 primary) is within the significance bar (0.0005, seed-aware) -- not distinguishable from run-to-run variance.",
+      "diagnosis_tag": "noise_floor",
+      "created_at": 1788099942.2540643,
+      "updated_at": 1788100680.807552
     }
   }
 }

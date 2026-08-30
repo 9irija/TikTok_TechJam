@@ -778,6 +778,45 @@ def test_deepfm_lambdarank_step_reduces_loss_and_handles_edge_cases():
     assert np.allclose(m.predict(X_flat), m2.predict(X_flat)), "get_state/set_state round-trip must reproduce predictions"
 
 
+def test_deepfm_mtl_deep_heads_forward_backward_reduces_loss():
+    """Same shape of test as deepfm_mtl's own (main-task loss decreases,
+    mtl_step consumes the 4 aux labels, predict/get_state/set_state all
+    behave), plus the one thing unique to this variant -- each of the 4
+    auxiliary heads must be an INDEPENDENT small MLP (not one shared
+    nn.Linear the way deepfm_mtl.py's own _Net is), checked directly by
+    confirming they don't share parameter objects."""
+    from agent.model_zoo.deepfm_mtl_deep_heads import build
+
+    rng = np.random.default_rng(0)
+    n, n_fields, dim = 2000, 5, 200
+    X = rng.integers(0, dim, size=(n, n_fields)).astype(np.int32)
+    y = rng.integers(0, 2, size=n).astype(np.float32)
+    aux = rng.integers(0, 2, size=(n, 4)).astype(np.float32)
+
+    m = build(dim=dim, n_fields=n_fields, k=8, hidden=[16, 8], lr=0.01, aux_weight=0.2, head_hidden=4, seed=0)
+
+    # Each aux head must be its own MLP with independent parameters, not a shared layer.
+    head_param_ids = [id(p) for head in m.net.aux_heads for p in head.parameters()]
+    assert len(head_param_ids) == len(set(head_param_ids)), "each auxiliary head must own independent parameters"
+    assert len(m.net.aux_heads) == 4, "must have exactly 4 independent auxiliary heads"
+
+    losses = [m.mtl_step(X[i:i + 200], y[i:i + 200], aux[i:i + 200]) for i in range(0, n, 200) for _ in range(3)]
+    assert losses[-1] < losses[0], f"main-task loss should decrease on synthetic data: {losses[0]} -> {losses[-1]}"
+
+    preds = m.predict(X)
+    assert preds.shape == (n,), preds.shape
+    assert np.isfinite(preds).all(), "predictions must be finite"
+
+    state = m.get_state()
+    m2 = build(dim=dim, n_fields=n_fields, k=8, hidden=[16, 8], lr=0.01, aux_weight=0.2, head_hidden=4, seed=2)
+    m2.set_state(state)
+    assert np.allclose(m.predict(X), m2.predict(X)), "get_state/set_state round-trip must reproduce predictions"
+
+    from agent.model_zoo import build as build_registry
+    m3 = build_registry("deepfm_mtl_deep_heads", dim=dim, n_fields=n_fields, k=8, hidden=[16, 8], seed=0)
+    assert m3.predict(X).shape == (n,), "must also be reachable through the real registry, not just its own build()"
+
+
 def test_dcnv2_forward_backward_reduces_loss():
     """Same shape of test as every other model (loss decreases, predict/
     get_state/set_state all behave), plus the one thing unique to DCNv2's
@@ -1593,6 +1632,7 @@ def main() -> int:
         tests.append(test_lambdarank_delta_ndcg5_math_on_hand_derived_cases)
         tests.append(test_deepfm_lambdarank_step_reduces_loss_and_handles_edge_cases)
         tests.append(test_dcnv2_forward_backward_reduces_loss)
+        tests.append(test_deepfm_mtl_deep_heads_forward_backward_reduces_loss)
     except ImportError:
         pass
     tests += [

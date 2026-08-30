@@ -10,7 +10,8 @@ from typing import Callable
 from . import deepfm, fm, fm_bpr
 
 try:
-    from . import dcnv2, deepfm_bpr, deepfm_mtl, deepfm_mtl_click, deepfm_mtl_focal, deepfm_mtl_pcgrad
+    from . import (dcnv2, deepfm_bpr, deepfm_mtl, deepfm_mtl_click, deepfm_mtl_deep_heads,
+                    deepfm_mtl_focal, deepfm_mtl_pcgrad)
     _HAS_TORCH = True
 except ImportError:
     _HAS_TORCH = False  # torch not installed -- every other model in this file still works
@@ -29,9 +30,11 @@ if _HAS_TORCH:
     MODELS["dcnv2"] = dcnv2.build  # P2: Deep & Cross Network v2 -- see dcnv2.py (the architecture-level
     # lever this project's own roadmap ranked lowest-priority; plain pointwise BCE, needs no special
     # is_bpr/is_mtl training-loop branch, runs through the normal path like fm/deepfm/deepfm_regularized)
+    MODELS["deepfm_mtl_deep_heads"] = deepfm_mtl_deep_heads.build  # P2: MTL + a private small MLP per
+    # auxiliary task instead of one shared nn.Linear -- see deepfm_mtl_deep_heads.py
 
 _NEEDS_N_FIELDS = {"deepfm", "deepfm_mtl", "deepfm_bpr", "deepfm_mtl_pcgrad", "deepfm_mtl_click",
-                    "deepfm_mtl_focal", "dcnv2"}  # models whose forward pass depends on field count
+                    "deepfm_mtl_focal", "dcnv2", "deepfm_mtl_deep_heads"}  # models whose forward pass depends on field count
 
 
 def build(model_name: str, dim: int, n_fields: int, **hyperparams):
