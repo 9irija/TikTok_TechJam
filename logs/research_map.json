@@ -1833,12 +1833,17 @@
             "num_params": null,
             "train_fraction": 1.0
           }
-        ]
+        ],
+        "delta_vs_baseline_test": {
+          "delta_GAUC": -0.0007000000000000339,
+          "delta_nDCG@5": 0.0006000000000000449,
+          "delta_primary_mean": -4.999999999999449e-05
+        }
       },
       "insight": "Change vs. parent (-0.0020 primary) is within the significance bar (0.0020, flat epsilon, single-seed) -- not distinguishable from run-to-run variance.",
       "diagnosis_tag": "noise_floor",
       "created_at": 1787899309.5856118,
-      "updated_at": 1787899309.5918198
+      "updated_at": 1788105292.7847085
     },
     "deepfm_mtl_v1_hpo": {
       "node_id": "deepfm_mtl_v1_hpo",
@@ -1915,12 +1920,17 @@
             "num_params": 703370,
             "train_fraction": 1.0
           }
-        ]
+        ],
+        "delta_vs_baseline_test": {
+          "delta_GAUC": -0.0020372627717795133,
+          "delta_nDCG@5": 0.00028092262500978293,
+          "delta_primary_mean": -0.0008781700733848652
+        }
       },
       "insight": "Both GAUC (-0.0039) and nDCG@5 (-0.0024) got worse -- the change likely hurt (bar=0.0004).",
       "diagnosis_tag": "regression",
       "created_at": 1787900600.7236865,
-      "updated_at": 1787900600.733838
+      "updated_at": 1788105292.7896194
     },
     "deepfm_din_v1": {
       "node_id": "deepfm_din_v1",
@@ -3489,12 +3499,17 @@
             "num_params": 703110,
             "train_fraction": 1.0
           }
-        ]
+        ],
+        "delta_vs_baseline_test": {
+          "delta_GAUC": -0.02080000000000004,
+          "delta_nDCG@5": -0.008000000000000007,
+          "delta_primary_mean": -0.014400000000000024
+        }
       },
       "insight": "Both GAUC (-0.0256) and nDCG@5 (-0.0101) got worse -- the change likely hurt (bar=0.0002). [overfitting_risk: best validation epoch landed at ~29% of training length on average across seeds -- later epochs likely overfit train loss without validation benefit; consider fewer epochs or stronger regularization.]",
       "diagnosis_tag": "regression",
       "created_at": 1788071836.3877327,
-      "updated_at": 1788071836.397486
+      "updated_at": 1788105292.794675
     },
     "dcnv2_v1": {
       "node_id": "dcnv2_v1",
@@ -4037,12 +4052,17 @@
             "num_params": 707466,
             "train_fraction": 1.0
           }
-        ]
+        ],
+        "delta_vs_baseline_test": {
+          "delta_GAUC": 0.0035999999999999366,
+          "delta_nDCG@5": 0.0030999999999999917,
+          "delta_primary_mean": 0.003349999999999964
+        }
       },
       "insight": "Change vs. parent (+0.0001 primary) is within the significance bar (0.0004, seed-aware) -- not distinguishable from run-to-run variance.",
       "diagnosis_tag": "noise_floor",
       "created_at": 1788102739.4264092,
-      "updated_at": 1788102739.434288
+      "updated_at": 1788105292.79968
     }
   }
 }

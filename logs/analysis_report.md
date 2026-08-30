@@ -1,23 +1,34 @@
 # Run & Iteration Log -- Analysis Report
 
-_Generated 2026-08-30 11:27:14 from `logs\run_log.jsonl`_
+_Generated 2026-08-30 23:58:08 from `logs\run_log.jsonl`_
 
-## Run overview
+## Project-best (across all phases -- the actual current result)
+
+- **Node:** `deepfm_mtl_v1` (deepfm_mtl) -- diagnosis `clear_improvement`, 3-seed
+- **Valid primary:** 0.6046 +/- 0.0003
+- **Test primary:** 0.5974 +/- 0.0006 (+0.0028 vs. official baseline)
+- Research Map total: 30 nodes explored across every phase (Foundation/P1/Phase 4/P2) -- see `docs/dashboard.html` for the full tree.
+
+## Phase 0's own convergence run
+
+_The literal single continuous run the Problem Statement's convergence rule describes (read baseline -> iterate -> converge automatically, no LLM yet) -- superseded as "the project result" by the section above, kept here as its own correctly-scoped record, not the whole project's outcome._
 
 - **Run ID:** `run_20260827_201247`
-- **Iterations:** 16 total -- 16 succeeded, 0 failed after recovery was exhausted
+- **Iterations:** 30 total -- 30 succeeded, 0 failed after recovery was exhausted
 - **Converged:** True (epsilon=0.002, N=3, per organizer's baseline_scores.json)
-- **Validation-best:** `iter_004` (valid primary = 0.6028)
-- **Manual interventions:** 0 (lower is better -- this is what judges use to score Autonomy)
-- **Resource usage:** wall-clock 1083.3s total | LLM tokens 0 | GPU-hours 0.0
-- **Final submission (deepfm_wider), hidden-test-style split:** GAUC 0.6643 (+0.0033), nDCG@5 0.5306 (+0.0024), primary-metric delta +0.0029
+- **Validation-best (this run only):** `iter_004` (valid primary = 0.6028)
+- **Manual interventions (this run only):** 0 (lower is better -- this is what judges use to score Autonomy; see docs/RESULTS_SUMMARY.md's own Autonomy breakdown for the whole-project picture)
+- **Resource usage (this run only):** wall-clock 1083.3s total | LLM tokens 0 | GPU-hours 0.0
+- **This run's own best submission (deepfm_wider), hidden-test-style split:** GAUC 0.6643 (+0.0033), nDCG@5 0.5306 (+0.0024), primary-metric delta +0.0029
 
 ## Validation-primary trajectory
 
 ```
-▇▇▇▇▆▇▆▆▇ ▇▇▂▆▇█
-min=0.5683  max=0.6050  n=16
+▇▇▇▇▇▇▇▇▇▂▇▇▄▇▇█▇▇▇▇▇▇▇▇ ▅▇▇▇▇
+min=0.5483  max=0.6050  n=30
 ```
+
+Official FM baseline (validation): **0.6016** -- reference line for the trajectory above.
 
 ## Per-iteration log
 
@@ -39,6 +50,20 @@ min=0.5683  max=0.6050  n=16
 | iter_001 | `deepfm_bpr_v1_regularized` | deepfm_bpr | ok | 0.5980 | -0.0019 | 247.7s | 0 | Directly acts on deepfm_bpr_v1's own diagnosis, same pattern that worked for fm_bpr_default->fm_bpr_... |
 | iter_001 | `deepfm_mtl_pcgrad_v1` | deepfm_mtl_pcgrad | ok | 0.6027 | +0.0025 | 163.7s | 3 | Refines 'deepfm_mtl_v1''s own multi-task mechanism (valid primary 0.6046394259487893) rather than tr... |
 | iter_001 | `deepfm_mtl_click_v1` | deepfm_mtl_click | ok | 0.6050 | +0.0030 | 404.4s | 0 | Adds is_click as a 5th auxiliary head to 'deepfm_mtl_v1''s proven multi-task recipe (valid primary 0... |
+| iter_001 | `deepfm_mtl_focal_v1` | deepfm_mtl_focal | ok | 0.6030 | +0.0014 | 322.2s | 0 | Replaces 'deepfm_mtl_v1''s main-task BCE with focal loss (Lin et al. 2017) -- a genuinely different ... |
+| lgbm_baseline | `lgbm_baseline` | lgbm | ok | 0.5995 | -0.0000 | 141.9s | 0 | Genuinely different model family (gradient-boosted trees, not learned embeddings), per the user expl... |
+| deepfm_mtl_v1_hpo | `deepfm_mtl_v1_hpo` | deepfm_mtl | ok | 0.6015 | -0.0009 | 378.8s | 0 | Optuna search (agent/hpo.py) around 'deepfm_mtl_v1''s hyperparameters, 15 trials at reduced fidelity... |
+| deepfm_din_v1 | `deepfm_din_v1` | deepfm_din | ok | 0.6036 | +0.0027 | 79.9s | 0 | DIN-style attention (Zhou et al. 2018) over each user's recent watch history should let the model we... |
+| deepfm_mtl_watch_v1 | `deepfm_mtl_watch_v1` | deepfm_mtl_watch | ok | 0.6043 | +0.0036 | 28.1s | 0 | Extends deepfm_mtl_v1 (4 binary auxiliary heads: is_like/is_follow/is_comment/is_forward) with a 5th... |
+| deepfm_din_mtl_v1 | `deepfm_din_mtl_v1` | deepfm_din_mtl | ok | 0.6033 | +0.0025 | 60.2s | 0 | Combines two independently-partial results into one model, same reasoning deepfm_bpr_v1 already used... |
+| deepfm_mtl_uncertainty_v1 | `deepfm_mtl_uncertainty_v1` | deepfm_mtl_uncertainty | ok | 0.6048 | +0.0038 | 106.0s | 0 | Replaces deepfm_mtl_v1's single fixed aux_weight=0.2 (hand-picked, and already ruled out as tunable-... |
+| deepfm_listwise_v1 | `deepfm_listwise_v1` | deepfm_listwise | ok | 0.6033 | +0.0027 | 23.8s | 0 | The starter kit README's own top guess for the loss-function lever was "pairwise (BPR) or listwise (... |
+| deepfm_pdaom_v1 | `deepfm_pdaom_v1` | deepfm_pdaom | ok | 0.5483 | -0.0590 | 11.2s | 0 | PDAOM (arXiv:2304.09176) reconstruction: a pairwise EXPONENTIAL AUC-optimization loss (steeper than ... |
+| deepfm_lambdarank_v1 | `deepfm_lambdarank_v1` | deepfm_lambdarank | ok | 0.5856 | -0.0144 | 86.5s | 0 | Direct follow-up to the ten-refinements-of-deepfm_mtl_v1 pattern (P2 SS10-19): a structurally differ... |
+| dcnv2_v1 | `dcnv2_v1` | dcnv2 | ok | 0.6039 | +0.0027 | 866.3s | 0 | The one specific architecture named in this project roadmap alongside Wide&Deep, never tried -- buil... |
+| deepfm_mtl_deep_heads_v1 | `deepfm_mtl_deep_heads_v1` | deepfm_mtl_deep_heads | ok | 0.6038 | +0.0027 | 1774.5s | 0 | Every prior MTL refinement (uncertainty-weighting, PCGrad) changed how much the auxiliary losses cou... |
+| deepfm_mtl_gnn_init_v1 | `deepfm_mtl_gnn_init_v1` | deepfm_mtl | ok | 0.6045 | +0.0029 | not recorded | 0 | A genuinely different mechanism from every other lever tried: every prior attempt changed the loss, ... |
+| deepfm_mtl_gnn_feature_v1 | `deepfm_mtl_gnn_feature_v1` | deepfm_mtl_gnn_feature | ok | 0.6047 | +0.0033 | not recorded | 0 | Direct diagnosis-driven follow-up to deepfm_mtl_gnn_init_v1 (P2 Sec.27), which found graph-propagate... |
 
 _Δ vs baseline is computed on the locally-held test split for tracking parity with the organizer's own baseline.py; it is never used to pick a config -- only the Valid primary column drives Convergence Detector / config-selection decisions, per Task Requirement 2 (train+validation only)._
 
@@ -60,6 +85,20 @@ _Δ vs baseline is computed on the locally-held test split for tracking parity w
 - **iter_001** (`deepfm_bpr_v1_regularized`): root config, no prior iteration to diff against.
 - **iter_001** (`deepfm_mtl_pcgrad_v1`): root config, no prior iteration to diff against.
 - **iter_001** (`deepfm_mtl_click_v1`): root config, no prior iteration to diff against.
+- **iter_001** (`deepfm_mtl_focal_v1`): root config, no prior iteration to diff against.
+- **lgbm_baseline** (`lgbm_baseline`): `edge_type`: None → draft, `hyperparams`: {'k': 16, 'lr': 0.001, 'batch': 8192, 'epochs': 40, 'patience': 4} → {'objective': 'binary', 'num_leaves': 63, 'learning_rate': 0.05, 'min_data_in_leaf': 50, 'feature_fraction': 0.9, 'bagging_fraction': 0.9, 'num_boost_round': 500, 'early_stopping_rounds': 30}, `model`: fm → lgbm, `parent_id`: None → fm_baseline_repro
+- **deepfm_mtl_v1_hpo** (`deepfm_mtl_v1_hpo`): `hyperparams`: {'k': 16, 'lr': 0.001, 'l2': 0.0001, 'batch': 8192, 'epochs': 20, 'patience': 5, 'hidden': [128, 64], 'aux_weight': 0.2} → {'k': 16, 'lr': 0.0022319714240418083, 'l2': 0.0009751103055468681, 'batch': 8192, 'epochs': 20, 'patience': 5, 'hidden': [128, 64], 'aux_weight': 0.3330384922384841}, `parent_id`: deepfm_regularized → deepfm_mtl_v1
+- **deepfm_din_v1** (`deepfm_din_v1`): `edge_type`: improve → None, `hyperparams`: {'k': 16, 'lr': 0.001, 'l2': 0.0001, 'batch': 8192, 'epochs': 20, 'patience': 5, 'hidden': [128, 64]} → {'k': 16, 'hidden': [128, 64], 'lr': 0.001, 'l2': 0.0001, 'seq_len': 20, 'epochs': 20, 'patience': 5}, `model`: deepfm → deepfm_din, `parent_id`: deepfm_wider → deepfm_regularized, `seeds`: [0] → [0, 1, 2]
+- **deepfm_mtl_watch_v1** (`deepfm_mtl_watch_v1`): `edge_type`: improve → None, `hyperparams`: {'k': 16, 'lr': 0.001, 'l2': 0.0001, 'batch': 8192, 'epochs': 20, 'patience': 5, 'hidden': [128, 64], 'aux_weight': 0.2} → {'k': 16, 'hidden': [128, 64], 'lr': 0.001, 'l2': 1e-06, 'aux_weight': 0.2, 'watch_weight': 0.2, 'epochs': 20, 'patience': 5}, `model`: deepfm_mtl → deepfm_mtl_watch, `parent_id`: deepfm_regularized → deepfm_mtl_v1, `seeds`: [0] → [0, 1, 2]
+- **deepfm_din_mtl_v1** (`deepfm_din_mtl_v1`): `edge_type`: improve → None, `hyperparams`: {'k': 16, 'lr': 0.001, 'l2': 0.0001, 'batch': 8192, 'epochs': 20, 'patience': 5, 'hidden': [128, 64]} → {'k': 16, 'hidden': [128, 64], 'lr': 0.001, 'l2': 1e-06, 'aux_weight': 0.2, 'seq_len': 20, 'epochs': 20, 'patience': 5}, `model`: deepfm → deepfm_din_mtl, `parent_id`: deepfm_wider → deepfm_regularized, `seeds`: [0] → [0, 1, 2]
+- **deepfm_mtl_uncertainty_v1** (`deepfm_mtl_uncertainty_v1`): `edge_type`: improve → None, `hyperparams`: {'k': 16, 'lr': 0.001, 'l2': 0.0001, 'batch': 8192, 'epochs': 20, 'patience': 5, 'hidden': [128, 64], 'aux_weight': 0.2} → {'k': 16, 'hidden': [128, 64], 'lr': 0.001, 'l2': 1e-06, 'epochs': 20, 'patience': 5}, `model`: deepfm_mtl → deepfm_mtl_uncertainty, `parent_id`: deepfm_regularized → deepfm_mtl_v1, `seeds`: [0] → [0, 1, 2, 3, 4, 5, 6, 7]
+- **deepfm_listwise_v1** (`deepfm_listwise_v1`): `edge_type`: improve → None, `hyperparams`: {'k': 16, 'lr': 0.001, 'l2': 0.0001, 'batch': 8192, 'epochs': 20, 'patience': 5, 'hidden': [128, 64]} → {'k': 16, 'hidden': [128, 64], 'lr': 0.001, 'l2': 1e-05, 'max_len': 64, 'batch_users': 256, 'epochs': 20, 'patience': 5}, `model`: deepfm → deepfm_listwise, `parent_id`: deepfm_wider → deepfm_regularized, `seeds`: [0] → [0, 1, 2]
+- **deepfm_pdaom_v1** (`deepfm_pdaom_v1`): `edge_type`: improve → None, `hyperparams`: {'k': 16, 'lr': 0.001, 'l2': 0.0001, 'batch': 8192, 'epochs': 20, 'patience': 5, 'hidden': [128, 64]} → {'k': 16, 'hidden': [128, 64], 'lr': 0.001, 'l2': 0.0001, 'max_candidates': 8, 'batch_users': 512, 'epochs': 20, 'patience': 5}, `model`: deepfm → deepfm_pdaom, `parent_id`: deepfm_wider → deepfm_regularized
+- **deepfm_lambdarank_v1** (`deepfm_lambdarank_v1`): `edge_type`: improve → None, `hyperparams`: {'k': 16, 'lr': 0.001, 'l2': 0.0001, 'batch': 8192, 'epochs': 20, 'patience': 5, 'hidden': [128, 64]} → {'k': 16, 'hidden': [128, 64], 'lr': 0.001, 'l2': 0.0001, 'max_len': 64, 'batch_users': 256, 'max_pairs_per_user': 10, 'epochs': 20, 'patience': 5}, `model`: deepfm → deepfm_lambdarank, `parent_id`: deepfm_wider → deepfm_regularized
+- **dcnv2_v1** (`dcnv2_v1`): `edge_type`: improve → None, `hyperparams`: {'k': 16, 'lr': 0.001, 'l2': 0.0001, 'batch': 8192, 'epochs': 20, 'patience': 5, 'hidden': [128, 64]} → {'k': 16, 'hidden': [128, 64], 'n_cross_layers': 2, 'lr': 0.001, 'l2': 0.0001, 'epochs': 40, 'patience': 4, 'batch': 8192}, `model`: deepfm → dcnv2, `parent_id`: deepfm_wider → deepfm_regularized
+- **deepfm_mtl_deep_heads_v1** (`deepfm_mtl_deep_heads_v1`): `edge_type`: improve → None, `hyperparams`: {'k': 16, 'lr': 0.001, 'l2': 0.0001, 'batch': 8192, 'epochs': 20, 'patience': 5, 'hidden': [128, 64], 'aux_weight': 0.2} → {'k': 16, 'hidden': [128, 64], 'lr': 0.001, 'l2': 0.0001, 'aux_weight': 0.2, 'head_hidden': 32, 'epochs': 20, 'patience': 5, 'batch': 8192}, `model`: deepfm_mtl → deepfm_mtl_deep_heads, `parent_id`: deepfm_regularized → deepfm_mtl_v1
+- **deepfm_mtl_gnn_init_v1** (`deepfm_mtl_gnn_init_v1`): `edge_type`: improve → None, `hyperparams`: {'k': 16, 'lr': 0.001, 'l2': 0.0001, 'batch': 8192, 'epochs': 20, 'patience': 5, 'hidden': [128, 64], 'aux_weight': 0.2} → {'k': 16, 'hidden': [128, 64], 'lr': 0.001, 'l2': 0.0001, 'aux_weight': 0.2, 'epochs': 20, 'patience': 5, 'batch': 8192, 'gnn_init_n_layers': 2}, `parent_id`: deepfm_regularized → deepfm_mtl_v1
+- **deepfm_mtl_gnn_feature_v1** (`deepfm_mtl_gnn_feature_v1`): `hyperparams`: {'k': 16, 'hidden': [128, 64], 'lr': 0.001, 'l2': 0.0001, 'aux_weight': 0.2, 'epochs': 20, 'patience': 5, 'batch': 8192, 'gnn_init_n_layers': 2} → {'k': 16, 'hidden': [128, 64], 'lr': 0.001, 'l2': 0.0001, 'aux_weight': 0.2, 'epochs': 20, 'patience': 5, 'batch': 8192, 'gnn_n_layers': 2}, `model`: deepfm_mtl → deepfm_mtl_gnn_feature, `parent_id`: deepfm_mtl_v1 → deepfm_mtl_gnn_init_v1
 
 ## Error / recovery events
 
