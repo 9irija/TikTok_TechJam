@@ -658,7 +658,7 @@ be machine-extracted (image-embedded, not searchable), so
 abstract-level description plus the two named techniques it's built
 from (classic AUC-optimization exponential loss; batch-hard mining from
 metric learning) — not a citation of the paper's own exact tuned
-constants.
+constants. Standalone check: `tools/check_pdaom.py`.
 
 **Result: a severe, unambiguous regression**, not noise — no 3-seed
 re-verification needed to see this is real:
@@ -999,7 +999,10 @@ sample up to `max_pairs_per_user` pairs, weight each pair's
 `softplus(-(s_pos - s_neg))` loss by its ΔnDCG@5, and average.
 
 Standalone check (`tools/check_lambdarank.py`, same "prove it before
-promoting it" treatment as `deepfm_listwise_v1`/`deepfm_pdaom_v1`):
+promoting it" treatment as `deepfm_listwise_v1`/`deepfm_pdaom_v1`), later
+registered as its own Research Map node (`deepfm_lambdarank_v1`,
+`parent_id=deepfm_regularized`) for the same audit-trail reasons those two
+were:
 
 | epoch | loss | valid primary |
 |---|---|---|
