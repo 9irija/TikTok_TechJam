@@ -179,7 +179,7 @@
   #traj-tooltip .tt-meta { color: var(--ink-muted); }
 
   /* ---------- tree ---------- */
-  .tree-scroll { overflow-x: auto; overflow-y: hidden; padding: 6px 4px 10px; }
+  .tree-scroll { overflow-x: auto; overflow-y: auto; max-height: 700px; padding: 6px 4px 10px; }
   .node-card { cursor: pointer; }
   .node-card rect.card-bg { fill: var(--surface-raised); stroke: var(--border-strong); stroke-width: 1.3; transition: stroke 0.12s ease, filter 0.12s ease; }
   .node-card:hover rect.card-bg { stroke: var(--accent); }
@@ -372,7 +372,7 @@
     </div>
     <div class="chart-card">
       <div class="chart-scroll">
-        <svg id="traj-svg" width="1100" height="330" viewBox="0 0 1100 330" role="img" aria-label="Validation primary score for each of the 14 experiment nodes, in run order, colored by outcome"></svg>
+        <svg id="traj-svg" width="1100" height="330" viewBox="0 0 1100 330" role="img" aria-label="Validation primary score for each of the 30 experiment nodes, in run order, colored by outcome"></svg>
       </div>
       <div class="legend">
         <div class="legend-item"><span class="legend-swatch" style="background:var(--good)"></span>Clear improvement</div>
@@ -400,7 +400,7 @@
 
     <div id="view-tree" class="chart-card">
       <div class="tree-scroll">
-        <svg id="tree-svg" width="1590" height="935" viewBox="0 0 1590 935" role="img" aria-label="Tree of 14 experiment nodes with parent-child lineage"></svg>
+        <svg id="tree-svg" width="1590" height="935" viewBox="0 0 1590 935" role="img" aria-label="Tree of 30 experiment nodes with parent-child lineage"></svg>
       </div>
       <div class="tree-legend">
         <div class="legend-item"><span class="pill good"><span class="pill-dot" style="background:var(--good)"></span>clear improvement</span></div>
@@ -703,13 +703,55 @@
   function hideTooltip() { tooltip.classList.remove("show"); }
 
   // =============================================================== TREE
-  var LEVELS = { fm_baseline_repro: 0, fm_seed_variance: 1, deepfm_default: 1, fm_bpr_default: 1, fm_wider_k32: 1,
-                 lgbm_baseline: 1, deepfm_wider: 2, fm_bpr_regularized: 2, deepfm_regularized: 3,
-                 fm_bpr_slow_and_steady: 3, deepfm_higher_l2: 4, features_v1: 4, deepfm_mtl_v1: 4,
-                 deepfm_mtl_v1_hpo: 5 };
-  var LANES = { fm_seed_variance: 0, deepfm_default: 1, deepfm_wider: 1, deepfm_regularized: 1, deepfm_higher_l2: 1,
-                fm_bpr_default: 2, fm_bpr_regularized: 2, fm_bpr_slow_and_steady: 2, fm_wider_k32: 3, fm_baseline_repro: 1.5,
-                lgbm_baseline: 4, features_v1: 0, deepfm_mtl_v1: 2, deepfm_mtl_v1_hpo: 2 };
+  //
+  // LEVELS/LANES used to be a hand-maintained lookup table, one entry per
+  // node id -- and it silently stopped being maintained after
+  // deepfm_mtl_v1_hpo. Every node added since (14 of this dashboard's 30,
+  // nearly half) had no entry, so `pos()` computed `undefined * COL_W` =
+  // NaN, SVG silently treats an invalid transform as a no-op, and all 14
+  // rendered stacked on top of each other at the coordinate origin --
+  // caught only by actually rendering the page and looking at it (a
+  // headless screenshot), not by any data-correctness check, since every
+  // node's own DATA was still fully correct. Replaced with a layout
+  // computed automatically from NODES' own `.parent` links -- the same
+  // "compute it, don't hand-maintain a second copy that can drift" fix
+  // already applied to the NODES array itself (tools/generate_dashboard.py)
+  // and the LLM prompt's dead-ends section (agent/research_strategist.py)
+  // -- so a new node can never again be silently invisible.
+  function computeTreeLayout(nodes) {
+    var byId = {}; nodes.forEach(function (n) { byId[n.id] = n; });
+    var children = {};
+    nodes.forEach(function (n) {
+      if (n.parent && byId[n.parent]) (children[n.parent] = children[n.parent] || []).push(n.id);
+    });
+    var roots = nodes.filter(function (n) { return !n.parent || !byId[n.parent]; }).map(function (n) { return n.id; });
+
+    var level = {};
+    function computeLevel(id) {
+      if (level[id] !== undefined) return level[id];
+      var n = byId[id];
+      return (level[id] = (n.parent && byId[n.parent]) ? computeLevel(n.parent) + 1 : 0);
+    }
+    nodes.forEach(function (n) { computeLevel(n.id); });
+
+    // Leaves get sequential lanes in DFS order; an internal node's lane is
+    // the average of its children's -- a standard, simple tree layout that
+    // guarantees no two nodes ever share a lane at the same level.
+    var lane = {}, nextLeafLane = 0;
+    function computeLane(id) {
+      if (lane[id] !== undefined) return lane[id];
+      var kids = children[id];
+      if (!kids || kids.length === 0) return (lane[id] = nextLeafLane++);
+      var kidLanes = kids.map(computeLane);
+      return (lane[id] = kidLanes.reduce(function (a, b) { return a + b; }, 0) / kidLanes.length);
+    }
+    roots.forEach(computeLane);
+    nodes.forEach(function (n) { if (lane[n.id] === undefined) lane[n.id] = nextLeafLane++; }); // defensive fallback
+
+    return { level: level, lane: lane };
+  }
+  var TREE_LAYOUT = computeTreeLayout(NODES);
+  var LEVELS = TREE_LAYOUT.level, LANES = TREE_LAYOUT.lane;
   var COL_W = 260, ROW_H = 170, MARGIN_X = 30, MARGIN_Y = 65, CARD_W = 208, CARD_H = 140;
 
   function tagColor(tag) {
@@ -730,6 +772,23 @@
       for (var k in attrs) e.setAttribute(k, attrs[k]);
       return e;
     }
+
+    // Sized from the layout itself, not a hand-picked constant -- the
+    // exact bug this whole layout rewrite fixed (a fixed 1590x935 canvas
+    // silently clipped everything past ~5.5 lanes once the tree grew
+    // past its original small size, with overflow-y:hidden hiding the
+    // clipping itself). +1 lane of margin below the deepest one so the
+    // last row's card isn't flush against the container edge.
+    var maxLevel = 0, maxLane = 0;
+    NODES.forEach(function (n) {
+      if (LEVELS[n.id] > maxLevel) maxLevel = LEVELS[n.id];
+      if (LANES[n.id] > maxLane) maxLane = LANES[n.id];
+    });
+    var svgW = MARGIN_X + (maxLevel + 1) * COL_W + 40;
+    var svgH = MARGIN_Y + (maxLane + 1.5) * ROW_H;
+    svg.setAttribute("width", svgW);
+    svg.setAttribute("height", svgH);
+    svg.setAttribute("viewBox", "0 0 " + svgW + " " + svgH);
 
     function pos(id) {
       var level = LEVELS[id], lane = LANES[id];

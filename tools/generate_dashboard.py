@@ -163,6 +163,16 @@ def main() -> int:
         lambda m: f"{m.group(1)}{n_total}{m.group(2)}{breakdown}{m.group(3)}",
         html_new, count=1,
     )
+    # The two chart aria-labels each cite the node count in prose -- caught going stale
+    # once already (still said "14" at 30 real nodes) since nothing kept them in sync.
+    html_new = re.sub(
+        r'(aria-label="Validation primary score for each of the )\d+( experiment nodes)',
+        lambda m: f"{m.group(1)}{n_total}{m.group(2)}", html_new, count=1,
+    )
+    html_new = re.sub(
+        r'(aria-label="Tree of )(?:\d+ )?(experiment nodes)',
+        lambda m: f"{m.group(1)}{n_total} {m.group(2)}", html_new, count=1,
+    )
 
     if args.check:
         if html_new != html:

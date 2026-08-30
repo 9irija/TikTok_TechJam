@@ -12,6 +12,32 @@ metric, and error/recovery event it produces along the way.
 > Full problem statement + team brainstorm: [`docs/TikTok TechJam Hackathon.md`](docs/TikTok%20TechJam%20Hackathon.md).
 > Operational project context (architecture, task-definition caveat, roadmap): [`CLAUDE.md`](CLAUDE.md).
 
+**For judges, the fastest path through this repo:** the four required
+deliverables are [`docs/RESULTS_SUMMARY.md`](docs/RESULTS_SUMMARY.md)
+(Deliverable 4 — the consolidated results table, resource usage, and an
+honest autonomy breakdown), [`logs/run_log.jsonl`](logs/run_log.jsonl) +
+[`docs/dashboard.html`](docs/dashboard.html) (Deliverable 3 — the Run &
+Iteration Log, as a persistent tree you can click through, not just a flat
+file), `submission_valid.csv`/`submission_test.csv` (Deliverable 2 — the
+final submission, regenerated on demand by
+[`tools/generate_submission.py`](tools/generate_submission.py)), and this
+README + [`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md)
+(Deliverable 1 — the technical report). The one-line score: **0.6046
+valid primary, +0.0028 over the official baseline on hidden test, 3-seed
+verified** — see "Results" just below for the full table.
+
+**Contents:** [Results](#results-current-project-best-3-seed-verified) ·
+[P1](#p1-results-three-rounds--each-acts-on-the-previous-rounds-own-diagnosis) ·
+[Phase 4 / LLM](#phase-4-results--the-llm-found-a-real-verified-improvement) ·
+[Multi-task learning (project-best)](#multi-task-learning-torch--the-current-project-best) ·
+[Further P2 modeling](#further-modeling-attempts-p2--architecture-sequence-modeling-pairwise-loss) ·
+[Generalization checks](#does-the-win-generalize-segment-time-and-exposure-bias-checks) ·
+[More MTL refinements](#more-multi-task-refinements--gradient-combination-a-5th-signal-and-the-top-brainstorm-pick) ·
+[Chasing further improvements](#chasing-further-improvements--a-thorough-honestly-negative-search) ·
+[Engineered features](#engineered-features--a-real-negative-result-and-a-real-bug-it-surfaced) ·
+[Team](#team--contributions) ·
+[Limitations](#limitations--what-wed-improve-with-more-time)
+
 ## Project overview
 
 The challenge scores a **converged, autonomously-produced improvement** over
@@ -328,6 +354,8 @@ local optimum. Also caught and fixed a real concurrency bug along the way
 another background process — this project runs several at once by
 design). Full detail: [`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §4.
 
+### Further modeling attempts (P2) — architecture, sequence modeling, pairwise loss
+
 **DIN sequence modeling — the starter kit's own last untested headroom
 item, now a real number.** `agent/model_zoo/deepfm_din.py` +
 `agent/sequences.py` add DIN-style attention (Zhou et al. 2018) over each
@@ -433,6 +461,8 @@ moved away from pure hardest-mining for the same reason: the hardest
 example in a batch is often a noisy outlier). Full detail:
 [`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §14.
 
+### Does the win generalize? Segment, time, and exposure-bias checks
+
 **Does the win hold on genuinely unbiased data?** Every result above is
 drawn from TikTok's own recommendation-biased logs. `log_random_...csv`
 (randomized-exposure interactions, never used before) lets that be checked
@@ -462,6 +492,8 @@ Per-day within the valid window, `deepfm_mtl_v1`'s win over
 day (4/22, −0.0023) — reported plainly, not smoothed into "holds every
 day." Full detail:
 [`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §16.
+
+### More multi-task refinements — gradient combination, a 5th signal, and the top brainstorm pick
 
 **Refining `deepfm_mtl_v1`'s own mechanism, not just trying new
 architectures.** `agent/model_zoo/deepfm_mtl_pcgrad.py`: PCGrad (Yu et al.
@@ -508,6 +540,16 @@ beaten the original recipe** — a real signal that this benchmark's
 ceiling for incremental training-time changes looks genuine, not a
 search-effort problem. Full detail:
 [`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §19.
+
+### Chasing further improvements — a thorough, honestly-negative search
+
+Fourteen more structurally different levers tried after the above,
+spanning ranking losses, four ensembling variants, a new architecture,
+checkpoint averaging, and — the two genuinely non-standard attempts —
+graph-based collaborative-filtering signal delivered two different ways.
+None beat `deepfm_mtl_v1`; every one is reported here for the same reason
+the negative results above are: an honest search is worth more than a
+quiet one.
 
 **LambdaRank — the structurally different lever §19 itself called for,
 also a clear regression.** `agent/model_zoo/deepfm_lambdarank.py`:
@@ -732,8 +774,39 @@ tree grew a second competing branch, `deepfm_din_v1`; see
 
 ## Team / contributions
 
-_Solo participant / fill in team member contributions here per the
-Deliverables requirement, if applicable._
+Two contributors, both working via an AI coding assistant (Claude Code) —
+commit history at [`github.com/9irija/TikTok_TechJam`](https://github.com/9irija/TikTok_TechJam)
+is the actual record; this section summarizes it, not the other way
+around.
+
+**9irija** — the bulk of the architecture and iteration history: Phase 0
+foundation (evaluator wrapper, convergence detector, FM/DeepFM, Failure
+Recovery, Structured Run Log, Orchestrator), P1 (Research Map, Diagnosis
+Engine, Multi-Fidelity Runner, Best-First Selector, FM_BPR), Phase 4 (LLM
+Research Strategist, Gemini integration, Validation Gate), and most of P2
+(Multi-Task DeepFM — the project-best — plus the loss-function,
+architecture, ensembling, and embedding-initialization exploration in
+`docs/P2_FEATURES_AND_RESULTS.md`, the Research Critic Gate, budget-aware
+Phase 4 stopping, and auto-triggered multi-seed verification).
+
+**Yichen930** — 6 commits, contributed independently in parallel: a
+`deepfm_din_v1` variant (`seq_len=20`, matching the same experiment
+9irija's side ran independently), a real bug fix to
+`ResearchMap.best_confirmed_node()` (searching every branch instead of
+one lineage), `tools/generate_dashboard.py` (auto-regenerating the
+dashboard from the live Research Map instead of hand-transcription), 5
+more Model Zoo variants (watch-time auxiliary head, combined DIN+MTL,
+uncertainty-weighted MTL, listwise ranking loss, PDAOM hard-pair mining),
+the `MAX_ITERATIONS`/`MAX_WALL_CLOCK_S` hard-cap enforcement in
+`agent/convergence.py`, `docs/RESULTS_SUMMARY.md` (the consolidated
+Deliverable 4 artifact), retraining `lgbm_baseline` locally on macOS to
+close the ensemble-diversity question LightGBM being Windows-blocked had
+left open, and the honest per-node autonomy breakdown in that same
+Results Summary. Each push was pulled, reviewed, and merged (not just
+accepted) — see the merge commits in the repo history for the specific
+checks done on each (leakage-safety review of `tools/train_lgbm_and_cache.py`,
+row-alignment verification of the generalized `tools/check_ensemble.py`,
+etc.).
 
 ## Limitations & what we'd improve with more time
 

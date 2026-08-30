@@ -1,22 +1,35 @@
-# P2 — Engineered Features, Multi-Task Learning, LightGBM, Hyperparameter Search, Ensembling, DIN Sequence Modeling, DeepFM_BPR, Randomized-Exposure Generalization
+# P2 — Multi-Task Learning, and the Search for What Beats It
 
-Eight experiments closing real gaps left open by CLAUDE.md's roadmap
-("Multi-Task Feature Exploitation", "TikTok-disclosed features", "Extended
-Model Zoo", "Hyperparameter Search", sequence modeling, "DeepFM_BPR is a
-natural, cheap extension") plus a generalization check answering a direct
-question the user asked ("does the improvement hold across any kinds of
-data, not just this one"), run and 3-seed-verified where the result
-warranted it. Six of eight are negative or mixed results, reported exactly
-as measured — the honest signal here is which levers this specific
-benchmark actually responds to, not a scoreboard of wins. One of those
-negative results (the hyperparameter search) also surfaced and fixed a
-real concurrency bug in the Research Map's persistence layer, unrelated to
-modeling but a genuine reliability gap worth having found. This pass also
-merged real, independent parallel work from a teammate (Yichen930): the
-`seq_len=20` DIN result in §6, the `best_confirmed_node()` correctness fix
-in §7, and `tools/generate_dashboard.py` (dashboard auto-generation) all
-came from that merge, not from this session directly — credited inline
-below rather than claimed.
+`deepfm_mtl_v1` (§2) is the project-best and the one clear win in this
+document: multi-task auxiliary heads on `deepfm_regularized`, a
+3-seed-verified `clear_improvement` on its first attempt. Everything else
+here — 26 further sections spanning engineered features, LightGBM,
+hyperparameter search, sequence modeling, five ranking-loss variants, four
+ensembling methods, a new architecture (DCNv2), checkpoint averaging, and
+two genuinely non-standard graph-based mechanisms — is the honest record
+of trying to beat it and mostly not managing to, run and 3-seed-verified
+wherever a result was close enough to warrant it. 28 sections total: 1
+win (§2), 5 methodology/generalization-check sections without a simple
+win/loss framing (§4, §7, §9, §15, §16), and 22 further candidate results
+— every one of those 22 negative, mixed, or null, reported exactly as
+measured. The signal here is which levers this specific benchmark
+actually responds to (a multi-task training objective; nothing else,
+after a genuinely thorough search), not a scoreboard of wins. Real bugs
+surfaced and fixed along the way, unrelated to modeling but genuine
+reliability gaps worth having found: a `ResearchMap.save()` concurrency
+bug (§4), a wall-time measurement bug in the verification tooling (§24,
+§27), and a test-design issue in DCNv2's own unit test (§24) — each
+diagnosed and fixed before being trusted, not just reported as a number.
+Sections §6, §7, and the dashboard auto-generation script came from
+merging real, independent parallel work by a teammate (Yichen930),
+credited inline where they appear rather than claimed.
+
+**Jump to:** [§2 the win](#2-multi-task-deepfm-agentmodel_zoodeepfm_mtlpy--clear_improvement-new-project-best) ·
+[§9 generalization](#9-randomized-exposure-generalization-check--does-the-win-hold-on-unbiased-data) ·
+[§15 per-segment](#15-per-segment-diagnosis--does-the-win-hold-uniformly-or-is-it-concentrated) ·
+[§21-24 ensembling & architecture](#21-ensembling-revisited-with-a-proper-grid-search--a-single-seed-edge-that-3-seed-verification-erases) ·
+[§27-28 the non-standard attempt](#27-graph-propagated-embedding-initialization-lightgcn-style--a-genuinely-different-mechanism-still-a-null-result) ·
+[Net effect](#net-effect-on-the-project-best) (bottom of this doc — the full results table)
 
 ## 1. Engineered features (`agent/features.py`) — noise_floor
 
