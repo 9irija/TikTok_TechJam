@@ -302,13 +302,13 @@
   <div class="eyebrow">Autonomous ML Research Agent · KuaiRand-Pure</div>
   <h1 class="title">Research Map</h1>
   <p class="subtitle">
-    Every experiment this agent has run, as a persistent tree — not a flat log. 29 nodes across
+    Every experiment this agent has run, as a persistent tree — not a flat log. 30 nodes across
     four build phases: Foundation (hand-authored), Differentiators (best-first selection + diagnosis-driven
     iteration), an LLM Research Strategist that reads this exact map to decide what to try next, and P2
     (engineered features, multi-task learning, LightGBM, hyperparameter search, DIN sequence modeling,
     DeepFM_BPR, watch-time multi-task, combined DIN+MTL, uncertainty-weighted MTL, listwise ranking loss,
     PDAOM hard-pair mining, PCGrad gradient surgery, is_click, focal-loss, LambdaRank, DCNv2, deeper MTL
-    heads, and graph-propagated embedding init variants — seventeen of which came back honest negative
+    heads, and two graph-propagated embedding variants — eighteen of which came back honest negative
     or mixed results).
   </p>
 
@@ -338,8 +338,8 @@
     <div class="tiles">
       <div class="tile">
         <div class="label">Nodes explored</div>
-        <div class="value tnum">29</div>
-        <div class="sub">4 Foundation · 4 Differentiators · 2 LLM-proposed · 19 P2</div>
+        <div class="value tnum">30</div>
+        <div class="sub">4 Foundation · 4 Differentiators · 2 LLM-proposed · 20 P2</div>
       </div>
       <div class="tile">
         <div class="label">Manual interventions</div>
@@ -574,6 +574,10 @@
       valid:0.6045, delta:-0.0001, tag:"neutral", tagLabel:"noise floor",
       hyp:"A genuinely different mechanism from every other lever tried: every prior attempt changed the loss, architecture, training signal, or combined already-trained models, but all still treat embeddings as a pure lookup table learned from scratch via gradient descent. This instead injects collaborative-filtering structure BEFORE training: LightGCN-style (He et al. 2020) 2-layer normalized-adjacency propagation over the train-split user-video is_click=1 graph, used to initialize deepfm_mtl_v1's user_id/video_id embedding rows (rescaled to match the random init's own std) instead of random init. Same architecture/loss/hyperparameters as deepfm_mtl_v1 -- only the embedding INITIALIZATION is the variable being isolated.",
       insight:"Change vs. parent (-0.0001 primary) is within the significance bar (0.0005, seed-aware) -- not distinguishable from run-to-run variance." },
+    { id:"deepfm_mtl_gnn_feature_v1", model:"deepfm_mtl_gnn_feature", edge:"improve", parent:"deepfm_mtl_gnn_init_v1", phase:"P2", llm:false,
+      valid:0.6047, delta:0.0002, tag:"neutral", tagLabel:"noise floor",
+      hyp:"Direct diagnosis-driven follow-up to deepfm_mtl_gnn_init_v1 (P2 Sec.27), which found graph-propagated embedding INITIALIZATION made no difference, with a specific reason: gradient descent moves trainable embeddings past the initial condition within ~10-12 epochs. This tests that diagnosis directly by making the LightGCN graph embedding a FROZEN buffer fed to the deep tower as a persistent extra input at every epoch, not a trainable init erased by training. Same graph (train-split is_click=1 edges), same propagation math (reused directly from tools/check_gnn_init.py, not re-derived), same base hyperparameters as deepfm_mtl_v1 -- only the delivery mechanism for the graph signal differs from gnn_init_v1.",
+      insight:"Change vs. parent (+0.0001 primary) is within the significance bar (0.0004, seed-aware) -- not distinguishable from run-to-run variance." },
   ];
   var BASELINE = 0.6016;
   var BEST_ID = "deepfm_mtl_v1";

@@ -866,6 +866,43 @@ def test_dcnv2_forward_backward_reduces_loss():
     assert m3.predict(X_all).shape == (n,), "must also be reachable through the real registry, not just its own build()"
 
 
+def test_deepfm_mtl_gnn_feature_freezes_graph_embed_and_reduces_loss():
+    """Same fixed-batch shape of test as DCNv2's/deep_heads' (loss decreases,
+    predict/get_state/set_state all behave), plus the one thing that makes
+    this variant meaningfully different from tools/check_gnn_init.py's
+    trainable-init approach: `graph_embed` must be a genuinely FROZEN
+    buffer, never touched by the optimizer across real training steps --
+    checked directly (not just `requires_grad=False` on paper) by comparing
+    the buffer's own values before and after 30 real mtl_step() calls."""
+    from agent.model_zoo.deepfm_mtl_gnn_feature import build
+
+    rng = np.random.default_rng(0)
+    n_fields, dim, k = 5, 200, 8
+    X = rng.integers(0, dim, size=(200, n_fields)).astype(np.int32)
+    y = rng.integers(0, 2, size=200).astype(np.float32)
+    aux = rng.integers(0, 2, size=(200, 4)).astype(np.float32)
+    graph_embed = rng.normal(0, 0.01, size=(dim, k)).astype(np.float32)
+
+    m = build(dim=dim, graph_embed=graph_embed, n_fields=n_fields, k=k, hidden=[16, 8], lr=0.01, aux_weight=0.2, seed=0)
+
+    before = m.net.graph_embed.clone()
+    losses = [m.mtl_step(X, y, aux) for _ in range(30)]
+    after = m.net.graph_embed.clone()
+    assert (before == after).all(), "graph_embed must be completely frozen -- never updated by training, " \
+        "the entire point of this variant vs. the trainable-init approach it's a follow-up to"
+    assert losses[-1] < losses[0], f"loss should decrease on a fixed synthetic batch: {losses[0]} -> {losses[-1]}"
+    assert np.isfinite(losses).all()
+
+    preds = m.predict(X)
+    assert preds.shape == (200,), preds.shape
+    assert np.isfinite(preds).all()
+
+    state = m.get_state()
+    m2 = build(dim=dim, graph_embed=graph_embed, n_fields=n_fields, k=k, hidden=[16, 8], lr=0.01, aux_weight=0.2, seed=2)
+    m2.set_state(state)
+    assert np.allclose(m.predict(X), m2.predict(X)), "get_state/set_state round-trip must reproduce predictions"
+
+
 def test_load_aux_labels_with_click_field_matches_default_on_shared_columns():
     """Real-data check: agent/features.py's load_aux_labels(fields=...)
     parameter must return the SAME values for the original 4 columns
@@ -1633,6 +1670,7 @@ def main() -> int:
         tests.append(test_deepfm_lambdarank_step_reduces_loss_and_handles_edge_cases)
         tests.append(test_dcnv2_forward_backward_reduces_loss)
         tests.append(test_deepfm_mtl_deep_heads_forward_backward_reduces_loss)
+        tests.append(test_deepfm_mtl_gnn_feature_freezes_graph_embed_and_reduces_loss)
     except ImportError:
         pass
     tests += [

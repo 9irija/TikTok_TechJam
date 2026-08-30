@@ -3960,6 +3960,89 @@
       "diagnosis_tag": "noise_floor",
       "created_at": 1788099942.2540643,
       "updated_at": 1788100680.807552
+    },
+    "deepfm_mtl_gnn_feature_v1": {
+      "node_id": "deepfm_mtl_gnn_feature_v1",
+      "config": {
+        "id": "deepfm_mtl_gnn_feature_v1",
+        "model": "deepfm_mtl_gnn_feature",
+        "hypothesis": "Direct diagnosis-driven follow-up to deepfm_mtl_gnn_init_v1 (P2 Sec.27), which found graph-propagated embedding INITIALIZATION made no difference, with a specific reason: gradient descent moves trainable embeddings past the initial condition within ~10-12 epochs. This tests that diagnosis directly by making the LightGCN graph embedding a FROZEN buffer fed to the deep tower as a persistent extra input at every epoch, not a trainable init erased by training. Same graph (train-split is_click=1 edges), same propagation math (reused directly from tools/check_gnn_init.py, not re-derived), same base hyperparameters as deepfm_mtl_v1 -- only the delivery mechanism for the graph signal differs from gnn_init_v1.",
+        "hyperparams": {
+          "k": 16,
+          "hidden": [
+            128,
+            64
+          ],
+          "lr": 0.001,
+          "l2": 0.0001,
+          "aux_weight": 0.2,
+          "epochs": 20,
+          "patience": 5,
+          "batch": 8192,
+          "gnn_n_layers": 2
+        },
+        "fields": [
+          "user_id",
+          "video_id",
+          "author_id",
+          "tab",
+          "dur_bucket"
+        ],
+        "parent_id": "deepfm_mtl_gnn_init_v1",
+        "seeds": [
+          0
+        ],
+        "notes": "Standalone check (tools/check_gnn_feature.py) -- new model file (agent/model_zoo/deepfm_mtl_gnn_feature.py), not registered in registry.py (needs a precomputed graph_embed array at construction, does not fit the standard build(dim, n_fields, **hp) signature). Unit-tested that the frozen buffer is genuinely never touched by 30 real training steps before ever running on real data.",
+        "edge_type": null
+      },
+      "edge_type": "improve",
+      "parent_id": "deepfm_mtl_gnn_init_v1",
+      "status": "done",
+      "fidelity": "100pct",
+      "metrics": {
+        "n_seeds": 1,
+        "valid": {
+          "GAUC_mean": 0.6715,
+          "GAUC_std": 0.0,
+          "nDCG@5_mean": 0.5379,
+          "nDCG@5_std": 0.0,
+          "primary_mean": 0.6047,
+          "primary_std": 0.0
+        },
+        "test": {
+          "GAUC_mean": 0.6646,
+          "GAUC_std": 0.0,
+          "nDCG@5_mean": 0.5313,
+          "nDCG@5_std": 0.0,
+          "primary_mean": 0.598,
+          "primary_std": 0.0
+        },
+        "per_seed": [
+          {
+            "experiment_id": "deepfm_mtl_gnn_feature_v1",
+            "seed": 0,
+            "best_epoch": 12,
+            "epochs_run": 17,
+            "valid": {
+              "GAUC": 0.6715,
+              "nDCG@5": 0.5379,
+              "primary": 0.6047
+            },
+            "test": {
+              "GAUC": 0.6646,
+              "nDCG@5": 0.5313,
+              "primary": 0.598
+            },
+            "wall_time_s": null,
+            "num_params": 707466,
+            "train_fraction": 1.0
+          }
+        ]
+      },
+      "insight": "Change vs. parent (+0.0001 primary) is within the significance bar (0.0004, seed-aware) -- not distinguishable from run-to-run variance.",
+      "diagnosis_tag": "noise_floor",
+      "created_at": 1788102739.4264092,
+      "updated_at": 1788102739.434288
     }
   }
 }

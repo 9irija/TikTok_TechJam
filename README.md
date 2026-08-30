@@ -669,8 +669,29 @@ come back null: with only ~700K parameters and Adam's adaptive updates,
 condition encoded — this benchmark's learnable signal at this data volume
 looks substantially extracted already, not quietly left on the table by
 one training detail. `deepfm_mtl_v1` remains the project-best after
-**twelve** structurally different levers. Full detail:
+**thirteen** structurally different levers. Full detail:
 [`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §26-27.
+
+**Tested that graph-init diagnosis directly, rather than leaving it as
+speculation — same null result, now with real confidence it's the signal,
+not the delivery.** If the graph-init null was really about gradient
+descent erasing the initial condition, then keeping the same LightGCN
+embedding as a **frozen, persistent feature** instead (never touched by
+the optimizer, available at every epoch, not just epoch 0) should behave
+differently if the graph signal itself is useful. `agent/model_zoo/deepfm_mtl_gnn_feature.py`:
+verified the buffer is genuinely untouched across 30 real training steps
+before ever running on real data. Result: valid primary 0.6047 — within
+0.0004 of both the plain model (0.6046 ± 0.0003) and the trainable-init
+version (0.6045 ± 0.0003). Two structurally different delivery mechanisms
+landing at the *same* null is stronger evidence than either alone: it
+points to the LightGCN-propagated structure not carrying information
+beyond what `deepfm_mtl_v1`'s own supervised embedding learning already
+discovers directly from the same interactions, not to a packaging
+problem. `deepfm_mtl_v1` remains the project-best after **fourteen**
+structurally different levers, including two independent, honestly-
+negative attempts at the one genuinely non-standard mechanism tried this
+project. Full detail:
+[`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §28.
 
 ## Engineered features — a real negative result, and a real bug it surfaced
 
@@ -788,8 +809,13 @@ and declined with a stated reason.
   graph-init check also caught a real bug in the verification tooling
   itself (the standard re-training path would have silently skipped the
   graph-init overlay it was supposed to be verifying) before it produced
-  a misleading result. `deepfm_mtl_v1` remains the project-best after
-  **twelve** structurally different directions tried beyond it.
+  a misleading result. A direct follow-up (§28) tested the graph-init
+  diagnosis itself: the same LightGCN embedding as a frozen, persistent
+  feature instead of an erasable trainable init — same null result
+  (0.6047), stronger evidence the graph signal itself doesn't add
+  information here, not that its delivery was wrong. `deepfm_mtl_v1`
+  remains the project-best after **fourteen** structurally different
+  directions tried beyond it.
 
 **Research loop — still open, genuinely:**
 - **Phase 4 has only run a handful of iterations.** A longer run would show

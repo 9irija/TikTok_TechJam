@@ -1434,10 +1434,60 @@ via the plain registry (`deepfm_mtl.build()`), which would silently skip
 the graph-init overlay entirely and 3-seed-verify plain random-init
 `deepfm_mtl` instead -- caught before running it, so seeds 1/2 were run
 directly through `check_gnn_init.py` (the actual treatment) instead.
-`deepfm_mtl_v1` remains the project-best, now confirmed against **twelve**
+`deepfm_mtl_v1` remains the project-best, now confirmed against **thirteen**
 structurally different levers, two of which (§26, §27) were built and
 verified specifically in response to a direct request for a genuinely
 different mechanism, not just another standard-toolbox variant.
+
+## 28. Graph embedding as a frozen persistent feature — the diagnosis-driven follow-up, still null, now with real confidence
+
+§27 diagnosed a specific, testable reason for the graph-init null result:
+gradient descent moves `deepfm_mtl_v1`'s trainable embeddings well past
+whatever the initial condition encoded within ~10-12 epochs, so an
+initialization-only intervention doesn't survive training long enough to
+matter. This tests that diagnosis directly rather than leaving it as
+speculation: `agent/model_zoo/deepfm_mtl_gnn_feature.py` keeps the exact
+same LightGCN-propagated embedding (reusing `tools/check_gnn_init.py`'s
+already-correctness-tested `build_lightgcn_init()` directly, not a second
+copy of the graph math), but registers it as a **frozen buffer**
+(`requires_grad=False`, verified genuinely untouched across 30 real
+training steps before ever running on real data) fed to the deep tower as
+a persistent extra input at *every* epoch, instead of writing it into the
+trainable embedding table where gradient descent can erase it.
+
+| | Valid primary |
+|---|---|
+| `deepfm_mtl_v1` (plain, no graph signal) | 0.6046 ± 0.0003 (3-seed) / 0.6049 (seed 0) |
+| `deepfm_mtl_gnn_init_v1` (graph as trainable init, §27) | 0.6045 ± 0.0003 (3-seed) |
+| `deepfm_mtl_gnn_feature_v1` (graph as frozen feature) | **0.6047** (seed 0) |
+
+Single seed, not 3-seed-verified: three variants (no graph signal,
+trainable-init graph signal, frozen-feature graph signal) now cluster
+inside a 0.0004-wide band around 0.6045-0.6049 — decisively tight, not an
+ambiguous result seed noise could plausibly flip into a real effect in
+either direction, matching the same "a single seed is enough when the
+result is this decisive" precedent as §14/§23/§25.
+
+**Honest read, and the actual scientific payoff of trying two delivery
+mechanisms instead of stopping after one:** §27 alone left open whether
+the null result was about *how* the graph signal was delivered
+(initialization, easily erased) or whether the signal itself just isn't
+useful here. Testing a structurally different delivery mechanism — frozen
+and persistent instead of trainable and erasable — and getting the
+*same* null result is real evidence for the second explanation: the
+LightGCN-propagated collaborative-filtering structure doesn't appear to
+carry information beyond what `deepfm_mtl_v1`'s own trainable
+`user_id x video_id` embedding crossing already learns directly from the
+same interactions. Plausible reason this makes sense in hindsight: at
+27K users x 7.6K items with `k=16` and a full 1.14M-row training set,
+direct supervised embedding learning already has enough data and capacity
+to discover the same neighborhood structure LightGCN computes explicitly
+via graph propagation — the graph algorithm and gradient descent may
+simply be converging on overlapping information through different routes.
+`deepfm_mtl_v1` remains the project-best after **fourteen** structurally
+different levers tried beyond its own original recipe, including two
+independent, honestly-negative attempts at the one genuinely non-standard
+mechanism tried this project.
 
 ## Net effect on the project-best
 
