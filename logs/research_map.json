@@ -3495,6 +3495,179 @@
       "diagnosis_tag": "regression",
       "created_at": 1788071836.3877327,
       "updated_at": 1788071836.397486
+    },
+    "dcnv2_v1": {
+      "node_id": "dcnv2_v1",
+      "config": {
+        "id": "dcnv2_v1",
+        "model": "dcnv2",
+        "hypothesis": "The one specific architecture named in this project roadmap alongside Wide&Deep, never tried -- built for completeness given every other capacity/architecture lever tested came back flat or negative. Replaces DeepFM/deepfm_regularized's FM 2nd-order interaction term with a Cross Network (Wang et al. 2020, DCNv2): n_cross_layers stacked explicit-cross layers run in parallel with a plain deep MLP tower, both reading the same flattened embedding. Same base hyperparameters as deepfm_regularized (k=16, hidden=[128,64], lr=0.001, l2=1e-4) so architecture is the only variable.",
+        "hyperparams": {
+          "k": 16,
+          "hidden": [
+            128,
+            64
+          ],
+          "n_cross_layers": 2,
+          "lr": 0.001,
+          "l2": 0.0001,
+          "epochs": 40,
+          "patience": 4,
+          "batch": 8192
+        },
+        "fields": [
+          "user_id",
+          "video_id",
+          "author_id",
+          "tab",
+          "dur_bucket"
+        ],
+        "parent_id": "deepfm_regularized",
+        "seeds": [
+          0
+        ],
+        "notes": "Registered directly in agent/model_zoo/registry.py -- plain pointwise BCE, runs through the normal agent/experiment.py path, no standalone-check workaround needed.",
+        "edge_type": null
+      },
+      "edge_type": "improve",
+      "parent_id": "deepfm_regularized",
+      "status": "done",
+      "fidelity": "100pct",
+      "metrics": {
+        "n_seeds": 3,
+        "valid": {
+          "GAUC_mean": 0.6702716163248469,
+          "GAUC_std": 0.00063840305424813,
+          "nDCG@5_mean": 0.5375453352589371,
+          "nDCG@5_std": 0.00012659645446311434,
+          "primary_mean": 0.603908475791892,
+          "primary_std": 0.00032963841395790863
+        },
+        "test": {
+          "GAUC_mean": 0.6640706650548059,
+          "GAUC_std": 0.0001514172744367323,
+          "nDCG@5_mean": 0.5306289015333802,
+          "nDCG@5_std": 0.0004059167979514431,
+          "primary_mean": 0.597349783294093,
+          "primary_std": 0.00013605948321489066
+        },
+        "delta_vs_baseline_test": {
+          "delta_GAUC": 0.00307066505480591,
+          "delta_nDCG@5": 0.0024289015333801567,
+          "delta_primary_mean": 0.0027497832940930333
+        },
+        "per_seed": [
+          {
+            "experiment_id": "dcnv2_v1",
+            "seed": 0,
+            "best_epoch": 8,
+            "epochs_run": 12,
+            "valid": {
+              "GAUC": 0.6701292893198775,
+              "nDCG@5": 0.5373670225707771,
+              "primary": 0.6037481559453273
+            },
+            "test": {
+              "GAUC": 0.6642751455664654,
+              "nDCG@5": 0.5300571503024217,
+              "primary": 0.5971661479344436
+            },
+            "wall_time_s": 310.6,
+            "num_params": 675889,
+            "train_fraction": 1.0
+          },
+          {
+            "experiment_id": "dcnv2_v1",
+            "seed": 1,
+            "best_epoch": 4,
+            "epochs_run": 8,
+            "valid": {
+              "GAUC": 0.6695706755874441,
+              "nDCG@5": 0.5376483995990914,
+              "primary": 0.6036095375932677
+            },
+            "test": {
+              "GAUC": 0.6639133650427073,
+              "nDCG@5": 0.5308703016757095,
+              "primary": 0.5973918333592083
+            },
+            "wall_time_s": 170.078125,
+            "num_params": 675889,
+            "train_loss_curve": [
+              0.5784719969545092,
+              0.5133149938923972,
+              0.5094471731356212,
+              0.5083432619060789,
+              0.5077161427055087,
+              0.5072496407798358,
+              0.5062982512371881,
+              0.5056845141308648
+            ],
+            "valid_primary_curve": [
+              0.5993098345719745,
+              0.6022030905476747,
+              0.6022806275060861,
+              0.6036095375932677,
+              0.6017084983302531,
+              0.602537737623261,
+              0.6035442097777706,
+              0.6033703852118784
+            ],
+            "train_fraction": 1.0
+          },
+          {
+            "experiment_id": "dcnv2_v1",
+            "seed": 2,
+            "best_epoch": 8,
+            "epochs_run": 12,
+            "valid": {
+              "GAUC": 0.6711148840672192,
+              "nDCG@5": 0.5376205836069429,
+              "primary": 0.604367733837081
+            },
+            "test": {
+              "GAUC": 0.6640234845552453,
+              "nDCG@5": 0.5309592526220092,
+              "primary": 0.5974913685886272
+            },
+            "wall_time_s": 385.640625,
+            "num_params": 675889,
+            "train_loss_curve": [
+              0.5809071217264448,
+              0.513681550536837,
+              0.5094388267823629,
+              0.5084279830966677,
+              0.5077284644756999,
+              0.50709528028965,
+              0.5064008998019355,
+              0.5059519674096788,
+              0.5051110665713038,
+              0.504332132424627,
+              0.5034336300832885,
+              0.5026886682425227
+            ],
+            "valid_primary_curve": [
+              0.5985209913864131,
+              0.6008468425719216,
+              0.6022651870898116,
+              0.6021115856027197,
+              0.6028099735153236,
+              0.6029219726790439,
+              0.6033368056276394,
+              0.604367733837081,
+              0.602875233506257,
+              0.6035818007540474,
+              0.6035172768364778,
+              0.603716592851298
+            ],
+            "train_fraction": 1.0
+          }
+        ]
+      },
+      "insight": "Mixed/inconclusive signal (GAUC +0.0004, nDCG@5 +0.0005, primary +0.0005, bar=0.0004).",
+      "diagnosis_tag": "mixed",
+      "created_at": 1788077009.9046242,
+      "updated_at": 1788077632.666083
     }
   }
 }

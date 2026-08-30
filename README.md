@@ -546,6 +546,57 @@ evidence `deepfm_mtl_v1` sits at a genuine local optimum for this
 benchmark's data volume, not that the search has been shallow. Full
 detail: [`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §21.
 
+**Stacked ensemble via scikit-learn — a more principled method, an
+honestly worse number.** `lightgbm` is blocked on this dev machine by a
+Windows Application Control policy on the DLL load, but `scikit-learn`
+turned out to just be uninstalled, not blocked — installed cleanly once
+actually tried. `tools/check_stacked_ensemble.py` replaces §21's hand-tuned
+weight grid with a `LogisticRegression` meta-learner, scored honestly via
+5-fold out-of-fold cross-validation (never scored on rows it was fit on,
+proper stacking discipline). Result: valid primary 0.6044 vs.
+`deepfm_mtl_v1` solo's 0.6049 (**−0.0004**) — the more expressive method
+did *not* do better, and its honest out-of-fold number is arguably a more
+trustworthy read on §21's own grid search than the grid search's in-sample
+number was. Sharpens the diagnosis: the missing ingredient for a real
+ensemble win here is likely a component with a genuinely different
+inductive bias (e.g. LightGBM's tree splits), not a better combination
+method for three already-correlated embedding-based models. Full detail:
+[`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §22.
+
+**DCNv2 — the last named architecture-level lever, checked for
+completeness.** The one specific architecture named in this project's own
+roadmap (alongside Wide&Deep) that was never tried, built with expectations
+set low given every other capacity/architecture change already tested here
+came back flat or negative. `agent/model_zoo/dcnv2.py` (Wang et al. 2020):
+replaces DeepFM's FM interaction term with a Cross Network run in parallel
+with a deep MLP tower — the first new P2 model registered directly in
+`agent/model_zoo/registry.py` and trained through the normal
+`agent/experiment.py` path (plain pointwise BCE, no special training-loop
+branch needed). A real bug caught by its own unit test before touching real
+data: a first test design (shifting across different random batches, most
+other models' pattern) genuinely failed — not an actual backward-pass bug
+(verified separately: the same learning rate on a fixed, repeated batch
+trains cleanly), but 3 stacked cross layers turned out noisier batch-to-
+batch than DeepFM's gentler curve tolerates; fixed by switching to the
+fixed-batch test design `deepfm_lambdarank`'s test already established.
+3-seed verified (`dcnv2_v1`, `parent_id=deepfm_regularized`): valid primary
+0.6039 ± 0.0003 — a delta right at the exact significance bar (+0.0004
+GAUC, +0.0005 nDCG@5, bar=0.0004), correctly diagnosed `mixed` rather than
+a clean win: a genuine coin-flip result at this project's own resolution
+limit for telling signal from noise. Still clearly below `deepfm_mtl_v1`
+(0.6046) either way. Fits the wider pattern exactly: architecture changes
+(embedding width, CWM features, DIN, now DCNv2, LightGBM) cluster around
+flat-to-marginal, while the multi-task training-signal change
+(`deepfm_mtl_v1`) is the one lever that produced a clear, repeated win.
+Also surfaced a real bug in the verification tooling itself, caught before
+being trusted: `verify_node_multiseed()` was timing *itself* around a call
+that spawns a training subprocess, so it measured its own idle wait time
+(`~0.03s`) instead of the subprocess's real multi-minute training cost —
+exactly the kind of "looks like it works, quietly doesn't" bug this
+project has caught before, and one that would have silently undermined
+`--max_wall_time_s`'s budget accounting. Fixed and regression-tested. Full
+detail: [`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §23.
+
 ## Engineered features — a real negative result, and a real bug it surfaced
 
 `agent/features.py` adds 4 new fields on top of the starter kit's base 5:

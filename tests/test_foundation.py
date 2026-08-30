@@ -778,6 +778,55 @@ def test_deepfm_lambdarank_step_reduces_loss_and_handles_edge_cases():
     assert np.allclose(m.predict(X_flat), m2.predict(X_flat)), "get_state/set_state round-trip must reproduce predictions"
 
 
+def test_dcnv2_forward_backward_reduces_loss():
+    """Same shape of test as every other model (loss decreases, predict/
+    get_state/set_state all behave), plus the one thing unique to DCNv2's
+    own forward pass -- the cross network's per-layer matrix-vector product
+    must produce finite output across several stacked layers (a common
+    failure mode for a hand-built cross network: growing or vanishing
+    magnitudes through repeated x0-anchored multiplication), checked at
+    n_cross_layers=3, one more than the default of 2.
+
+    Fixed-batch design (repeated steps on the SAME rows, like
+    test_deepfm_lambdarank_step_reduces_loss_and_handles_edge_cases),
+    not the shifting-batch design most other models' tests use: a first
+    attempt at the shifting design genuinely failed here -- lr=0.01 with 3
+    stacked cross layers is noisier run-to-run across different random
+    batches than DeepFM's own gentler curve tolerates, even though the
+    backward pass itself is correct (verified separately: the same lr on a
+    FIXED batch drives loss from ~0.70 to ~0.0015 in 30 steps). A real bug
+    would still fail this version too -- it isolates "does the gradient
+    genuinely reduce the loss it was computed from" from "is 30 steps
+    enough to beat batch-to-batch data variance," which is what actually
+    broke the first attempt, not the model."""
+    from agent.model_zoo.dcnv2 import build
+
+    rng = np.random.default_rng(0)
+    n, n_fields, dim = 2000, 5, 200
+    X_all = rng.integers(0, dim, size=(n, n_fields)).astype(np.int32)
+    y_all = rng.integers(0, 2, size=n).astype(np.float32)
+    X, y = X_all[:200], y_all[:200]  # one fixed batch, reused every step
+
+    m = build(dim=dim, n_fields=n_fields, k=8, hidden=[16, 8], n_cross_layers=3, lr=0.01, seed=0)
+    losses = [m.step(X, y) for _ in range(30)]
+    assert losses[-1] < losses[0], f"loss should decrease on a fixed synthetic batch: {losses[0]} -> {losses[-1]}"
+    assert np.isfinite(losses).all(), f"all losses must be finite: {losses}"
+
+    preds = m.predict(X_all)
+    assert preds.shape == (n,), preds.shape
+    assert np.isfinite(preds).all(), "predictions must be finite -- a cross network's repeated " \
+        "x0-anchored matrix product is a real place for magnitudes to blow up or vanish"
+
+    state = m.get_state()
+    m2 = build(dim=dim, n_fields=n_fields, k=8, hidden=[16, 8], n_cross_layers=3, lr=0.01, seed=2)
+    m2.set_state(state)
+    assert np.allclose(m.predict(X), m2.predict(X)), "get_state/set_state round-trip must reproduce predictions"
+
+    from agent.model_zoo import build as build_registry
+    m3 = build_registry("dcnv2", dim=dim, n_fields=n_fields, k=8, hidden=[16, 8], seed=0)
+    assert m3.predict(X_all).shape == (n,), "must also be reachable through the real registry, not just its own build()"
+
+
 def test_load_aux_labels_with_click_field_matches_default_on_shared_columns():
     """Real-data check: agent/features.py's load_aux_labels(fields=...)
     parameter must return the SAME values for the original 4 columns
@@ -1441,6 +1490,46 @@ def test_run_p4_skips_low_priority_proposals_without_spending_compute():
         )
 
 
+def test_verify_node_multiseed_reports_real_subprocess_wall_time():
+    """Regression test for a real bug caught live: `verify_node_multiseed`
+    used to time itself with `time.process_time()` wrapped around
+    `run_with_recovery()`, which spawns a SEPARATE subprocess to do the
+    actual training (agent/recovery.py, required on Windows) -- the
+    wrapper's own process_time() only counts CPU time the wrapper itself
+    burns (mostly idle time waiting on `proc.join()`), not the child's.
+    Live symptom: a 3-seed DCNv2 verification that took several real
+    minutes of subprocess training reported `wall_time_s=0.03`. Fixed by
+    summing each per-seed result's own `wall_time_s` (measured INSIDE the
+    subprocess by agent/experiment.py). This test trains a real, tiny,
+    fast config (fm, 2 epochs) on two fresh seeds and checks the reported
+    total is at least in the same neighborhood as genuine training time,
+    not near-zero."""
+    import tempfile
+    from tools.verify_multiseed import verify_node_multiseed
+    from agent.research_map import ResearchMap
+
+    with tempfile.TemporaryDirectory() as d:
+        map = ResearchMap(Path(d) / "map.json")
+        cfg = ExperimentConfig(id="fm_wall_time_check", model="fm", hypothesis="h",
+                                hyperparams={"k": 4, "lr": 0.01, "epochs": 2, "batch": 8192})
+        map.add_node(cfg, edge_type="draft")
+        map.update_node("fm_wall_time_check", status="done", metrics={"valid": {"primary_mean": 0.5}})
+
+        out = verify_node_multiseed(map, "fm_wall_time_check", str(DEFAULT_DATA_DIR),
+                                     seeds=[0, 1], timeout_s=120.0)
+        assert out is not None, "a real, valid fm config must train successfully"
+        agg, d, wall_time_s, newly_run = out
+        assert newly_run == [0, 1], "neither seed was cached yet -- both must be freshly trained"
+        assert wall_time_s > 0.5, (
+            f"reported wall_time_s={wall_time_s} is implausibly small for two real subprocess training "
+            f"runs -- this is exactly the bug this test guards against (the wrapper measuring its own "
+            f"idle time instead of the subprocess's real training time)"
+        )
+        assert wall_time_s == sum(r["wall_time_s"] for r in agg["per_seed"]), (
+            "must equal the sum of each per-seed result's own subprocess-measured wall_time_s exactly"
+        )
+
+
 def test_recovery_catches_broken_config():
     from agent.recovery import run_with_recovery
     bad_config = ExperimentConfig(
@@ -1503,6 +1592,7 @@ def main() -> int:
         tests.append(test_deepfm_mtl_focal_forward_backward_reduces_loss)
         tests.append(test_lambdarank_delta_ndcg5_math_on_hand_derived_cases)
         tests.append(test_deepfm_lambdarank_step_reduces_loss_and_handles_edge_cases)
+        tests.append(test_dcnv2_forward_backward_reduces_loss)
     except ImportError:
         pass
     tests += [
@@ -1524,6 +1614,7 @@ def main() -> int:
     ]
     if data_dir_available():
         tests.insert(0, test_evaluator_self_check)
+        tests.append(test_verify_node_multiseed_reports_real_subprocess_wall_time)
         tests.append(test_recovery_catches_broken_config)
         tests.append(test_recovery_catches_a_genuine_oom)
         tests.append(test_multi_fidelity_kills_a_broken_config)

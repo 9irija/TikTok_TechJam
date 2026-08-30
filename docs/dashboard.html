@@ -302,13 +302,13 @@
   <div class="eyebrow">Autonomous ML Research Agent · KuaiRand-Pure</div>
   <h1 class="title">Research Map</h1>
   <p class="subtitle">
-    Every experiment this agent has run, as a persistent tree — not a flat log. 26 nodes across
+    Every experiment this agent has run, as a persistent tree — not a flat log. 27 nodes across
     four build phases: Foundation (hand-authored), Differentiators (best-first selection + diagnosis-driven
     iteration), an LLM Research Strategist that reads this exact map to decide what to try next, and P2
     (engineered features, multi-task learning, LightGBM, hyperparameter search, DIN sequence modeling,
     DeepFM_BPR, watch-time multi-task, combined DIN+MTL, uncertainty-weighted MTL, listwise ranking loss,
-    PDAOM hard-pair mining, PCGrad gradient surgery, is_click, focal-loss, and LambdaRank variants —
-    fourteen of which came back honest negative or mixed results).
+    PDAOM hard-pair mining, PCGrad gradient surgery, is_click, focal-loss, LambdaRank, and DCNv2 variants —
+    fifteen of which came back honest negative or mixed results).
   </p>
 
   <div class="headline-card">
@@ -337,8 +337,8 @@
     <div class="tiles">
       <div class="tile">
         <div class="label">Nodes explored</div>
-        <div class="value tnum">26</div>
-        <div class="sub">4 Foundation · 4 Differentiators · 2 LLM-proposed · 16 P2</div>
+        <div class="value tnum">27</div>
+        <div class="sub">4 Foundation · 4 Differentiators · 2 LLM-proposed · 17 P2</div>
       </div>
       <div class="tile">
         <div class="label">Manual interventions</div>
@@ -561,6 +561,10 @@
       valid:0.5856, delta:-0.0179, tag:"critical", tagLabel:"regression",
       hyp:"Direct follow-up to the ten-refinements-of-deepfm_mtl_v1 pattern (P2 SS10-19): a structurally different lever from a different family entirely. LambdaRank (Burges et al. 2006) weights each within-user (positive, negative) pair by the actual |delta nDCG@5| swapping it would cause, targeting the scored metric directly rather than treating every violated pair equally the way BPR does, or using a metric-agnostic softmax the way the listwise attempt does. Same DeepFM backbone/hyperparameters as deepfm_regularized/deepfm_listwise -- only the loss function differs.",
       insight:"Both GAUC (-0.0256) and nDCG@5 (-0.0101) got worse -- the change likely hurt (bar=0.0002). [overfitting_risk: best validation epoch landed at ~29% of training length on average across seeds -- later epochs likely overfit train loss without validation benefit; consider fewer epochs or stronger regularization.]" },
+    { id:"dcnv2_v1", model:"dcnv2", edge:"improve", parent:"deepfm_regularized", phase:"P2", llm:false,
+      valid:0.6039, delta:0.0005, tag:"warning", tagLabel:"mixed",
+      hyp:"The one specific architecture named in this project roadmap alongside Wide&Deep, never tried -- built for completeness given every other capacity/architecture lever tested came back flat or negative. Replaces DeepFM/deepfm_regularized's FM 2nd-order interaction term with a Cross Network (Wang et al. 2020, DCNv2): n_cross_layers stacked explicit-cross layers run in parallel with a plain deep MLP tower, both reading the same flattened embedding. Same base hyperparameters as deepfm_regularized (k=16, hidden=[128,64], lr=0.001, l2=1e-4) so architecture is the only variable.",
+      insight:"Mixed/inconclusive signal (GAUC +0.0004, nDCG@5 +0.0005, primary +0.0005, bar=0.0004)." },
   ];
   var BASELINE = 0.6016;
   var BEST_ID = "deepfm_mtl_v1";

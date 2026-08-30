@@ -1086,6 +1086,143 @@ per-segment breakdown if there's ever a reason to revisit ensembling, but
 not a build-time win today. `deepfm_mtl_v1` remains the project-best and
 the shipped submission.
 
+## 22. Stacked ensemble via scikit-learn — a more principled method, an honestly *worse* number
+
+§21's ensemble used a hand-tuned grid search over a weight simplex,
+evaluated in-sample on valid (the same rows the weights were picked
+against) — standard practice for this project's other config-selection
+decisions, but a looser standard than proper stacking discipline, which
+never scores a meta-learner on rows it was fit on. `scikit-learn` wasn't
+usable on the primary dev machine for this project (Windows Application
+Control policy blocks `lightgbm`'s native DLL load; `scikit-learn` itself
+turned out to just be uninstalled, not blocked — `pip install scikit-learn`
+worked immediately once actually tried), so this was previously untested.
+
+`tools/check_stacked_ensemble.py`: same 3 z-scored components as §21
+(`fm_baseline_repro`, `deepfm_regularized`, `deepfm_mtl_v1`), combined by a
+`LogisticRegression` meta-learner instead of a fixed weight grid — genuinely
+more expressive (its own intercept, coefficients not constrained to sum to
+1, optimizes log-loss directly). Scored honestly via 5-fold
+`cross_val_predict` on valid (out-of-fold predictions only, never scored on
+rows the fold's own model saw during fitting):
+
+| | Valid primary |
+|---|---|
+| `deepfm_mtl_v1` solo | 0.6049 |
+| Stacked ensemble (5-fold out-of-fold) | **0.6044** |
+
+Delta: **−0.0004**. Learned coefficients (`fm=0.27`, `deepfm_regularized=0.55`,
+`deepfm_mtl_v1=0.45`, intercept −1.06) show the meta-learner leaning on
+`deepfm_regularized` slightly more than `deepfm_mtl_v1` despite the latter
+being the stronger solo model — a sign it's fitting noise in the 3-feature
+space rather than finding real complementary signal. Single seed, not
+3-seed-verified: unlike §13/§18's borderline single-seed results, this one
+came back *negative* on the fair, out-of-fold evaluation already, so
+3-seed verification wouldn't change the decision (matching the precedent
+set by §14's PDAOM and §20's LambdaRank — a single seed is enough when the
+result is decisively unpromising, not ambiguous).
+
+**Honest read:** the more expressive method did not do better than the
+simpler grid search — if anything, the honest out-of-fold evaluation here
+is a *more* trustworthy read of the grid search's own result than the grid
+search's own in-sample number was. Both methods agree on the substantive
+conclusion: three z-scored, blended predictions of already-related
+embedding-based models (FM, DeepFM, DeepFM-MTL all share the same
+`user_id x video_id` embedding-crossing core) don't have enough genuinely
+*independent* error to combine into something better than the strongest
+individual model. This sharpens §21's own diagnosis: the missing
+ingredient for a real ensemble win here is probably a component with a
+structurally different inductive bias (e.g. LightGBM's tree-based splits,
+blocked on this dev machine by the same environment issue that blocked
+`scikit-learn` until just now), not a better combination *method* for the
+same three components. `deepfm_mtl_v1` remains the project-best.
+
+## 23. DCNv2 — the last named architecture-level lever, checked for completeness
+
+The one specific architecture named in this project's own roadmap
+(`docs/POLISH_PASS_RESULTS.md`, README's former Limitations section)
+that was never actually tried, alongside Wide&Deep. Explicitly the
+lowest-priority lever per CLAUDE.md's own "Unexplored headroom" ranking —
+every capacity/architecture change actually tested in this project came
+back flat or negative (embedding width k=8/16/32 flat per the starter
+kit's own ablation; CWM's extra feature domains no gain; DIN's attention
+block a `ranking_tradeoff`, not a clean win; LightGBM's tree splits a real
+loss vs. the embedding-based models). Built anyway for completeness, with
+expectations set accordingly, not because the evidence pointed toward it.
+
+`agent/model_zoo/dcnv2.py` (Wang et al. 2020): replaces DeepFM's FM
+2nd-order interaction term with a Cross Network — `n_cross_layers`
+stacked layers of the form `x_{l+1} = x0 * (W_l @ x_l + b_l) + x_l`,
+run in parallel with a plain deep MLP tower, both reading the same
+flattened embedding `x0`, concatenated before one final linear layer.
+Registered directly in `agent/model_zoo/registry.py` (plain pointwise
+BCE, no special training-loop branch needed, unlike the per-user-batched
+loss variants) — the first new P2 model that runs through the normal
+`agent/experiment.py` path without a standalone-check workaround.
+
+A real bug caught by its own unit test before ever touching real data:
+the first test design (shifting across different random batches, the
+pattern most other models' tests use) genuinely failed —
+`losses[-1] < losses[0]` broke because different random batches have
+different baseline losses, and 3 stacked cross layers at `lr=0.01` turned
+out noisier batch-to-batch than DeepFM's own gentler curve tolerates. Not
+an actual backward-pass bug: verified directly (same `lr` on a FIXED,
+repeated batch drives loss from ~0.70 to ~0.0015 in 30 steps). Fixed by
+switching the test to the fixed-batch design `deepfm_lambdarank`'s own
+test already established, which isolates "does the gradient reduce the
+loss it was computed from" from "is 30 steps enough to beat batch-to-batch
+variance" — the latter is what actually broke, not the model.
+
+Trained with `k=16, hidden=[128,64], n_cross_layers=2, lr=0.001, l2=1e-4`,
+identical to `deepfm_regularized` so architecture is the only variable
+(`parent_id=deepfm_regularized`, registered as `dcnv2_v1`). Single seed
+first: valid primary 0.6037, best epoch 8/12 (a healthy curve, not an
+early-collapse pattern like PDAOM/PCGrad/the first BPR attempt) — close
+enough to its parent (+0.0002) to need verification before trusting it,
+same discipline as any single-seed result this close.
+
+3-seed verified (`tools/verify_multiseed.py`):
+
+| | Valid primary | vs. parent (`deepfm_regularized`) |
+|---|---|---|
+| `dcnv2_v1` | 0.6039 ± 0.0003 | +0.0004 GAUC, +0.0005 nDCG@5, +0.0005 primary — **exactly at** the 0.0004 significance bar |
+| `deepfm_mtl_v1` (current best, for comparison) | 0.6046 ± 0.0003 | — |
+
+Diagnosed `mixed` by `agent/diagnosis.py`'s own significance-bar logic —
+not `clear_improvement` (the delta needs to be *strictly greater* than the
+bar on both metrics; here it lands right on it, a genuine coin-flip
+result at this project's own resolution limit for distinguishing signal
+from noise with 3 seeds), and not `noise_floor` either. The most honest
+characterization: DCNv2 is indistinguishable from a marginal tie with
+`deepfm_regularized`, at best -- and still clearly below `deepfm_mtl_v1`
+either way. Consistent with the wider pattern this whole project has
+found: architecture changes (embedding width, CWM features, DIN, now
+DCNv2, LightGBM) cluster around flat-to-marginal outcomes, while the
+multi-task *training signal* change (`deepfm_mtl_v1`) is the one lever
+that produced a clear, repeatedly-confirmed win. `deepfm_mtl_v1` remains
+the project-best.
+
+**A real bug this check surfaced, caught by its own regression test before
+being trusted:** `tools/verify_multiseed.py`'s `verify_node_multiseed()`
+originally timed itself with `time.process_time()` wrapped around
+`run_with_recovery()` -- which spawns a *separate subprocess* to do the
+actual training (`agent/recovery.py`, required for a real timeout kill on
+Windows). A wrapper's own `process_time()` only counts CPU time the
+wrapper itself burns (mostly idle time waiting on `proc.join()`), not the
+child's. Live symptom: DCNv2's 3-seed verification, which took several
+real minutes of subprocess training, initially reported `wall_time_s=0.03`.
+Since this value feeds directly into `agent/p1_orchestrator.py`'s and
+`agent/p4_orchestrator.py`'s own wall-clock budget accounting (the
+auto-verification feature added earlier this pass), this would have
+silently undermined `--max_wall_time_s`'s real ceiling -- the exact kind
+of "looks like it works, quietly doesn't" bug this project has caught
+several times before (the 12h host-sleep wall-clock bug in P1, the
+Diagnosis Engine's false noise_floor label). Fixed by summing each
+per-seed result's own `wall_time_s` (measured *inside* the subprocess by
+`agent/experiment.py`, always correct) instead of timing the wrapper.
+Regression-tested (`test_verify_node_multiseed_reports_real_subprocess_wall_time`)
+against a real, fast, two-seed training run.
+
 ## Net effect on the project-best
 
 | | Valid primary (3-seed) | Test primary (3-seed mean) | vs. official baseline (test) |

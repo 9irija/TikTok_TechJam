@@ -30,7 +30,6 @@ from __future__ import annotations
 
 import argparse
 import sys
-import time
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -73,7 +72,7 @@ def verify_node_multiseed(map: ResearchMap, node_id: str, data_dir: str, seeds: 
 
     per_seed_results = []
     newly_run = []
-    t0 = time.process_time()
+    wall_time_s = 0.0
     for seed in seeds:
         if seed in existing_by_seed:
             per_seed_results.append(existing_by_seed[seed])
@@ -88,9 +87,22 @@ def verify_node_multiseed(map: ResearchMap, node_id: str, data_dir: str, seeds: 
         result = dict(result, seed=seed)
         per_seed_results.append(result)
         newly_run.append(seed)
+        # `result["wall_time_s"]` is measured INSIDE the training subprocess
+        # (agent/experiment.py's own time.process_time() call) -- summing
+        # that, not timing this function's own process_time() around the
+        # run_with_recovery() call, which spawns a separate subprocess
+        # (agent/recovery.py, required on Windows). A wrapper's own
+        # process_time() only accounts for CPU time the WRAPPER itself
+        # burns (mostly idle time.sleep-style waiting on proc.join()), not
+        # the child's -- caught live: this returned ~0.03s total for two
+        # real multi-minute training runs before being fixed, which would
+        # have silently broken agent/p1_orchestrator.py's and
+        # agent/p4_orchestrator.py's wall-clock budget accounting (the
+        # auto-verification step's real cost would never show up in
+        # wall_time_total_s, undermining --max_wall_time_s).
+        wall_time_s += result["wall_time_s"]
         if log:
             log(f"    valid primary = {result['valid']['primary']:.4f}")
-    wall_time_s = time.process_time() - t0
 
     agg = _aggregate_seed_results(per_seed_results)
     parent_metrics = map.nodes[node.parent_id].metrics if node.parent_id in map.nodes else None
