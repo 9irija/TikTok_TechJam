@@ -577,6 +577,58 @@ def test_deepfm_mtl_pcgrad_forward_backward_reduces_loss():
     assert np.allclose(m.predict(X), m2.predict(X)), "get_state/set_state round-trip must reproduce predictions"
 
 
+def test_deepfm_mtl_click_forward_backward_reduces_loss():
+    """P2's is_click-extended MTL model (agent/model_zoo/deepfm_mtl_click.py),
+    through the REAL Model Zoo registry -- same shape of test as
+    deepfm_mtl's own, plus proving the 5-output aux head (not 4) trains
+    correctly and declares aux_fields so agent/experiment.py's is_mtl
+    branch knows to load the click-extended label set."""
+    from agent.features import AUX_LABEL_FIELDS_WITH_CLICK
+    from agent.model_zoo.deepfm_mtl_click import DeepFM_MTL_Click
+
+    assert DeepFM_MTL_Click.aux_fields == AUX_LABEL_FIELDS_WITH_CLICK
+    assert len(AUX_LABEL_FIELDS_WITH_CLICK) == 5 and "is_click" in AUX_LABEL_FIELDS_WITH_CLICK
+
+    rng = np.random.default_rng(0)
+    n, n_fields, dim = 2000, 5, 200
+    X = rng.integers(0, dim, size=(n, n_fields)).astype(np.int32)
+    y = rng.integers(0, 2, size=n).astype(np.float32)
+    aux = rng.integers(0, 2, size=(n, 5)).astype(np.float32)
+
+    m = build_model("deepfm_mtl_click", dim=dim, n_fields=n_fields, k=8, hidden=[16, 8], lr=0.01,
+                     aux_weight=0.2, seed=0)
+    losses = [m.mtl_step(X[i:i + 200], y[i:i + 200], aux[i:i + 200]) for i in range(0, n, 200) for _ in range(3)]
+    assert losses[-1] < losses[0], f"main-task loss should decrease on synthetic data: {losses[0]} -> {losses[-1]}"
+
+    preds = m.predict(X)
+    assert preds.shape == (n,), preds.shape
+    assert np.isfinite(preds).all(), "predictions must be finite"
+
+    state = m.get_state()
+    m2 = build_model("deepfm_mtl_click", dim=dim, n_fields=n_fields, k=8, hidden=[16, 8], lr=0.01,
+                      aux_weight=0.2, seed=2)
+    m2.set_state(state)
+    assert np.allclose(m.predict(X), m2.predict(X)), "get_state/set_state round-trip must reproduce predictions"
+
+
+def test_load_aux_labels_with_click_field_matches_default_on_shared_columns():
+    """Real-data check: agent/features.py's load_aux_labels(fields=...)
+    parameter must return the SAME values for the original 4 columns
+    whether called with the default AUX_LABEL_FIELDS or the click-extended
+    AUX_LABEL_FIELDS_WITH_CLICK -- proves the new `fields` parameter is a
+    pure extension, not a behavior change for every already-validated
+    deepfm_mtl_v1-family node."""
+    from agent.features import AUX_LABEL_FIELDS, AUX_LABEL_FIELDS_WITH_CLICK, load_aux_labels
+
+    default = load_aux_labels(str(DEFAULT_DATA_DIR))
+    extended = load_aux_labels(str(DEFAULT_DATA_DIR), fields=AUX_LABEL_FIELDS_WITH_CLICK)
+    for split in ("train", "valid", "test"):
+        assert extended[split].shape == (default[split].shape[0], 5)
+        for i, f in enumerate(AUX_LABEL_FIELDS):
+            assert np.array_equal(default[split][:, i], extended[split][:, i]), \
+                f"'{f}' column diverged between the default and click-extended aux label calls ({split})"
+
+
 def test_research_map_basic():
     import tempfile
     from agent.research_map import ResearchMap
@@ -1153,6 +1205,7 @@ def main() -> int:
         tests.append(test_deepfm_bpr_forward_backward_reduces_loss)
         tests.append(test_pcgrad_resolve_math_on_hand_constructed_cases)
         tests.append(test_deepfm_mtl_pcgrad_forward_backward_reduces_loss)
+        tests.append(test_deepfm_mtl_click_forward_backward_reduces_loss)
     except ImportError:
         pass
     tests += [
@@ -1177,6 +1230,7 @@ def main() -> int:
         tests.append(test_features_extended_shape_and_no_leakage)
         tests.append(test_sequences_video_vocab_matches_encode_extended)
         tests.append(test_sequences_encode_with_history_shape_and_no_future_leakage)
+        tests.append(test_load_aux_labels_with_click_field_matches_default_on_shared_columns)
     else:
         print("  (data dir not found -- skipping self-check and recovery-subprocess tests)")
 

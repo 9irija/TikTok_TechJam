@@ -10,7 +10,7 @@ from typing import Callable
 from . import deepfm, fm, fm_bpr
 
 try:
-    from . import deepfm_bpr, deepfm_mtl, deepfm_mtl_pcgrad
+    from . import deepfm_bpr, deepfm_mtl, deepfm_mtl_click, deepfm_mtl_pcgrad
     _HAS_TORCH = True
 except ImportError:
     _HAS_TORCH = False  # torch not installed -- every other model in this file still works
@@ -24,8 +24,9 @@ if _HAS_TORCH:
     MODELS["deepfm_mtl"] = deepfm_mtl.build  # P2: multi-task DeepFM (torch) -- see deepfm_mtl.py
     MODELS["deepfm_bpr"] = deepfm_bpr.build  # P2: DeepFM + pairwise BPR loss -- see deepfm_bpr.py
     MODELS["deepfm_mtl_pcgrad"] = deepfm_mtl_pcgrad.build  # P2: MTL + gradient surgery -- see deepfm_mtl_pcgrad.py
+    MODELS["deepfm_mtl_click"] = deepfm_mtl_click.build  # P2: MTL + is_click 5th aux head -- see deepfm_mtl_click.py
 
-_NEEDS_N_FIELDS = {"deepfm", "deepfm_mtl", "deepfm_bpr", "deepfm_mtl_pcgrad"}  # models whose forward pass depends on field count
+_NEEDS_N_FIELDS = {"deepfm", "deepfm_mtl", "deepfm_bpr", "deepfm_mtl_pcgrad", "deepfm_mtl_click"}  # models whose forward pass depends on field count
 
 
 def build(model_name: str, dim: int, n_fields: int, **hyperparams):

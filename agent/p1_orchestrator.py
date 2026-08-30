@@ -112,6 +112,7 @@ def p1_candidate_pool(map: ResearchMap) -> list[ExperimentConfig]:
     candidates.extend(_multi_task_candidates(map))
     candidates.extend(_deepfm_bpr_candidates(map))
     candidates.extend(_pcgrad_candidates(map))
+    candidates.extend(_mtl_click_candidates(map))
     candidates.extend(_diagnosis_driven_candidates(map))
     return [c for c in candidates if c.id not in map.nodes]
 
@@ -290,6 +291,52 @@ def _pcgrad_candidates(map: ResearchMap) -> list[ExperimentConfig]:
         edge_type="improve",
         notes="agent/model_zoo/deepfm_mtl_pcgrad.py -- reuses agent/experiment.py's existing is_mtl branch "
               "(same mtl_step(X,y,aux) contract as deepfm_mtl.py), wired directly into the real pipeline.",
+    )]
+
+
+def _mtl_click_candidates(map: ResearchMap) -> list[ExperimentConfig]:
+    """More of the ONE mechanism that's actually worked, not another
+    architecture bet or another refinement of deepfm_mtl_v1's existing
+    training dynamics (both magnitude- and direction-based refinements --
+    uncertainty weighting, PCGrad -- already failed to beat it). Checked
+    against the raw log before writing any model code: `is_click` has a
+    ~45.9% positive rate vs. AUX_LABEL_FIELDS' existing four signals at
+    0.1-1.8% each -- a genuinely denser, different-character signal, not
+    just a 5th flavor of the same sparse-engagement idea. See
+    agent/model_zoo/deepfm_mtl_click.py's own docstring for the fuller
+    reasoning, including two other candidates (is_hate, is_profile_enter,
+    and the organizer's own video_features_statistic_pure.csv) that were
+    checked and explicitly set aside this round -- the video-statistics
+    file for a real, verified leakage reason (averaged over the full
+    dataset period, overlapping valid/test dates), the other two to keep
+    this experiment isolated to one variable.
+    """
+    parent = map.nodes.get("deepfm_mtl_v1")
+    if parent is None or parent.status != "done" or "deepfm_mtl_click_v1" in map.nodes:
+        return []
+    try:
+        import torch  # noqa: F401
+    except ImportError:
+        return []  # torch not installed in this environment -- skip, don't fail the whole pool
+
+    base_hp = dict(parent.config.hyperparams)
+    return [ExperimentConfig(
+        id="deepfm_mtl_click_v1", model="deepfm_mtl_click",
+        hypothesis=(
+            f"Adds is_click as a 5th auxiliary head to '{parent.node_id}''s proven multi-task recipe "
+            f"(valid primary {(parent.metrics or {}).get('valid', {}).get('primary_mean')}) -- not a new "
+            f"architecture or a refinement of the existing training dynamics, but more of the one signal "
+            f"category that's already worked: a genuinely new, denser auxiliary signal. Checked directly "
+            f"against the raw log before building anything: is_click's positive rate (~45.9%) is roughly "
+            f"25-450x denser than any of the 4 existing auxiliary signals (0.1-1.8% each), a qualitatively "
+            f"different kind of training signal, not just a 5th sparse-engagement flavor. Same fields/k/"
+            f"hidden/l2/aux_weight as the parent, so the added signal is the only variable."
+        ),
+        hyperparams=base_hp, fields=list(parent.config.fields), parent_id="deepfm_mtl_v1", seeds=[0],
+        edge_type="improve",
+        notes="agent/model_zoo/deepfm_mtl_click.py -- reuses agent/experiment.py's is_mtl branch via the "
+              "new model-declared aux_fields attribute (AUX_LABEL_FIELDS_WITH_CLICK), wired directly into "
+              "the real pipeline, not standalone-checked first.",
     )]
 
 

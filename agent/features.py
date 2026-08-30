@@ -84,23 +84,36 @@ def load_splits(data_dir: str | None = None) -> dict[str, list[dict[str, Any]]]:
 
 AUX_LABEL_FIELDS = ["is_like", "is_follow", "is_comment", "is_forward"]
 
+# Adds is_click -- deliberately NOT in AUX_LABEL_FIELDS by default (deepfm_mtl_v1's
+# already-verified, cached-node behavior must not silently change). Positive
+# rate ~45.9% on a 500K-row sample vs. AUX_LABEL_FIELDS' own 0.1-1.8% -- a
+# genuinely denser, qualitatively different signal than the four existing
+# (rare) engagement actions, not just a 5th flavor of the same thing. See
+# agent/model_zoo/deepfm_mtl_click.py for why this is worth its own isolated
+# candidate rather than folding into AUX_LABEL_FIELDS directly.
+AUX_LABEL_FIELDS_WITH_CLICK = AUX_LABEL_FIELDS + ["is_click"]
 
-def load_aux_labels(data_dir: str | None = None) -> dict[str, np.ndarray]:
-    """Per-split (N, 4) float32 arrays of `AUX_LABEL_FIELDS` -- TikTok's
-    other logged engagement signals, used only as AUXILIARY training
-    targets for a multi-task model (agent/model_zoo/deepfm_mtl.py), never
-    as model *input* (that would be a different, much more direct leak than
+
+def load_aux_labels(data_dir: str | None = None, fields: list[str] | None = None) -> dict[str, np.ndarray]:
+    """Per-split `(N, len(fields))` float32 arrays -- TikTok's other logged
+    engagement signals, used only as AUXILIARY training targets for a
+    multi-task model (agent/model_zoo/deepfm_mtl.py and variants), never as
+    model *input* (that would be a different, much more direct leak than
     the play_time_ms one this file already guards against: is_like/
     is_follow/etc. are themselves outcomes of the same impression being
-    scored, not history). Same row order as `load_splits`/`encode_extended`
-    -- both iterate the identical two log files in the identical order with
-    the identical date-range filter (kuairand-starter-kit/data.py does too;
+    scored, not history). `fields` defaults to `AUX_LABEL_FIELDS` (the
+    original 4, matching every already-cached deepfm_mtl_v1-family node's
+    training) -- pass `AUX_LABEL_FIELDS_WITH_CLICK` for the click-extended
+    variant. Same row order as `load_splits`/`encode_extended` -- both
+    iterate the identical two log files in the identical order with the
+    identical date-range filter (kuairand-starter-kit/data.py does too;
     confirmed by direct comparison, not assumed), so an aux array from here
     lines up positionally with any encoder's X/y for the same split without
     needing to carry a shared row-id key through.
     """
+    fields = fields if fields is not None else AUX_LABEL_FIELDS
     splits = load_splits(data_dir)
-    return {name: np.array([[x[f] for f in AUX_LABEL_FIELDS] for x in rows], dtype=np.float32)
+    return {name: np.array([[x[f] for f in fields] for x in rows], dtype=np.float32)
             for name, rows in splits.items()}
 
 

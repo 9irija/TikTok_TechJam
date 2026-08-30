@@ -59,7 +59,7 @@ class ExperimentResult:
 
 
 _ENCODED_CACHE: dict[tuple, Any] = {}  # (data_dir, tuple(fields)) -> (enc, dim), in-process memo
-_AUX_LABEL_CACHE: dict[str, Any] = {}  # data_dir -> {split: (N,4) array}, only loaded for mtl_step models
+_AUX_LABEL_CACHE: dict[tuple, Any] = {}  # (data_dir, tuple(aux_fields)) -> {split: (N,k) array}, mtl_step models only
 
 
 def _load_encoded(data_dir: str, fields: list[str]):
@@ -176,15 +176,23 @@ def run_experiment(config: ExperimentConfig, data_dir: str, seed: int,
 
     is_mtl = hasattr(model, "mtl_step")
     if is_mtl:
-        # P2's multi-task DeepFM (agent/model_zoo/deepfm_mtl.py): needs
-        # is_like/is_follow/is_comment/is_forward alongside (X, y) per batch.
-        # Cached per data_dir (not per-fields -- aux labels don't depend on
-        # which encoder built X) so a second mtl experiment in the same
-        # process/subprocess doesn't re-parse the raw CSVs.
-        if data_dir not in _AUX_LABEL_CACHE:
+        # P2's multi-task DeepFM family (agent/model_zoo/deepfm_mtl.py and
+        # variants): needs auxiliary labels alongside (X, y) per batch. Which
+        # fields is model-declared via an optional `aux_fields` attribute
+        # (e.g. deepfm_mtl_click.py's AUX_LABEL_FIELDS_WITH_CLICK) -- defaults
+        # to agent.features.AUX_LABEL_FIELDS (the original 4) so
+        # deepfm_mtl.py/deepfm_mtl_pcgrad.py/deepfm_mtl_uncertainty.py, none
+        # of which set this attribute, keep behaving exactly as already
+        # validated. Cached per (data_dir, aux_fields) -- not just data_dir --
+        # so a second mtl experiment with a DIFFERENT aux field set in the
+        # same process/subprocess doesn't silently reuse the wrong cache.
+        from .features import AUX_LABEL_FIELDS
+        aux_fields = tuple(getattr(model, "aux_fields", AUX_LABEL_FIELDS))
+        cache_key = (data_dir, aux_fields)
+        if cache_key not in _AUX_LABEL_CACHE:
             from .features import load_aux_labels
-            _AUX_LABEL_CACHE[data_dir] = load_aux_labels(data_dir)
-        aux_tr = _AUX_LABEL_CACHE[data_dir]["train"]
+            _AUX_LABEL_CACHE[cache_key] = load_aux_labels(data_dir, fields=list(aux_fields))
+        aux_tr = _AUX_LABEL_CACHE[cache_key]["train"]
         if sub_idx is not None:
             aux_tr = aux_tr[sub_idx]  # same sub-sample as Xtr/ytr, same seeded indices
 
