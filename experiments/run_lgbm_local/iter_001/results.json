@@ -1,0 +1,42 @@
+{
+  "run_id": "run_lgbm_local",
+  "iteration_id": "iter_001",
+  "timestamp": 1788090038.61635,
+  "status": "ok",
+  "config_id": "lgbm_baseline",
+  "model": "lgbm",
+  "hyperparams": {
+    "objective": "binary",
+    "num_leaves": 63,
+    "learning_rate": 0.05,
+    "min_data_in_leaf": 50,
+    "feature_fraction": 0.9,
+    "bagging_fraction": 0.9,
+    "verbose": -1,
+    "num_boost_round": 500,
+    "early_stopping_rounds": 30,
+    "seed": 0,
+    "best_iteration": 264
+  },
+  "metrics": {
+    "n_seeds": 1,
+    "valid": {
+      "GAUC_mean": 0.6636445835974764,
+      "GAUC_std": 0.0,
+      "nDCG@5_mean": 0.5345795422938422,
+      "nDCG@5_std": 0.0,
+      "primary_mean": 0.5991120629456592,
+      "primary_std": 0.0
+    },
+    "test": {
+      "GAUC_mean": 0.6600077627103407,
+      "GAUC_std": 0.0,
+      "nDCG@5_mean": 0.5288057842917965,
+      "nDCG@5_std": 0.0,
+      "primary_mean": 0.5944067735010685,
+      "primary_std": 0.0
+    }
+  },
+  "wall_time_s": 51.779706999999995,
+  "note": "Retrained locally on macOS (tools/train_lgbm_and_cache.py) specifically to cache predictions.npz for tools/check_ensemble.py's 4-component run -- the existing lgbm_baseline Research Map node was trained on a teammate's Windows machine with no predictions cached there. Uses the organizer's own data.encode() pipeline (same as every other cached model here) rather than a from-scratch categorical encoding, so results may not be bit-identical to that original single-seed run, though they should land in the same ballpark (same task, same fields, same hyperparameters)."
+}

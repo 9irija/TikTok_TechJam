@@ -546,6 +546,26 @@ evidence `deepfm_mtl_v1` sits at a genuine local optimum for this
 benchmark's data volume, not that the search has been shallow. Full
 detail: [`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §21.
 
+**Adding LightGBM as a 4th ensemble component — still no win, now with a
+concrete reason why.** §21's own diagnosis suspected the 3-component
+ensemble tied instead of winning because FM/DeepFM/DeepFM-MTL are all
+embedding-based and plausibly correlated in their errors. `lgbm_baseline`
+(gradient-boosted trees — a genuinely different inductive bias) was the
+obvious test, but had no cached predictions anywhere (trained on a
+teammate's Windows machine, blocked from local retraining there by a
+Windows-only WDAC policy on LightGBM's native DLL — not a real bug, just
+not reproducible on that machine). Retrained locally on macOS instead
+(`tools/train_lgbm_and_cache.py`, landed almost exactly on the original
+number: 0.5991 valid vs. 0.5995), then `tools/check_ensemble.py`
+generalized from a hardcoded 3-component simplex to an N-component one
+and re-run with 4. **The grid search assigns LightGBM a weight of exactly
+0.00, at both grid resolutions tried (step=0.1 and 0.05)** — the
+diversity hypothesis doesn't hold: LightGBM's absolute quality (0.5991)
+sits far enough below the embedding-based models that whatever error
+diversity it offers costs more accuracy than it buys. Closes §21's own
+follow-up question with a real answer. Full detail:
+[`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §22.
+
 ## Engineered features — a real negative result, and a real bug it surfaced
 
 `agent/features.py` adds 4 new fields on top of the starter kit's base 5:
@@ -642,8 +662,12 @@ and declined with a stated reason.
   different levers on top of this — LambdaRank regressed clearly (a third,
   independent confirmation that pairwise-sampled losses underperform
   pointwise BCE here); the ensemble tied exactly after proper verification.
-  `deepfm_mtl_v1` remains the project-best after **seven** structurally
-  different directions tried beyond it.
+  §21's own follow-up question — would a genuinely diverse 4th component
+  (LightGBM) fix the tie? — was then closed too (§22): no, the grid search
+  assigns it weight 0.00 at every resolution tried, since its absolute
+  quality trails too far behind to be worth the diversity. `deepfm_mtl_v1`
+  remains the project-best after **eight** structurally different
+  directions tried beyond it.
 
 **Research loop — still open, genuinely:**
 - **Phase 4 has only run a handful of iterations.** A longer run would show

@@ -54,7 +54,14 @@ from agent.paths import DEFAULT_DATA_DIR, EXPERIMENTS_DIR, ensure_starter_kit_on
 ensure_starter_kit_on_path()
 from data import encode, load  # organizer's file, unmodified  # noqa: E402
 
-COMPONENTS = ["fm_baseline_repro", "deepfm_regularized", "deepfm_mtl_v1"]
+COMPONENTS = ["fm_baseline_repro", "deepfm_regularized", "deepfm_mtl_v1", "lgbm_baseline"]
+# lgbm_baseline added this pass: a genuinely different inductive bias (gradient-
+# boosted trees, not learned embeddings) than the other three, which are all
+# embedding-based and plausibly correlated in their errors -- the leading
+# candidate explanation for why the original 3-component (all-embedding) blend
+# only tied deepfm_mtl_v1 instead of beating it. Retrained locally
+# (tools/train_lgbm_and_cache.py) specifically to get a real predictions.npz
+# cached for it -- previously metrics-only, no cached predictions anywhere.
 
 
 def _find_cached(config_id: str) -> tuple[np.ndarray, np.ndarray]:
@@ -112,30 +119,28 @@ def main() -> int:
     for cid in COMPONENTS:
         print(f"  {cid:24s} {solo[cid]:.4f}")
 
-    print(f"\nGrid-searching blend weights (step={args.grid_step}) on VALID primary only...")
+    print(f"\nGrid-searching blend weights (step={args.grid_step}) on VALID primary only "
+          f"({len(COMPONENTS)} components -> {len(COMPONENTS) - 1}-dimensional simplex search)...")
     steps = np.arange(0.0, 1.0 + 1e-9, args.grid_step)
     best = None
-    for w_fm, w_deep in itertools.product(steps, steps):
-        if w_fm + w_deep > 1.0 + 1e-9:
+    for free_weights in itertools.product(steps, repeat=len(COMPONENTS) - 1):
+        if sum(free_weights) > 1.0 + 1e-9:
             continue
-        w_mtl = 1.0 - w_fm - w_deep
-        if w_mtl < -1e-9:
-            continue
-        w_mtl = max(w_mtl, 0.0)
-        blend = w_fm * z_valid["fm_baseline_repro"] + w_deep * z_valid["deepfm_regularized"] \
-            + w_mtl * z_valid["deepfm_mtl_v1"]
+        w_last = max(1.0 - sum(free_weights), 0.0)
+        weights = list(free_weights) + [w_last]
+        blend = sum(w * z_valid[cid] for w, cid in zip(weights, COMPONENTS))
         p = score(uva, yva, blend).primary
         if best is None or p > best[0]:
-            best = (p, w_fm, w_deep, w_mtl)
+            best = (p, weights)
 
-    best_valid_primary, w_fm, w_deep, w_mtl = best
-    print(f"\nBest blend: fm={w_fm:.2f}  deepfm_regularized={w_deep:.2f}  deepfm_mtl_v1={w_mtl:.2f}")
+    best_valid_primary, weights = best
+    weight_str = "  ".join(f"{cid}={w:.2f}" for cid, w in zip(COMPONENTS, weights))
+    print(f"\nBest blend: {weight_str}")
     print(f"  blend valid primary = {best_valid_primary:.4f}")
     print(f"  vs. deepfm_mtl_v1 solo (current best) = {solo['deepfm_mtl_v1']:.4f} "
           f"(delta {best_valid_primary - solo['deepfm_mtl_v1']:+.4f})")
 
-    blend_test = w_fm * z_test["fm_baseline_repro"] + w_deep * z_test["deepfm_regularized"] \
-        + w_mtl * z_test["deepfm_mtl_v1"]
+    blend_test = sum(w * z_test[cid] for w, cid in zip(weights, COMPONENTS))
     r_test = score(ute, yte, blend_test)
     r_test_mtl = score(ute, yte, raw_test["deepfm_mtl_v1"])
     print(f"\n  blend test primary (tracking only, never used to pick the blend) = {r_test.primary:.4f}")
@@ -154,8 +159,7 @@ def main() -> int:
     video_bucket = {k: int(np.searchsorted(edges, video_counts.get(k, 0))) for k in all_valid_videos}
     vva = [r[2] for r in valid_rows]
 
-    blend_valid = w_fm * z_valid["fm_baseline_repro"] + w_deep * z_valid["deepfm_regularized"] \
-        + w_mtl * z_valid["deepfm_mtl_v1"]
+    blend_valid = sum(w * z_valid[cid] for w, cid in zip(weights, COMPONENTS))
 
     print(f"\n{'=' * 78}\nPer-segment: blend vs. deepfm_mtl_v1 solo, by ITEM popularity quartile (valid)\n{'=' * 78}")
     print(f"  {'segment':18s} {'n_rows':>9s} {'mtl_solo':>10s} {'blend':>10s} {'delta':>9s}")

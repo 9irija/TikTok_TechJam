@@ -1086,6 +1086,59 @@ per-segment breakdown if there's ever a reason to revisit ensembling, but
 not a build-time win today. `deepfm_mtl_v1` remains the project-best and
 the shipped submission.
 
+## 22. Adding LightGBM as a 4th ensemble component — still no win, and now we know why
+
+§21's own diagnosis floated a specific, testable explanation for why the
+3-component ensemble only tied instead of winning: FM/DeepFM/DeepFM-MTL
+are all embedding-based and plausibly correlated in their errors, so
+averaging them buys little real diversity. `lgbm_baseline` (gradient-
+boosted trees, a genuinely different inductive bias) was the obvious
+candidate to test that — but it previously existed only as a metrics-only
+Research Map node, trained on a teammate's Windows machine with no cached
+`predictions.npz` anywhere (and blocked from being retrained there by a
+Windows-specific WDAC application-control policy refusing to load
+LightGBM's native DLL — `OSError: [WinError 4551]`, not a real bug, just
+not reproducible on that machine).
+
+Retrained locally on macOS instead (`tools/train_lgbm_and_cache.py`, same
+hyperparameters as the existing node: `num_leaves=63, lr=0.05,
+min_data_in_leaf=50, feature_fraction=0.9, bagging_fraction=0.9,
+num_boost_round=500, early_stopping_rounds=30`, organizer's own
+`data.encode()` pipeline for guaranteed row-alignment with the other
+cached models). Landed almost exactly on the original single-seed number
+(valid 0.5991 / test 0.5944 vs. the existing node's 0.5995 / 0.5946) — a
+good sanity check that this is a faithful reproduction, not a fluke of a
+different encoding path.
+
+`tools/check_ensemble.py`'s grid search was generalized from a hardcoded
+3-component simplex to an N-component one (any `COMPONENTS` list now
+works, not just exactly 3), then `lgbm_baseline` added as a 4th
+component. Checked at two grid resolutions (step=0.1 and step=0.05) to
+rule out a coarse-grid artifact:
+
+| grid step | best blend weights | blend valid primary | lgbm_baseline's weight |
+|---|---|---|---|
+| 0.10 | fm=0.20, deepfm_regularized=0.10, mtl=0.70, **lgbm=0.00** | 0.6051 | **0** |
+| 0.05 | fm=0.15, deepfm_regularized=0.30, mtl=0.55, **lgbm=0.00** | 0.6051 | **0** |
+
+**The grid search itself assigns LightGBM a weight of exactly zero at
+both resolutions — the diversity hypothesis doesn't hold.** The +0.0002
+valid edge that remains is the same one §21 already found and diagnosed
+`noise_floor` after 3-seed verification; adding a 4th, genuinely-diverse
+component didn't change that number at all, because the search correctly
+recognized LightGBM isn't worth including. The reason, in hindsight, is
+straightforward: LightGBM's absolute quality (0.5991) sits far enough
+below the three embedding-based models (0.6015-0.6049) that whatever
+error diversity it offers isn't worth the quality it drags the blend
+toward — diversity only helps a blend when it doesn't cost too much
+accuracy to buy it, and here it costs more than it buys.
+
+**Honest conclusion:** this closes the specific, well-reasoned follow-up
+question §21 raised, with a real answer rather than leaving it
+speculative. `deepfm_mtl_v1` remains the project-best and the shipped
+submission; ensembling — in every form tried across §5, §21, and this
+section — does not improve on it.
+
 ## Net effect on the project-best
 
 | | Valid primary (3-seed) | Test primary (3-seed mean) | vs. official baseline (test) |

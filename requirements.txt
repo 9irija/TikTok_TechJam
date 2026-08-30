@@ -64,8 +64,16 @@ torch>=2.0
 # manages its own boosting/early-stopping internally, a real interface
 # mismatch with every other model's per-epoch SGD loop -- not worth that
 # refactor once the standalone result showed a clear, structurally-explained
-# loss vs. the embedding-based models). Real result, not required to
-# reproduce anything else in this repo.
+# loss vs. the embedding-based models). Also used by tools/check_ensemble.py
+# as the 4th (tree-based) ensemble component -- see docs/P2_FEATURES_AND_RESULTS.md
+# Sec.22 -- and by tools/train_lgbm_and_cache.py, which retrains it and caches
+# predictions.npz locally. Real result, not required to reproduce anything
+# else in this repo.
+#
+# macOS note: the pip wheel needs the OpenMP runtime (libomp), not bundled by
+# default -- `brew install libomp` if `import lightgbm` fails with
+# `Library not loaded: @rpath/libomp.dylib`. Not an issue on Linux/Windows
+# wheels, which statically link it.
 lightgbm>=4.0
 
 # ---------------------------------------------------------------------------
