@@ -1,0 +1,118 @@
+{
+  "run_id": "run_20260830_033515",
+  "iteration_id": "iter_001",
+  "timestamp": 1788032911.2907357,
+  "status": "ok",
+  "config_id": "deepfm_mtl_pcgrad_v1",
+  "model": "deepfm_mtl_pcgrad",
+  "hypothesis": "Refines 'deepfm_mtl_v1''s own multi-task mechanism (valid primary 0.6046394259487893) rather than trying a new architecture: PCGrad (Yu et al. 2020, 'Gradient Surgery for Multi-Task Learning') resolves conflicting gradient DIRECTIONS between the main task and the auxiliary tasks on their shared parameters, before combining them -- a different pathology than deepfm_mtl_uncertainty_v1's loss-magnitude weighting (already tried, tied), which cannot address direction conflict even in principle. Simplified to a 2-task formulation (main vs. combined aux loss, not full 5-way pairwise) since aux_heads' 4 outputs share one weight matrix, not cleanly separable parameters. Same fields/k/hidden/l2/aux_weight as the parent, so gradient surgery is the only variable.",
+  "parent_id": "deepfm_mtl_v1",
+  "code_diff": {
+    "__root__": true
+  },
+  "hyperparams": {
+    "k": 16,
+    "lr": 0.001,
+    "l2": 0.0001,
+    "batch": 8192,
+    "epochs": 20,
+    "patience": 5,
+    "hidden": [
+      128,
+      64
+    ],
+    "aux_weight": 0.2
+  },
+  "metrics": {
+    "n_seeds": 1,
+    "valid": {
+      "GAUC_mean": 0.6686222601388162,
+      "GAUC_std": 0.0,
+      "nDCG@5_mean": 0.5366997647849937,
+      "nDCG@5_std": 0.0,
+      "primary_mean": 0.602661012461905,
+      "primary_std": 0.0
+    },
+    "test": {
+      "GAUC_mean": 0.6637633112445518,
+      "GAUC_std": 0.0,
+      "nDCG@5_mean": 0.5305246508331155,
+      "nDCG@5_std": 0.0,
+      "primary_mean": 0.5971439810388337,
+      "primary_std": 0.0
+    },
+    "delta_vs_baseline_test": {
+      "delta_GAUC": 0.0027633112445517583,
+      "delta_nDCG@5": 0.0023246508331155047,
+      "delta_primary_mean": 0.0025439810388336315
+    },
+    "per_seed": [
+      {
+        "experiment_id": "deepfm_mtl_pcgrad_v1",
+        "seed": 0,
+        "best_epoch": 5,
+        "epochs_run": 5,
+        "valid": {
+          "GAUC": 0.6686222601388162,
+          "nDCG@5": 0.5366997647849937,
+          "primary": 0.602661012461905
+        },
+        "test": {
+          "GAUC": 0.6637633112445518,
+          "nDCG@5": 0.5305246508331155,
+          "primary": 0.5971439810388337
+        },
+        "wall_time_s": 114.90625,
+        "num_params": 703370,
+        "train_loss_curve": [
+          0.5840203928095954,
+          0.5135187447071076,
+          0.5092965690152985,
+          0.5083444642169135,
+          0.5075029769114086
+        ],
+        "valid_primary_curve": [
+          0.5975517650248862,
+          0.6014526136890046,
+          0.6026404748936092,
+          0.6019007010705235,
+          0.602661012461905
+        ],
+        "train_fraction": 1.0
+      }
+    ]
+  },
+  "wall_time_s": 163.71875,
+  "recovery_events": [
+    {
+      "kind": "timeout",
+      "message": "Experiment 'deepfm_mtl_pcgrad_v1' (seed=0) exceeded 600s wall-clock budget; process terminated.",
+      "attempt": 1,
+      "timestamp": 1788032779.0035253
+    },
+    {
+      "kind": "fallback",
+      "message": "All 1 attempt(s) of 'deepfm_mtl_pcgrad_v1' failed; falling back to a 5-epoch degraded run so this iteration still logs a real result.",
+      "attempt": 2,
+      "timestamp": 1788032779.0041163
+    },
+    {
+      "kind": "retry",
+      "message": "Retry #1 of 'deepfm_mtl_pcgrad_v1' succeeded.",
+      "attempt": 2,
+      "timestamp": 1788032911.2698743
+    }
+  ],
+  "convergence": null,
+  "fidelity_info": {
+    "final_stage": "100pct",
+    "killed_at": null,
+    "kill_reason": null,
+    "stage_wall_times_s": {
+      "1pct": 15.5625,
+      "10pct": 33.25,
+      "100pct": 114.90625
+    },
+    "estimated_time_saved_s": null
+  }
+}

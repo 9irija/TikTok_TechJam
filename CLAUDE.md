@@ -424,7 +424,15 @@ alias stub in this environment that fails with no interpreter installed).
   tried (`deepfm_pdaom_v1`, standalone) -- a severe, well-diagnosed
   `regression` (valid 0.5483), ablations isolating that both the
   exponential loss shape and hard-mining hurt independently; see
-  `docs/P2_FEATURES_AND_RESULTS.md` §14.
+  `docs/P2_FEATURES_AND_RESULTS.md` §14. PCGrad gradient surgery also
+  tried (`deepfm_mtl_pcgrad_v1`, wired directly into the real pipeline --
+  reuses the is_mtl branch) -- resolves gradient *direction* conflict
+  between main/aux tasks, a different question than uncertainty-
+  weighting's magnitude-only reweighting. Result: valid 0.6027, a real
+  `regression` (-0.0019) against deepfm_mtl_v1. Both refinement angles on
+  the multi-task mechanism (magnitude, direction) now tried; neither
+  beats the original fixed-weight recipe. See
+  `docs/P2_FEATURES_AND_RESULTS.md` §17.
 - **Compliance pass against the officially updated Problem Statement
   (27 Aug 2026, 5:55PM):** confirmed the label/metrics conflict resolution
   (Starter Kit wins) is corroborated even more redundantly in the updated

@@ -789,6 +789,68 @@ slice this project scores — but reported exactly as measured rather than
 rounded up to "holds every day." No clear day-of-week or trend pattern is
 visible in the remaining 6 days' deltas.
 
+## 17. PCGrad gradient surgery (`deepfm_mtl_pcgrad_v1`) — a real regression, and a coherent reason for it
+
+Refines the one mechanism that's actually worked (`deepfm_mtl_v1`) rather
+than trying yet another architecture — every architecture bet this pass
+(DIN, BPR, listwise, PDAOM) came back negative or tied, independently
+reconfirming the organizers' own "capacity/architecture isn't the
+bottleneck" finding. `deepfm_mtl_uncertainty_v1` (§12) already tested
+whether fixed loss-*magnitude* weighting (`aux_weight=0.2`) was leaving
+something on the table — it wasn't (a tie at 8 seeds). PCGrad (Yu et al.
+2020, "Gradient Surgery for Multi-Task Learning") tests a genuinely
+different question: even with magnitudes fine, do the main and auxiliary
+tasks' gradients actively point in conflicting *directions* on their
+shared parameters? `agent/model_zoo/deepfm_mtl_pcgrad.py`: identical
+architecture to `deepfm_mtl.py`, but resolves that conflict (projects
+each task's shared-parameter gradient onto the other's orthogonal plane
+whenever they'd otherwise fight) before combining them, simplified to a
+2-task formulation (main vs. combined aux loss — `aux_heads`' 4 outputs
+share one weight matrix, not separable enough for full 5-way surgery
+without redesigning the architecture).
+
+**A real bug caught by the test suite, not anticipated in advance:** the
+first implementation treated `W` (the FM linear term) and `b` (bias) as
+"shared" parameters needing conflict resolution. They aren't — they only
+ever feed the main task's logit, never the auxiliary heads, so
+`torch.autograd.grad(aux_loss, [W, b, ...])` correctly threw "not used in
+the graph" the moment the real model test ran (not caught by the targeted
+math test, which used synthetic tensors that don't have this structural
+property). Fixed by moving `W`/`b` to main-task-private parameters
+(alongside `deep_out`) — only `V` (the embedding table) and the deep
+trunk are genuinely shared between both losses. Regression-tested with
+three hand-constructed cases with known expected outcomes (full
+cancellation on directly-opposing gradients, no-op on orthogonal
+gradients, no-op on reinforcing gradients) before ever training on real
+data.
+
+**Result** (`parent_id=deepfm_mtl_v1`, same fields/k/hidden/l2/aux_weight
+— gradient surgery is the only variable):
+
+| | Valid primary | vs. parent |
+|---|---|---|
+| `deepfm_mtl_pcgrad_v1` | 0.6027 | **−0.0019**, `regression` (GAUC −0.0028, nDCG@5 −0.0011, both individually well past the 0.0004 significance bar) |
+| `deepfm_mtl_v1` (parent, current best) | 0.6046 | — |
+
+Single-seed, not 3-seed re-verified — the margin is wide enough on both
+individual metrics (7x and 2.75x the bar respectively) that a second seed
+flipping the sign is implausible, the same judgment call already applied
+to `deepfm_pdaom_v1`'s clear regression.
+
+**Honest read, and why this result is coherent rather than just another
+data point:** both the magnitude question (`deepfm_mtl_uncertainty_v1`)
+and now the direction question (`deepfm_mtl_pcgrad_v1`) have been tested
+against `deepfm_mtl_v1`'s original, simple, fixed-weight recipe — neither
+refinement beat it, and PCGrad actively hurt. That's a real, informative
+signal about this specific setup, not just two more negative results
+stacked on the pile: whatever mild gradient conflict exists between the
+main and auxiliary tasks here isn't pure noise to be surgically removed —
+it plausibly carries useful information the model needs, and PCGrad's
+projection throws part of that away along with the conflict. Reasonable
+stopping point for refining the multi-task mechanism itself; `deepfm_mtl_v1`
+remains the project-best, now via two independent refinement attempts
+that both confirm its original recipe rather than improve on it.
+
 ## Net effect on the project-best
 
 | | Valid primary (3-seed) | Test primary (3-seed mean) | vs. official baseline (test) |

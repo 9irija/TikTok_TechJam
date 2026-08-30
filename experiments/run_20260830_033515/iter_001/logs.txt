@@ -1,0 +1,4 @@
+[03:48:31] status=ok wall_time=163.7s
+  [timeout] attempt 1: Experiment 'deepfm_mtl_pcgrad_v1' (seed=0) exceeded 600s wall-clock budget; process terminated.
+  [fallback] attempt 2: All 1 attempt(s) of 'deepfm_mtl_pcgrad_v1' failed; falling back to a 5-epoch degraded run so this iteration still logs a real result.
+  [retry] attempt 2: Retry #1 of 'deepfm_mtl_pcgrad_v1' succeeded.

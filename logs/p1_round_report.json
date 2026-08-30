@@ -1,36 +1,36 @@
 {
-  "run_id": "run_20260829_120203",
+  "run_id": "run_20260830_033515",
   "seeded_from_phase0": 0,
   "candidates_considered": 1,
   "ranking": [
     {
-      "id": "deepfm_bpr_v1_regularized",
-      "score": 8.154943934760449e-07,
-      "reasoning": "gain=+0.0005 ('deepfm_bpr' has more regressions than clear improvements in the Research Map so far (1 vs 0) -- low expected gain until a different direction shows promise.) | confidence=0.45 (based on 1 prior scored node(s) in this family) | novelty=0.50 ('deepfm_bpr' already has 1 node(s) in the Research Map -- novelty discounted.) | cost~=138s (1 seed(s))"
+      "id": "deepfm_mtl_pcgrad_v1",
+      "score": 1.7830584437762418e-06,
+      "reasoning": "gain=+0.0006 (Extrapolated at half of parent's own gain over its parent (+0.0012 -> projected +0.0006), diminishing-returns prior.) | confidence=0.30 (based on 0 prior scored node(s) in this family) | novelty=1.00 ('deepfm_mtl_pcgrad' is an entirely new model family in the Research Map -- maximum novelty.) | cost~=100s (1 seed(s))"
     }
   ],
   "results": [
     {
       "rank": 1,
-      "config_id": "deepfm_bpr_v1_regularized",
+      "config_id": "deepfm_mtl_pcgrad_v1",
       "status": "ok",
       "final_stage": "100pct",
       "killed_at": null,
       "kill_reason": null,
       "diagnosis": {
-        "tag": "clear_improvement",
-        "insight": "Both GAUC (+0.0214) and nDCG@5 (+0.0107) improved over the parent -- a clean win (bar=0.0020)."
+        "tag": "regression",
+        "insight": "Both GAUC (-0.0028) and nDCG@5 (-0.0011) got worse -- the change likely hurt (bar=0.0004)."
       },
-      "wall_time_s": 247.65625,
+      "wall_time_s": 163.71875,
       "estimated_time_saved_s": null
     }
   ],
   "resource_totals": {
-    "wall_time_total_s": 247.65625,
+    "wall_time_total_s": 163.71875,
     "estimated_time_saved_by_early_termination_s": 0.0
   },
   "research_map_summary": {
-    "total_nodes": 17,
+    "total_nodes": 23,
     "by_model": {
       "fm": {
         "count": 3,
@@ -73,16 +73,52 @@
         "done": 2,
         "failed": 0,
         "killed": 0
+      },
+      "deepfm_mtl_watch": {
+        "count": 1,
+        "done": 1,
+        "failed": 0,
+        "killed": 0
+      },
+      "deepfm_din_mtl": {
+        "count": 1,
+        "done": 1,
+        "failed": 0,
+        "killed": 0
+      },
+      "deepfm_mtl_uncertainty": {
+        "count": 1,
+        "done": 1,
+        "failed": 0,
+        "killed": 0
+      },
+      "deepfm_listwise": {
+        "count": 1,
+        "done": 1,
+        "failed": 0,
+        "killed": 0
+      },
+      "deepfm_pdaom": {
+        "count": 1,
+        "done": 1,
+        "failed": 0,
+        "killed": 0
+      },
+      "deepfm_mtl_pcgrad": {
+        "count": 1,
+        "done": 1,
+        "failed": 0,
+        "killed": 0
       }
     },
     "by_edge_type": {
       "draft": 2,
-      "improve": 12,
+      "improve": 18,
       "debug": 3
     },
     "best_node_id": "deepfm_mtl_v1",
     "best_valid_primary": 0.6046394259487893,
-    "raw_leaderboard_node_id": "deepfm_mtl_v1",
+    "raw_leaderboard_node_id": "deepfm_mtl_uncertainty_v1",
     "diagnosis_tags_seen": [
       "baseline_match",
       "clear_improvement",

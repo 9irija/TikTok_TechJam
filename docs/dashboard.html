@@ -302,12 +302,12 @@
   <div class="eyebrow">Autonomous ML Research Agent · KuaiRand-Pure</div>
   <h1 class="title">Research Map</h1>
   <p class="subtitle">
-    Every experiment this agent has run, as a persistent tree — not a flat log. 22 nodes across
+    Every experiment this agent has run, as a persistent tree — not a flat log. 23 nodes across
     four build phases: Foundation (hand-authored), Differentiators (best-first selection + diagnosis-driven
     iteration), an LLM Research Strategist that reads this exact map to decide what to try next, and P2
     (engineered features, multi-task learning, LightGBM, hyperparameter search, DIN sequence modeling,
     DeepFM_BPR, watch-time multi-task, combined DIN+MTL, uncertainty-weighted MTL, listwise ranking loss,
-    PDAOM hard-pair mining — eleven of which came back honest negative or mixed results).
+    PDAOM hard-pair mining, PCGrad gradient surgery — twelve of which came back honest negative or mixed results).
   </p>
 
   <div class="headline-card">
@@ -336,8 +336,8 @@
     <div class="tiles">
       <div class="tile">
         <div class="label">Nodes explored</div>
-        <div class="value tnum">22</div>
-        <div class="sub">4 Foundation · 4 Differentiators · 2 LLM-proposed · 12 P2</div>
+        <div class="value tnum">23</div>
+        <div class="sub">4 Foundation · 4 Differentiators · 2 LLM-proposed · 13 P2</div>
       </div>
       <div class="tile">
         <div class="label">Manual interventions</div>
@@ -544,6 +544,10 @@
       valid:0.5483, delta:-0.0552, tag:"critical", tagLabel:"regression",
       hyp:"PDAOM (arXiv:2304.09176) reconstruction: a pairwise EXPONENTIAL AUC-optimization loss (steeper than BPR's bounded log-sigmoid) combined with per-user HARD-PAIR MINING (hardest positive vs. hardest negative per batch, not BPR's uniform random pair) -- a genuinely different bet than fm_bpr/deepfm_bpr's pairwise loss (tested twice, both plateaued below baseline). Paper reports real GAUC/AUC gains over plain pairwise exponential loss in a production feed-recommendation system. Source paper's PDF text could not be machine-extracted (image-embedded); this is a faithful reconstruction from its abstract-level description plus standard AUC-optimization + batch-hard-mining literature, not a citation of its exact tuned constants.",
       insight:"Both GAUC (-0.0774) and nDCG@5 (-0.0330) got worse -- the change likely hurt (bar=0.0002)." },
+    { id:"deepfm_mtl_pcgrad_v1", model:"deepfm_mtl_pcgrad", edge:"improve", parent:"deepfm_mtl_v1", phase:"P2", llm:false,
+      valid:0.6027, delta:-0.002, tag:"critical", tagLabel:"regression",
+      hyp:"Refines 'deepfm_mtl_v1''s own multi-task mechanism (valid primary 0.6046394259487893) rather than trying a new architecture: PCGrad (Yu et al. 2020, 'Gradient Surgery for Multi-Task Learning') resolves conflicting gradient DIRECTIONS between the main task and the auxiliary tasks on their shared parameters, before combining them -- a different pathology than deepfm_mtl_uncertainty_v1's loss-magnitude weighting (already tried, tied), which cannot address direction conflict even in principle. Simplified to a 2-task formulation (main vs. combined aux loss, not full 5-way pairwise) since aux_heads' 4 outputs share one weight matrix, not cleanly separable parameters. Same fields/k/hidden/l2/aux_weight as the parent, so gradient surgery is the only variable.",
+      insight:"Both GAUC (-0.0028) and nDCG@5 (-0.0011) got worse -- the change likely hurt (bar=0.0004)." },
   ];
   var BASELINE = 0.6016;
   var BEST_ID = "deepfm_mtl_v1";

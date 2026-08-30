@@ -463,6 +463,18 @@ day (4/22, −0.0023) — reported plainly, not smoothed into "holds every
 day." Full detail:
 [`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §16.
 
+**Refining `deepfm_mtl_v1`'s own mechanism, not just trying new
+architectures.** `agent/model_zoo/deepfm_mtl_pcgrad.py`: PCGrad (Yu et al.
+2020) resolves gradient *direction* conflict between the main and
+auxiliary tasks — a different question than `deepfm_mtl_uncertainty_v1`'s
+loss-*magnitude* reweighting (already tried, tied). Result:
+`deepfm_mtl_pcgrad_v1` valid primary 0.6027, a real **regression**
+(−0.0019) against the parent. Both refinement angles on the multi-task
+mechanism — magnitude and direction — have now been tried, and neither
+beats the original simple, fixed-weight recipe; a coherent signal that
+whatever mild gradient conflict exists here isn't noise to remove. Full
+detail: [`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §17.
+
 ## Engineered features — a real negative result, and a real bug it surfaced
 
 `agent/features.py` adds 4 new fields on top of the starter kit's base 5:

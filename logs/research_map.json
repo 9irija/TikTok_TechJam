@@ -2943,6 +2943,107 @@
       "diagnosis_tag": "regression",
       "created_at": 1788026781.257192,
       "updated_at": 1788026781.258664
+    },
+    "deepfm_mtl_pcgrad_v1": {
+      "node_id": "deepfm_mtl_pcgrad_v1",
+      "config": {
+        "id": "deepfm_mtl_pcgrad_v1",
+        "model": "deepfm_mtl_pcgrad",
+        "hypothesis": "Refines 'deepfm_mtl_v1''s own multi-task mechanism (valid primary 0.6046394259487893) rather than trying a new architecture: PCGrad (Yu et al. 2020, 'Gradient Surgery for Multi-Task Learning') resolves conflicting gradient DIRECTIONS between the main task and the auxiliary tasks on their shared parameters, before combining them -- a different pathology than deepfm_mtl_uncertainty_v1's loss-magnitude weighting (already tried, tied), which cannot address direction conflict even in principle. Simplified to a 2-task formulation (main vs. combined aux loss, not full 5-way pairwise) since aux_heads' 4 outputs share one weight matrix, not cleanly separable parameters. Same fields/k/hidden/l2/aux_weight as the parent, so gradient surgery is the only variable.",
+        "hyperparams": {
+          "k": 16,
+          "lr": 0.001,
+          "l2": 0.0001,
+          "batch": 8192,
+          "epochs": 20,
+          "patience": 5,
+          "hidden": [
+            128,
+            64
+          ],
+          "aux_weight": 0.2
+        },
+        "fields": [
+          "user_id",
+          "video_id",
+          "author_id",
+          "tab",
+          "dur_bucket"
+        ],
+        "parent_id": "deepfm_mtl_v1",
+        "seeds": [
+          0
+        ],
+        "notes": "agent/model_zoo/deepfm_mtl_pcgrad.py -- reuses agent/experiment.py's existing is_mtl branch (same mtl_step(X,y,aux) contract as deepfm_mtl.py), wired directly into the real pipeline.",
+        "edge_type": "improve"
+      },
+      "edge_type": "improve",
+      "parent_id": "deepfm_mtl_v1",
+      "status": "done",
+      "fidelity": "100pct",
+      "metrics": {
+        "n_seeds": 1,
+        "valid": {
+          "GAUC_mean": 0.6686222601388162,
+          "GAUC_std": 0.0,
+          "nDCG@5_mean": 0.5366997647849937,
+          "nDCG@5_std": 0.0,
+          "primary_mean": 0.602661012461905,
+          "primary_std": 0.0
+        },
+        "test": {
+          "GAUC_mean": 0.6637633112445518,
+          "GAUC_std": 0.0,
+          "nDCG@5_mean": 0.5305246508331155,
+          "nDCG@5_std": 0.0,
+          "primary_mean": 0.5971439810388337,
+          "primary_std": 0.0
+        },
+        "delta_vs_baseline_test": {
+          "delta_GAUC": 0.0027633112445517583,
+          "delta_nDCG@5": 0.0023246508331155047,
+          "delta_primary_mean": 0.0025439810388336315
+        },
+        "per_seed": [
+          {
+            "experiment_id": "deepfm_mtl_pcgrad_v1",
+            "seed": 0,
+            "best_epoch": 5,
+            "epochs_run": 5,
+            "valid": {
+              "GAUC": 0.6686222601388162,
+              "nDCG@5": 0.5366997647849937,
+              "primary": 0.602661012461905
+            },
+            "test": {
+              "GAUC": 0.6637633112445518,
+              "nDCG@5": 0.5305246508331155,
+              "primary": 0.5971439810388337
+            },
+            "wall_time_s": 114.90625,
+            "num_params": 703370,
+            "train_loss_curve": [
+              0.5840203928095954,
+              0.5135187447071076,
+              0.5092965690152985,
+              0.5083444642169135,
+              0.5075029769114086
+            ],
+            "valid_primary_curve": [
+              0.5975517650248862,
+              0.6014526136890046,
+              0.6026404748936092,
+              0.6019007010705235,
+              0.602661012461905
+            ],
+            "train_fraction": 1.0
+          }
+        ]
+      },
+      "insight": "Both GAUC (-0.0028) and nDCG@5 (-0.0011) got worse -- the change likely hurt (bar=0.0004).",
+      "diagnosis_tag": "regression",
+      "created_at": 1788032911.2717035,
+      "updated_at": 1788032911.2799075
     }
   }
 }
