@@ -1277,6 +1277,65 @@ per-seed result's own `wall_time_s` (measured *inside* the subprocess by
 Regression-tested (`test_verify_node_multiseed_reports_real_subprocess_wall_time`)
 against a real, fast, two-seed training run.
 
+## 25. Stochastic Weight Averaging on `deepfm_mtl_v1` — a genuine null result, not a regression
+
+The last of this project's original 4-idea brainstorm (focal loss,
+LambdaRank, SWA, cascade modeling) never actually tried — focal loss and
+LambdaRank both came back regressions (§19-20). Genuinely orthogonal to
+every other lever tried: SWA (Izmailov et al. 2018) doesn't touch the loss
+function, architecture, training signal, or combine multiple separately-
+trained models (unlike §21-23's ensembling) — it changes how a single
+training run's *final checkpoint* is built, averaging weights across a
+window of epochs instead of taking the single best-validation-epoch point
+estimate every other model in this project uses.
+
+Directly motivated by `deepfm_mtl_v1`'s own real training curve (already
+on record): valid primary sits in a flat plateau roughly epochs 7-14
+(0.6036-0.6049) before dropping off at epoch 15+ — a textbook case for
+weight averaging, since the individual epoch checkpoints inside a plateau
+are different, roughly-equally-good local solutions. `DeepFM_MTL`'s
+architecture has no BatchNorm layers (embeddings, `Linear`, `ReLU` only),
+so plain elementwise parameter averaging needs no extra recalibration
+step, unlike the usual SWA caveat about BN running statistics.
+
+`tools/check_swa.py`: same exact hyperparameters as `deepfm_mtl_v1`
+(`k=16, hidden=[128,64], lr=0.001, l2=1e-4, aux_weight=0.2`), averaging
+every epoch whose valid primary is within `tolerance=0.0015` of the best
+epoch's (window picked by proximity to the best score, not a fixed "last K
+epochs" rule that would be sensitive to exactly when early stopping
+triggered):
+
+| | Valid primary | Test primary |
+|---|---|---|
+| Point-best checkpoint (epoch 12) | 0.6048 | 0.5979 |
+| SWA-averaged (8 epochs, 7-14) | 0.6046 | 0.5980 |
+| Delta | **−0.0002** | **+0.0001** |
+
+Single seed, not 3-seed-verified: the delta is already essentially zero in
+both directions (valid slightly down, test slightly up) — a decisively
+*null* result, not an ambiguous one, so verification wouldn't change the
+conclusion (same "a single seed is enough when the result is decisive"
+precedent §14/§23 already established, just for a null rather than a
+negative decision this time).
+
+**Honest read:** unlike focal loss and LambdaRank (both real regressions),
+SWA doesn't hurt `deepfm_mtl_v1` — it just doesn't help either. Plausible
+reason: the plateau epochs 7-14, while close in *validation score*, may
+already be similar enough *in weight space* (Adam's adaptive per-parameter
+steps late in training tend to make small, correlated updates near a
+minimum) that averaging them lands close to where any single one of them
+already sits, rather than in a meaningfully different, flatter region the
+way SWA helps most when individual checkpoints are more weight-space
+diverse (e.g., SGD with a cyclic/high constant LR, which finds more
+different points per epoch than Adam's fine-tuned late-training steps
+typically do). `cascade modeling`, the one remaining original-brainstorm
+idea, was not built: KuaiRand-Pure's evaluation scores a *fixed,
+already-logged* impression list per user, not a candidate-generation-then-
+rerank pipeline — the setting cascade modeling is designed for (cheaply
+filtering a huge candidate pool before an expensive final ranker) doesn't
+have a natural analogue when there's no candidate-generation step in the
+task to begin with. `deepfm_mtl_v1` remains the project-best.
+
 ## Net effect on the project-best
 
 | | Valid primary (3-seed) | Test primary (3-seed mean) | vs. official baseline (test) |

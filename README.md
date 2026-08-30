@@ -618,6 +618,29 @@ project has caught before, and one that would have silently undermined
 `--max_wall_time_s`'s budget accounting. Fixed and regression-tested. Full
 detail: [`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §24.
 
+**Stochastic Weight Averaging — the last untried item from this project's
+original brainstorm, a genuine null result.** SWA (Izmailov et al. 2018) is
+orthogonal to every other lever tried — it doesn't touch the loss,
+architecture, or training signal, and doesn't combine multiple separately-
+trained models; it changes how a single run's *final checkpoint* is built,
+averaging weights across a plateau of epochs instead of taking the single
+best-validation-epoch point estimate. Motivated directly by
+`deepfm_mtl_v1`'s own training curve, which plateaus at valid primary
+0.6036-0.6049 across epochs 7-14 before dropping off — a textbook SWA
+setup. `tools/check_swa.py`: averaging those 8 plateau epochs' weights
+scores valid primary 0.6046 vs. the point-best checkpoint's 0.6048
+(**−0.0002**, essentially zero, test actually +0.0001) — unlike focal loss
+and LambdaRank (both real regressions), SWA doesn't hurt, it just doesn't
+help either. `cascade modeling`, the other original-brainstorm idea, was
+never built: this benchmark scores a fixed, already-logged impression list
+per user, not a candidate-generation-then-rerank pipeline, so cascade
+modeling's usual value (cheaply filtering a huge pool before an expensive
+final ranker) has no natural analogue here — there's no candidate-
+generation step in the task to begin with. `deepfm_mtl_v1` remains the
+project-best after **eleven** structurally different levers tried beyond
+its own original recipe. Full detail:
+[`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §25.
+
 ## Engineered features — a real negative result, and a real bug it surfaced
 
 `agent/features.py` adds 4 new fields on top of the starter kit's base 5:
@@ -722,9 +745,11 @@ and declined with a stated reason.
   scored honestly via out-of-fold CV) agreed from a different angle: also
   worse than `deepfm_mtl_v1` solo. DCNv2 (§24), the last named
   architecture-level lever, landed exactly on the significance bar against
-  its parent — `mixed`, not a win, still below `deepfm_mtl_v1`.
-  `deepfm_mtl_v1` remains the project-best after **ten** structurally
-  different directions tried beyond it.
+  its parent — `mixed`, not a win, still below `deepfm_mtl_v1`. SWA (§25),
+  the last untried item from this project's original brainstorm, came back
+  a genuine null (−0.0002) rather than a regression. `deepfm_mtl_v1`
+  remains the project-best after **eleven** structurally different
+  directions tried beyond it.
 
 **Research loop — still open, genuinely:**
 - **Phase 4 has only run a handful of iterations.** A longer run would show
