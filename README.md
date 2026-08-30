@@ -546,22 +546,43 @@ evidence `deepfm_mtl_v1` sits at a genuine local optimum for this
 benchmark's data volume, not that the search has been shallow. Full
 detail: [`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §21.
 
-**Stacked ensemble via scikit-learn — a more principled method, an
-honestly worse number.** `lightgbm` is blocked on this dev machine by a
-Windows Application Control policy on the DLL load, but `scikit-learn`
-turned out to just be uninstalled, not blocked — installed cleanly once
-actually tried. `tools/check_stacked_ensemble.py` replaces §21's hand-tuned
-weight grid with a `LogisticRegression` meta-learner, scored honestly via
-5-fold out-of-fold cross-validation (never scored on rows it was fit on,
-proper stacking discipline). Result: valid primary 0.6044 vs.
-`deepfm_mtl_v1` solo's 0.6049 (**−0.0004**) — the more expressive method
-did *not* do better, and its honest out-of-fold number is arguably a more
-trustworthy read on §21's own grid search than the grid search's in-sample
-number was. Sharpens the diagnosis: the missing ingredient for a real
-ensemble win here is likely a component with a genuinely different
-inductive bias (e.g. LightGBM's tree splits), not a better combination
-method for three already-correlated embedding-based models. Full detail:
+**Adding LightGBM as a 4th ensemble component — still no win, now with a
+concrete reason why.** §21's own diagnosis suspected the 3-component
+ensemble tied instead of winning because FM/DeepFM/DeepFM-MTL are all
+embedding-based and plausibly correlated in their errors. `lgbm_baseline`
+(gradient-boosted trees — a genuinely different inductive bias) was the
+obvious test, but had no cached predictions anywhere (trained on a
+teammate's Windows machine, blocked from local retraining there by a
+Windows-only WDAC policy on LightGBM's native DLL — not a real bug, just
+not reproducible on that machine). Retrained locally on macOS instead
+(`tools/train_lgbm_and_cache.py`, landed almost exactly on the original
+number: 0.5991 valid vs. 0.5995), then `tools/check_ensemble.py`
+generalized from a hardcoded 3-component simplex to an N-component one
+and re-run with 4. **The grid search assigns LightGBM a weight of exactly
+0.00, at both grid resolutions tried (step=0.1 and 0.05)** — the
+diversity hypothesis doesn't hold: LightGBM's absolute quality (0.5991)
+sits far enough below the embedding-based models that whatever error
+diversity it offers costs more accuracy than it buys. Closes §21's own
+follow-up question with a real answer. Full detail:
 [`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §22.
+
+**Stacked ensemble via scikit-learn — a more principled method, an
+honestly worse number.** `lightgbm` was blocked on this (second) dev
+machine by a different Windows Application Control policy on the DLL load
+(the LightGBM ensemble result above came from a teammate's macOS machine
+instead), but `scikit-learn` turned out to just be uninstalled, not
+blocked — installed cleanly once actually tried. `tools/check_stacked_ensemble.py`
+replaces §21's hand-tuned weight grid with a `LogisticRegression`
+meta-learner, scored honestly via 5-fold out-of-fold cross-validation
+(never scored on rows it was fit on, proper stacking discipline). Result:
+valid primary 0.6044 vs. `deepfm_mtl_v1` solo's 0.6049 (**−0.0004**) — the
+more expressive method did *not* do better, and its honest out-of-fold
+number is arguably a more trustworthy read on §21's own grid search than
+the grid search's in-sample number was. Agrees with §22's own finding from
+a different angle: three (now four, counting LightGBM's near-zero weight)
+components don't have enough genuinely *independent* error to combine into
+something better than the strongest individual model. Full detail:
+[`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §23.
 
 **DCNv2 — the last named architecture-level lever, checked for
 completeness.** The one specific architecture named in this project's own
@@ -595,7 +616,7 @@ that spawns a training subprocess, so it measured its own idle wait time
 exactly the kind of "looks like it works, quietly doesn't" bug this
 project has caught before, and one that would have silently undermined
 `--max_wall_time_s`'s budget accounting. Fixed and regression-tested. Full
-detail: [`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §23.
+detail: [`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §24.
 
 ## Engineered features — a real negative result, and a real bug it surfaced
 
@@ -688,12 +709,21 @@ and declined with a stated reason.
 - ~~BPR direction plateaued... `DeepFM_BPR` is untested~~ — **tested**:
   `deepfm_bpr_v1` regressed (overfitting), the regularized follow-up
   recovered to 0.5980 but still doesn't clear even the plain FM baseline —
-  doubly confirms BPR's ceiling is structural. Then went further: LambdaRank
-  (§20) and a 3-seed-verified ensemble (§21) were tried as genuinely
-  different levers on top of this — LambdaRank regressed clearly (a third,
-  independent confirmation that pairwise-sampled losses underperform
-  pointwise BCE here); the ensemble tied exactly after proper verification.
-  `deepfm_mtl_v1` remains the project-best after **seven** structurally
+  doubly confirms BPR's ceiling is structural. Then went further:
+  LambdaRank (§20) and a 3-seed-verified ensemble (§21) were tried as
+  genuinely different levers on top of this — LambdaRank regressed clearly
+  (a third, independent confirmation that pairwise-sampled losses
+  underperform pointwise BCE here); the ensemble tied exactly after proper
+  verification. §21's own follow-up question — would a genuinely diverse
+  4th component (LightGBM) fix the tie? — was closed too (§22): no, the
+  grid search assigns it weight 0.00 at every resolution tried, since its
+  absolute quality trails too far behind to be worth the diversity. A
+  proper stacked ensemble via scikit-learn (§23, `LogisticRegression`,
+  scored honestly via out-of-fold CV) agreed from a different angle: also
+  worse than `deepfm_mtl_v1` solo. DCNv2 (§24), the last named
+  architecture-level lever, landed exactly on the significance bar against
+  its parent — `mixed`, not a win, still below `deepfm_mtl_v1`.
+  `deepfm_mtl_v1` remains the project-best after **ten** structurally
   different directions tried beyond it.
 
 **Research loop — still open, genuinely:**
