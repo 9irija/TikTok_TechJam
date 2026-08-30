@@ -960,6 +960,132 @@ cascade/two-stage framing) is worth the larger engineering investment, or
 whether this is close to the practical ceiling for this dataset size and
 task.
 
+## 20. LambdaRank-style pairwise loss (`agent/model_zoo/deepfm_lambdarank.py`) — the structurally-different lever §19 called for, also negative
+
+Direct follow-up to §19's own closing question: after ten refinements of
+`deepfm_mtl_v1` all failed (§10-§19), the honest next move was a lever from
+a genuinely different family, not another variant of the same one.
+LambdaRank (Burges et al. 2006) reweights each pairwise comparison by how
+much fixing it would actually move the metric that's being optimized —
+here, ΔnDCG@5 for swapping a within-user (positive, negative) pair's rank
+order — rather than treating every pair equally the way plain BPR (§8) or
+uniform listwise softmax (§13) do. Chosen specifically because it targets
+nDCG@5 by name, not just "ranking" generically.
+
+Built with the same discipline as every other high-risk mechanism this
+project has added: the ΔnDCG@5 math (`dcg_discount`, `idcg_at_5`,
+`delta_ndcg5_for_pair`) was hand-derived and unit-tested against worked-by-
+hand cases (`test_lambdarank_delta_ndcg5_math_on_hand_derived_cases`)
+*before* ever training on real data — the same "correctness test first"
+practice that caught real bugs in PCGrad's shared-parameter set (§17) and
+focal loss's own test expectations (§19) elsewhere in this project.
+`DeepFM_LambdaRank.lambdarank_step()` reuses the per-user padded-batch
+infrastructure `deepfm_listwise.py`/`tools/check_listwise.py` already
+built (§13): for each user with both a positive and negative impression,
+sample up to `max_pairs_per_user` pairs, weight each pair's
+`softplus(-(s_pos - s_neg))` loss by its ΔnDCG@5, and average.
+
+Standalone check (`tools/check_lambdarank.py`, same "prove it before
+promoting it" treatment as `deepfm_listwise_v1`/`deepfm_pdaom_v1`):
+
+| epoch | loss | valid primary |
+|---|---|---|
+| 1 | 0.5928 | 0.5827 |
+| 2 | 0.5139 | **0.5856** (best) |
+| 3 | 0.4613 | 0.5765 |
+| 4 | 0.4306 | 0.5737 |
+| 5 | 0.4101 | 0.5683 |
+| 6 | 0.3923 | 0.5670 |
+| 7 | 0.3751 | 0.5692 |
+
+Best epoch 2 of 7, valid primary 0.5856, test 0.5802 — clearly below
+`deepfm_regularized` (0.6035 valid, the plain pointwise-BCE architecture
+this shares its backbone with), `deepfm_listwise_v1` (0.6033), and
+`deepfm_mtl_v1` (0.6046). Not a marginal miss; a clear regression, and the
+worst result of any structurally-different lever tried this project.
+
+**Honest read:** the training loss keeps falling every epoch (0.59 -> 0.38)
+while valid primary peaks at epoch 2 and steadily *worsens* through epoch
+7 — the model keeps getting better at the pairwise objective it's actually
+being trained on while getting worse at the metric that objective is
+supposed to be a proxy for. This is the same "fast convergence to a
+shallow optimum" shape §8's first BPR attempt showed, and LambdaRank
+inherits BPR's core per-user sampled-pair training loop (just reweighted
+by ΔnDCG@5), so it plausibly inherits the same instability source: each
+epoch's gradient comes from a small, freshly-resampled slice of a user's
+true pairwise preference structure (`max_pairs_per_user` pairs, and ranks
+computed only within the padded batch's `max_len=64` window for users with
+more impressions than that), which is a noisier, higher-variance signal
+than plain BCE's full-batch pointwise gradient — and the softplus-margin
+loss has no floor once it starts separating easy pairs, so it can keep
+"improving" on training pairs long after that stops correlating with
+validation ranking quality. Combined with §8's two BPR attempts and their
+regularized follow-up, this is now the **third** confirmed instance of a
+pairwise-sampling-based loss underperforming pointwise BCE on this
+specific benchmark — not a single unlucky configuration, a repeating
+pattern across three separate implementations (FM_BPR, DeepFM_BPR,
+DeepFM_LambdaRank). `deepfm_mtl_v1` remains the project-best, and a fourth
+pairwise-loss variant is not a good next use of compute without a genuinely
+new idea about why the first three all converged too fast to a worse
+optimum — a concrete candidate the Research Critic Gate (`agent/research_critic.py`)
+does not yet cover, since its two rules are hyperparameter-axis-scoped, not
+model-family-scoped (see the Roadmap in `CLAUDE.md`).
+
+## 21. Ensembling revisited with a proper grid search — a single-seed edge that 3-seed verification erases
+
+§5 already tried ensembling once (equal-weight pairs/averages of whatever
+was cached at the time) and found nothing beat `deepfm_mtl_v1` alone. This
+revisits it with two real methodological improvements, to make sure that
+wasn't just an under-searched attempt: (1) a full 3-component weighted
+grid search (`tools/check_ensemble.py`, step=0.1 over the simplex, not
+just equal-weight pairs) across the three most architecturally distinct
+*trained* models available (`fm_baseline_repro`, `deepfm_regularized`,
+`deepfm_mtl_v1` — pure bilinear, +MLP, +4 auxiliary heads), each z-score-
+normalized (stats fit on valid, same affine map applied to test — no test
+information used to pick anything); (2) the chosen blend was then
+**3-seed verified** (`tools/verify_ensemble_multiseed.py`) with fixed
+weights (never re-tuned per seed — that would leak seed noise into the
+"decision"), the same discipline this project applies to every other
+single-seed result close to its parent (§18's `deepfm_mtl_click_v1`,
+`features_v1`).
+
+Single-seed grid search found a real-looking edge: best blend
+(fm=0.20, deepfm_regularized=0.10, deepfm_mtl_v1=0.70) scored valid primary
+**0.6051** vs. `deepfm_mtl_v1` alone's 0.6049 (+0.0002) — small, but a
+genuine improvement over §5's best single-seed combination (0.6045). The
+per-segment breakdown (§15's item-popularity quartiles) looked genuinely
+promising too: the blend recovered +0.0034 to +0.0071 primary specifically
+in Q1/Q2 (the least-popular-item segments, where `deepfm_mtl_v1` alone is
+weakest at 0.4784-0.4791 — far below Q3/Q4's 0.52-0.60), while Q3/Q4 barely
+moved — exactly the kind of segment-level smoothing an ensemble of
+differently-biased models is supposed to provide.
+
+3-seed verification (fixed weights, seeds 0/1/2, each component retrained
+at seeds 1 and 2 where not already cached):
+
+| | seed 0 | seed 1 | seed 2 | mean +/- std |
+|---|---|---|---|---|
+| `deepfm_mtl_v1` solo | 0.6049 | 0.6049 | 0.6042 | **0.6046 +/- 0.0003** |
+| fixed blend | 0.6051 | 0.6046 | 0.6042 | **0.6046 +/- 0.0004** |
+
+Delta: **−0.0000**. Diagnosed `noise_floor` by the exact same seed-aware
+significance bar (`agent/diagnosis.py`) used for every other node — the
+seed-0 edge (+0.0002) does not survive; it was itself noise, not a real
+effect the grid search found. **Not a confirmed win.**
+
+**Honest read:** this is the **seventh** structurally different lever
+tried beyond `deepfm_mtl_v1`'s own architecture (five BPR-family variants,
+LambdaRank, now ensembling) with none beating it after proper seed
+verification — the strongest evidence yet that `deepfm_mtl_v1` sits at (or
+very near) a real, non-trivial local optimum for this benchmark's specific
+data volume, not that the search has been shallow. The per-segment
+smoothing effect at seed 0 (weakest-segment Q1/Q2 improvement) is still a
+real, interesting *distributional* observation even though the aggregate
+number ties — worth a follow-up with more seeds specifically on the
+per-segment breakdown if there's ever a reason to revisit ensembling, but
+not a build-time win today. `deepfm_mtl_v1` remains the project-best and
+the shipped submission.
+
 ## Net effect on the project-best
 
 | | Valid primary (3-seed) | Test primary (3-seed mean) | vs. official baseline (test) |

@@ -3412,6 +3412,89 @@
       "diagnosis_tag": "regression",
       "created_at": 1788062699.7050097,
       "updated_at": 1788062699.7093747
+    },
+    "deepfm_lambdarank_v1": {
+      "node_id": "deepfm_lambdarank_v1",
+      "config": {
+        "id": "deepfm_lambdarank_v1",
+        "model": "deepfm_lambdarank",
+        "hypothesis": "Direct follow-up to the ten-refinements-of-deepfm_mtl_v1 pattern (P2 SS10-19): a structurally different lever from a different family entirely. LambdaRank (Burges et al. 2006) weights each within-user (positive, negative) pair by the actual |delta nDCG@5| swapping it would cause, targeting the scored metric directly rather than treating every violated pair equally the way BPR does, or using a metric-agnostic softmax the way the listwise attempt does. Same DeepFM backbone/hyperparameters as deepfm_regularized/deepfm_listwise -- only the loss function differs.",
+        "hyperparams": {
+          "k": 16,
+          "hidden": [
+            128,
+            64
+          ],
+          "lr": 0.001,
+          "l2": 0.0001,
+          "max_len": 64,
+          "batch_users": 256,
+          "max_pairs_per_user": 10,
+          "epochs": 20,
+          "patience": 5
+        },
+        "fields": [
+          "user_id",
+          "video_id",
+          "author_id",
+          "tab",
+          "dur_bucket"
+        ],
+        "parent_id": "deepfm_regularized",
+        "seeds": [
+          0
+        ],
+        "notes": "Standalone check (tools/check_lambdarank.py) -- reuses deepfm_listwise.py/check_listwise.py's per-user padded-batch infrastructure, not wired into agent/experiment.py. Hand-derived and unit-tested ndcg/delta-ndcg math (test_lambdarank_delta_ndcg5_math_on_hand_derived_cases) before ever training on real data. Result: best epoch 2/7 -- validation primary peaks early then steadily WORSENS every epoch after even as training loss keeps falling, the same fast-convergence-to-shallow-optimum shape fm_bpr_default first showed. Single seed only: the regression (-0.0179 vs. parent) is large enough (bar=~0.0004-0.002) that 3-seed verification would not change the diagnosis, matching deepfm_pdaom_v1's precedent for a clear single-seed regression. Third independent confirmation (after FM_BPR, DeepFM_BPR) that pairwise-sampled losses underperform pointwise BCE on this benchmark.",
+        "edge_type": null
+      },
+      "edge_type": "improve",
+      "parent_id": "deepfm_regularized",
+      "status": "done",
+      "fidelity": "100pct",
+      "metrics": {
+        "n_seeds": 1,
+        "valid": {
+          "GAUC_mean": 0.6443,
+          "GAUC_std": 0.0,
+          "nDCG@5_mean": 0.5269,
+          "nDCG@5_std": 0.0,
+          "primary_mean": 0.5856,
+          "primary_std": 0.0
+        },
+        "test": {
+          "GAUC_mean": 0.6402,
+          "GAUC_std": 0.0,
+          "nDCG@5_mean": 0.5202,
+          "nDCG@5_std": 0.0,
+          "primary_mean": 0.5802,
+          "primary_std": 0.0
+        },
+        "per_seed": [
+          {
+            "experiment_id": "deepfm_lambdarank_v1",
+            "seed": 0,
+            "best_epoch": 2,
+            "epochs_run": 7,
+            "valid": {
+              "GAUC": 0.6443,
+              "nDCG@5": 0.5269,
+              "primary": 0.5856
+            },
+            "test": {
+              "GAUC": 0.6402,
+              "nDCG@5": 0.5202,
+              "primary": 0.5802
+            },
+            "wall_time_s": 86.5,
+            "num_params": 703110,
+            "train_fraction": 1.0
+          }
+        ]
+      },
+      "insight": "Both GAUC (-0.0256) and nDCG@5 (-0.0101) got worse -- the change likely hurt (bar=0.0002). [overfitting_risk: best validation epoch landed at ~29% of training length on average across seeds -- later epochs likely overfit train loss without validation benefit; consider fewer epochs or stronger regularization.]",
+      "diagnosis_tag": "regression",
+      "created_at": 1788071836.3877327,
+      "updated_at": 1788071836.397486
     }
   }
 }

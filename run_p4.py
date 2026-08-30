@@ -32,13 +32,20 @@ def main() -> int:
                      help="Per-fidelity-stage wall-clock budget before Failure Recovery kills and retries it")
     ap.add_argument("--max_iterations", type=int, default=3,
                      help="How many LLM-proposed experiments to run this invocation")
+    ap.add_argument("--max_wall_time_s", type=float, default=None,
+                     help="Real wall-clock budget ceiling -- checked before each new LLM proposal, "
+                          "not just informational text in the prompt (default: no ceiling)")
+    ap.add_argument("--min_priority_to_run", type=float, default=0.0,
+                     help="Skip (don't spend compute on) a proposal whose own LLM-assigned priority "
+                          "is below this 0-1 threshold (default: 0.0, run everything)")
     args = ap.parse_args()
 
     print("=" * 78)
     print("P4 -- LLM Research Strategist (Gemini)")
     print("=" * 78)
 
-    report = run_p4(data_dir=args.data_dir, timeout_s=args.timeout_s, max_iterations=args.max_iterations)
+    report = run_p4(data_dir=args.data_dir, timeout_s=args.timeout_s, max_iterations=args.max_iterations,
+                     max_wall_time_s=args.max_wall_time_s, min_priority_to_run=args.min_priority_to_run)
 
     print(f"\nSeeded {report['seeded_from_phase0']} node(s) from Phase 0's run_log.jsonl.")
     for it in report["iterations"]:
@@ -47,6 +54,21 @@ def main() -> int:
             for e in it["events"]:
                 print(f"    [{e['kind']}] {e.get('message', '')}")
             break
+        if it["status"] == "budget_exhausted_wall_time":
+            print(f"\n[{it['iteration']}] Stopped: wall-clock budget exhausted "
+                  f"({it['wall_time_used_so_far_s']:.1f}s >= {it['max_wall_time_s']:.1f}s ceiling).")
+            break
+        if it["status"] in ("critic_rejected", "skipped_low_priority"):
+            # These two statuses never ran the Multi-Fidelity Runner -- a different, smaller key set
+            # than a real attempt (no fidelity/priority/cost fields to print), handled separately
+            # rather than assumed to have the full standard shape (a real gap this branch closes:
+            # critic_rejected entries were already missing those keys before skipped_low_priority
+            # was added, a latent KeyError the generic path below would have hit).
+            print(f"\n[{it['iteration']}] {it['config_id']} -- status={it['status']} "
+                  f"(declined before spending compute)")
+            print(f"    LLM reasoning: {it['llm_reasoning']}")
+            print(f"    diagnosis [{it['diagnosis']['tag']}]: {it['diagnosis']['insight']}")
+            continue
         print(f"\n[{it['iteration']}] {it['config_id']} -- status={it['status']}, "
               f"reached fidelity={it['final_stage']}, wall_time={it['wall_time_s']:.1f}s, "
               f"llm_tokens={it['llm_tokens_this_call']}")

@@ -1030,11 +1030,35 @@ def test_research_critic_rejects_duplicate_and_confirmed_dead_end():
         assert not dead_end_verdict.approved, "a repeated pure-capacity change on a confirmed dead-end family must be rejected"
         assert "fm_wider_k32" in dead_end_verdict.reason, "the rejection must cite the specific prior node, not just assert a rule"
 
-        # A legitimately different change (not pure-k) on the same family must NOT be rejected by this rule.
+        # A legitimately different change (not pure-k) on the same family must NOT be rejected by this rule
+        # -- no prior confirmed dead end exists on the 'lr' axis yet.
         different_change = ExperimentConfig(id="fm_different_lr", model="fm", hypothesis="h",
                                              hyperparams={"k": 16, "lr": 0.01}, parent_id="fm_baseline_repro")
         ok_verdict = review(rm, different_change)
         assert ok_verdict.approved, "a change on a different axis (lr, not k) must not be caught by the capacity dead-end rule"
+
+        # The rule generalizes beyond k: a confirmed dead end on a DIFFERENT single axis (mirrors the real
+        # deepfm_wider/deepfm_default precedent, where only 'hidden' differs and it's tagged noise_floor)
+        # must also be caught, not just the original k-specific case.
+        deep_root = ExperimentConfig(id="deepfm_default", model="deepfm", hypothesis="h",
+                                      hyperparams={"k": 16, "hidden": [32, 16]})
+        rm.add_node(deep_root, edge_type="draft")
+        rm.update_node("deepfm_default", status="done", metrics={"valid": {"primary_mean": 0.60}})
+        deep_wider = ExperimentConfig(id="deepfm_wider", model="deepfm", hypothesis="h",
+                                       hyperparams={"k": 16, "hidden": [64, 32]}, parent_id="deepfm_default")
+        rm.add_node(deep_wider, edge_type="improve", parent_id="deepfm_default")
+        rm.update_node("deepfm_wider", status="done", diagnosis_tag="noise_floor",
+                        metrics={"valid": {"primary_mean": 0.601}})
+
+        deep_even_wider = ExperimentConfig(id="deepfm_even_wider", model="deepfm", hypothesis="h",
+                                            hyperparams={"k": 16, "hidden": [128, 64]}, parent_id="deepfm_default")
+        generalized_verdict = review(rm, deep_even_wider)
+        assert not generalized_verdict.approved, (
+            "a repeated pure-'hidden' change on a confirmed dead-end family must be rejected too, "
+            "not just the original pure-k case"
+        )
+        assert "deepfm_wider" in generalized_verdict.reason
+        assert "hidden" in generalized_verdict.reason
 
 
 def test_multi_fidelity_kills_a_broken_config():
@@ -1348,6 +1372,75 @@ def test_dead_ends_section_generated_live_from_research_map_tags():
         assert "[regression]" in section
 
 
+def test_run_p4_stops_immediately_when_wall_time_budget_already_exhausted():
+    """Regression test for the real, previously-documented gap: the `budget`
+    dict shown to the LLM used to be purely informational -- nothing in the
+    loop actually stopped as it depleted. `max_wall_time_s=0` means the
+    ceiling is exhausted before iteration 1 even starts, so the loop must
+    stop WITHOUT ever calling the LLM (asserted via client.calls == 0, not
+    just the reported status)."""
+    import tempfile
+    import agent.p4_orchestrator as p4mod
+
+    with tempfile.TemporaryDirectory() as d:
+        d = Path(d)
+        logs_dir, exp_dir = d / "logs", d / "experiments"
+        logs_dir.mkdir()
+        orig_map_path, orig_logs_dir, orig_exp_dir = p4mod.RESEARCH_MAP_PATH, p4mod.LOGS_DIR, p4mod.EXPERIMENTS_DIR
+        p4mod.RESEARCH_MAP_PATH, p4mod.LOGS_DIR, p4mod.EXPERIMENTS_DIR = logs_dir / "research_map.json", logs_dir, exp_dir
+        try:
+            client = _FakeGeminiClient([])  # any generate_json call would raise (nothing scripted) -- proves it's unused
+            report = p4mod.run_p4(max_iterations=3, client=client, max_wall_time_s=0.0)
+        finally:
+            p4mod.RESEARCH_MAP_PATH, p4mod.LOGS_DIR, p4mod.EXPERIMENTS_DIR = orig_map_path, orig_logs_dir, orig_exp_dir
+
+        assert client.calls == 0, "an already-exhausted wall-clock budget must stop before ever spending an LLM call"
+        assert len(report["iterations"]) == 1
+        assert report["iterations"][0]["status"] == "budget_exhausted_wall_time"
+
+
+def test_run_p4_skips_low_priority_proposals_without_spending_compute():
+    """A proposal whose OWN LLM-assigned priority is below `min_priority_to_run`
+    must be declined before it ever reaches the Multi-Fidelity Runner -- same
+    "logged as declined, not silently dropped" pattern as critic_rejected.
+    Checked at three levels: the reported status, that the node never enters
+    the Research Map (so a low-priority idea can't pollute best_node()/
+    best_confirmed_node()), and that the loop asks the LLM again next
+    iteration rather than stopping."""
+    import tempfile
+    import agent.p4_orchestrator as p4mod
+    from agent.research_map import ResearchMap
+
+    low_priority_raw = {
+        "id": "llm_low_priority_candidate", "hypothesis": "test", "model": "fm",
+        "hyperparams": {"k": 16, "lr": 0.001}, "parent_id": None, "edge_type": "draft",
+        "reasoning": "a hunch, not a strong one", "expected_metric_effect": {"gauc": "up", "ndcg": "up"},
+        "estimated_cost_s": 90, "priority": 0.1,
+    }
+
+    with tempfile.TemporaryDirectory() as d:
+        d = Path(d)
+        logs_dir, exp_dir = d / "logs", d / "experiments"
+        logs_dir.mkdir()
+        orig_map_path, orig_logs_dir, orig_exp_dir = p4mod.RESEARCH_MAP_PATH, p4mod.LOGS_DIR, p4mod.EXPERIMENTS_DIR
+        p4mod.RESEARCH_MAP_PATH, p4mod.LOGS_DIR, p4mod.EXPERIMENTS_DIR = logs_dir / "research_map.json", logs_dir, exp_dir
+        try:
+            # Two iterations, two scripted responses -- proves a skip doesn't stop the loop.
+            client = _FakeGeminiClient([dict(low_priority_raw), dict(low_priority_raw)])
+            report = p4mod.run_p4(max_iterations=2, client=client, min_priority_to_run=0.5)
+        finally:
+            p4mod.RESEARCH_MAP_PATH, p4mod.LOGS_DIR, p4mod.EXPERIMENTS_DIR = orig_map_path, orig_logs_dir, orig_exp_dir
+
+        assert client.calls == 2, "a skip must still ask the LLM again next iteration, not stop the loop"
+        assert len(report["iterations"]) == 2
+        for it in report["iterations"]:
+            assert it["status"] == "skipped_low_priority"
+            assert it["diagnosis"]["tag"] == "skipped_low_priority"
+        assert "llm_low_priority_candidate" not in ResearchMap(logs_dir / "research_map.json").nodes, (
+            "a skipped-for-priority proposal must never be added to the Research Map"
+        )
+
+
 def test_recovery_catches_broken_config():
     from agent.recovery import run_with_recovery
     bad_config = ExperimentConfig(
@@ -1424,6 +1517,8 @@ def main() -> int:
         test_research_strategist_accepts_a_valid_proposal,
         test_research_strategist_rejects_and_retries_an_invalid_proposal,
         test_dead_ends_section_generated_live_from_research_map_tags,
+        test_run_p4_stops_immediately_when_wall_time_budget_already_exhausted,
+        test_run_p4_skips_low_priority_proposals_without_spending_compute,
         test_multi_fidelity_time_saved_estimate,
         test_sequences_recent_history_never_leaks_the_future,
     ]

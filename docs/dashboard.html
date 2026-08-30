@@ -302,13 +302,13 @@
   <div class="eyebrow">Autonomous ML Research Agent · KuaiRand-Pure</div>
   <h1 class="title">Research Map</h1>
   <p class="subtitle">
-    Every experiment this agent has run, as a persistent tree — not a flat log. 25 nodes across
+    Every experiment this agent has run, as a persistent tree — not a flat log. 26 nodes across
     four build phases: Foundation (hand-authored), Differentiators (best-first selection + diagnosis-driven
     iteration), an LLM Research Strategist that reads this exact map to decide what to try next, and P2
     (engineered features, multi-task learning, LightGBM, hyperparameter search, DIN sequence modeling,
     DeepFM_BPR, watch-time multi-task, combined DIN+MTL, uncertainty-weighted MTL, listwise ranking loss,
-    PDAOM hard-pair mining, PCGrad gradient surgery, is_click and focal-loss variants — fourteen of which
-    came back honest negative or mixed results).
+    PDAOM hard-pair mining, PCGrad gradient surgery, is_click, focal-loss, and LambdaRank variants —
+    fourteen of which came back honest negative or mixed results).
   </p>
 
   <div class="headline-card">
@@ -337,8 +337,8 @@
     <div class="tiles">
       <div class="tile">
         <div class="label">Nodes explored</div>
-        <div class="value tnum">25</div>
-        <div class="sub">4 Foundation · 4 Differentiators · 2 LLM-proposed · 15 P2</div>
+        <div class="value tnum">26</div>
+        <div class="sub">4 Foundation · 4 Differentiators · 2 LLM-proposed · 16 P2</div>
       </div>
       <div class="tile">
         <div class="label">Manual interventions</div>
@@ -557,6 +557,10 @@
       valid:0.603, delta:-0.0016, tag:"critical", tagLabel:"regression",
       hyp:"Replaces 'deepfm_mtl_v1''s main-task BCE with focal loss (Lin et al. 2017) -- a genuinely different lever than any architecture, auxiliary-signal, or MTL-mechanism change already tried: it changes which examples matter during training, not the model or the signal set. Directly motivated by the per-segment diagnosis (P2_FEATURES_AND_RESULTS.md Sec.15), which found ranking quality measurably worse on mid-popularity items specifically -- plain BCE trains every row uniformly regardless of that per-segment difficulty; focal loss's (1-p_t)^gamma modulating factor should automatically reallocate gradient toward harder examples across the dataset. gamma=2.0 (paper default), alpha=0.5 (neutral -- isolates the hard-example effect from class-balance correction, a separate question this dataset's mild ~31-34% imbalance doesn't obviously need). Same fields/k/hidden/l2/aux_weight/aux_heads as the parent, so the loss function is the only variable.",
       insight:"Both GAUC (-0.0020) and nDCG@5 (-0.0012) got worse -- the change likely hurt (bar=0.0004)." },
+    { id:"deepfm_lambdarank_v1", model:"deepfm_lambdarank", edge:"improve", parent:"deepfm_regularized", phase:"P2", llm:false,
+      valid:0.5856, delta:-0.0179, tag:"critical", tagLabel:"regression",
+      hyp:"Direct follow-up to the ten-refinements-of-deepfm_mtl_v1 pattern (P2 SS10-19): a structurally different lever from a different family entirely. LambdaRank (Burges et al. 2006) weights each within-user (positive, negative) pair by the actual |delta nDCG@5| swapping it would cause, targeting the scored metric directly rather than treating every violated pair equally the way BPR does, or using a metric-agnostic softmax the way the listwise attempt does. Same DeepFM backbone/hyperparameters as deepfm_regularized/deepfm_listwise -- only the loss function differs.",
+      insight:"Both GAUC (-0.0256) and nDCG@5 (-0.0101) got worse -- the change likely hurt (bar=0.0002). [overfitting_risk: best validation epoch landed at ~29% of training length on average across seeds -- later epochs likely overfit train loss without validation benefit; consider fewer epochs or stronger regularization.]" },
   ];
   var BASELINE = 0.6016;
   var BEST_ID = "deepfm_mtl_v1";

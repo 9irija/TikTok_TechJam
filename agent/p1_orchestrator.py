@@ -38,6 +38,12 @@ from .research_map import ResearchMap
 from .run_logger import RunLogger
 from .selector import select_next
 
+# tools/ is a plain sibling directory (no package boundary issue -- Python's
+# implicit namespace packages resolve it fine as long as REPO_ROOT is on
+# sys.path, which it always is when this module is reached via run_p1.py/
+# run_p4.py run from the repo root, per README's Quick start).
+from tools.verify_multiseed import verify_node_multiseed
+
 RESEARCH_MAP_PATH = LOGS_DIR / "research_map.json"
 
 
@@ -473,7 +479,14 @@ def _diagnosis_driven_candidates(map: ResearchMap) -> list[ExperimentConfig]:
     return out
 
 
-def run_p1(data_dir: str | None = None, timeout_s: float = 240.0) -> dict[str, Any]:
+def run_p1(data_dir: str | None = None, timeout_s: float = 240.0, auto_verify_new_best: bool = True) -> dict[str, Any]:
+    """`auto_verify_new_best`: the moment a fresh single-seed candidate
+    becomes the new raw-leaderboard best (`map.best_node()`), immediately
+    re-run it on 2 more seeds and re-diagnose (`tools/verify_multiseed.py`'s
+    `verify_node_multiseed()`) before moving on -- closes the README's own
+    former Limitations entry ("a human has to remember to run this").
+    Default True; set False to keep the old manual-only behavior (e.g. in a
+    tight compute budget where the extra 2 seeds aren't affordable yet)."""
     data_dir = data_dir or str(DEFAULT_DATA_DIR)
     map = ResearchMap(RESEARCH_MAP_PATH)
     seeded = seed_from_phase0(map, LOGS_DIR / "run_log.jsonl")
@@ -529,13 +542,32 @@ def run_p1(data_dir: str | None = None, timeout_s: float = 240.0) -> dict[str, A
                               recovery_events=mf_result.all_events, convergence_point=None, status=status,
                               fidelity_info=fidelity_info)
 
-        report["results"].append({
+        result_entry = {
             "rank": rank_i, "config_id": config.id, "status": status,
             "final_stage": mf_result.final_stage, "killed_at": mf_result.killed_at,
             "kill_reason": mf_result.kill_reason, "diagnosis": {"tag": d.tag, "insight": d.insight},
             "wall_time_s": mf_result.total_wall_time_s,
             "estimated_time_saved_s": fidelity_info["estimated_time_saved_s"],
-        })
+        }
+
+        best = map.best_node()
+        if (auto_verify_new_best and status == "ok" and metrics.get("n_seeds", 1) == 1
+                and best is not None and best.node_id == config.id):
+            print(f"  '{config.id}' is the new raw-leaderboard best on a single seed -- "
+                  f"auto-verifying on 2 more seeds before continuing...")
+            out = verify_node_multiseed(map, config.id, data_dir, seeds=[0, 1, 2], timeout_s=timeout_s)
+            if out is not None:
+                agg, d2, extra_wall_s, newly_run = out
+                result_entry["wall_time_s"] += extra_wall_s
+                result_entry["diagnosis"] = {"tag": d2.tag, "insight": d2.insight}
+                result_entry["auto_verified_multiseed"] = {
+                    "seeds_newly_run": newly_run, "n_seeds": agg["n_seeds"],
+                    "valid_primary_mean": agg["valid"]["primary_mean"], "valid_primary_std": agg["valid"]["primary_std"],
+                }
+                print(f"    -> 3-seed: {agg['valid']['primary_mean']:.4f} +/- {agg['valid']['primary_std']:.4f} "
+                      f"[{d2.tag}]")
+
+        report["results"].append(result_entry)
 
     total_time_saved = sum(r["estimated_time_saved_s"] or 0.0 for r in report["results"])
     report["resource_totals"] = {

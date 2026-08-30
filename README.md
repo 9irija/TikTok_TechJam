@@ -509,6 +509,43 @@ ceiling for incremental training-time changes looks genuine, not a
 search-effort problem. Full detail:
 [`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §19.
 
+**LambdaRank — the structurally different lever §19 itself called for,
+also a clear regression.** `agent/model_zoo/deepfm_lambdarank.py`:
+per-user pairs weighted by exactly the metric being optimized (ΔnDCG@5 for
+each swap), the starter kit's own pairwise-vs-listwise guess taken to its
+most metric-aware form. Math hand-derived and unit-tested before ever
+training on real data (same discipline that caught real bugs in §17/§19).
+Result: valid primary 0.5856 (best epoch 2 of 7 — validation *worsens*
+every epoch after, even as training loss keeps falling), clearly below
+`deepfm_regularized` (0.6035) and every other lever tried. This is the
+**third** confirmed instance of a pairwise-sampled loss underperforming
+plain pointwise BCE on this benchmark (FM_BPR, DeepFM_BPR, now
+DeepFM_LambdaRank) — a repeating pattern, not one unlucky run; each
+epoch's gradient comes from a small, freshly-resampled slice of a user's
+true preference structure, noisier than BCE's full-batch signal. Full
+detail: [`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §20.
+
+**Ensembling revisited with a proper grid search and 3-seed
+verification — a single-seed edge that doesn't survive.** §5's original
+ensemble attempt (equal-weight pairs) found nothing beat `deepfm_mtl_v1`
+alone. Revisited with a full 3-component weighted grid search
+(`tools/check_ensemble.py`) across the three most architecturally distinct
+models (`fm_baseline_repro`, `deepfm_regularized`, `deepfm_mtl_v1`),
+z-score normalized, weights chosen on validation only. Single-seed result
+looked real: 0.6051 vs. 0.6049 (+0.0002), with a genuinely encouraging
+per-segment pattern — +0.0034 to +0.0071 primary specifically in the
+weakest (least-popular-item) segments §15 already flagged, where
+`deepfm_mtl_v1` alone is weakest. **3-seed verification
+(`tools/verify_ensemble_multiseed.py`, fixed weights, never re-tuned per
+seed) erased it completely**: 0.6046 ± 0.0004 vs. 0.6046 ± 0.0003 —
+`noise_floor`, an exact tie, diagnosed by the same significance bar as
+every other node. This is now the **seventh** structurally different
+lever tried beyond `deepfm_mtl_v1` (five BPR-family variants, LambdaRank,
+ensembling) with none beating it after real seed verification — strong
+evidence `deepfm_mtl_v1` sits at a genuine local optimum for this
+benchmark's data volume, not that the search has been shallow. Full
+detail: [`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §21.
+
 ## Engineered features — a real negative result, and a real bug it surfaced
 
 `agent/features.py` adds 4 new fields on top of the starter kit's base 5:
@@ -555,34 +592,75 @@ Deliverables requirement, if applicable._
 
 Full narrative for the most recent pass (Phase 5/6 closure + Research
 Critic Gate + dashboard):
-[`docs/POLISH_PASS_RESULTS.md`](docs/POLISH_PASS_RESULTS.md).
+[`docs/POLISH_PASS_RESULTS.md`](docs/POLISH_PASS_RESULTS.md). This section
+used to list 6 research-loop gaps; 5 of them are now closed (below), so
+what's left is materially shorter than earlier passes — not because scope
+was cut, but because each item was either built and tested or investigated
+and declined with a stated reason.
 
-**Research loop:**
-- **Phase 4 has only run 2 iterations.** A longer run would show whether
-  the LLM keeps finding real improvements or converges to marginal/
+**Research loop — closed this pass:**
+- ~~The LLM prompt's "dead ends" section is hand-maintained~~ — **fixed**:
+  `agent/research_strategist.py`'s `_dead_ends_section()` now generates it
+  live from the Research Map's own `regression`/`noise_floor` diagnosis
+  tags at prompt-build time — a brand-new model's confirmed dead end
+  appears automatically, with zero manual upkeep, closing the exact
+  staleness gap that let a stale `deepfm_bpr` note survive in the prompt
+  long after `deepfm_bpr` was actually built and registered. Regression-
+  tested (`test_dead_ends_section_generated_live_from_research_map_tags`).
+- ~~No budget-aware stopping in Phase 4~~ — **fixed**: `run_p4()` now takes
+  a real `max_wall_time_s` (checked before spending the next LLM call, not
+  just shown as informational text) and `min_priority_to_run` (declines to
+  spend Multi-Fidelity Runner compute on a proposal whose own LLM-assigned
+  priority is too low, logged as `skipped_low_priority` — the same
+  "declined to waste budget, didn't fail to have the idea" pattern
+  `critic_rejected` already established, and the loop keeps going rather
+  than stopping). Both regression-tested end-to-end against a fake LLM
+  client (`test_run_p4_stops_immediately_when_wall_time_budget_already_exhausted`,
+  `test_run_p4_skips_low_priority_proposals_without_spending_compute`).
+- ~~`tools/verify_multiseed.py` is a manual step~~ — **fixed**: both
+  `agent/p1_orchestrator.py` and `agent/p4_orchestrator.py` now call
+  `tools/verify_multiseed.py`'s `verify_node_multiseed()` automatically the
+  moment a fresh single-seed candidate becomes the new raw-leaderboard
+  best, before the loop (or the next LLM prompt) treats it as trustworthy
+  — no human has to remember to run it. The extra wall-clock cost is
+  folded into the run's own resource totals, not hidden. Toggleable
+  (`auto_verify_new_best=False`) for a tight compute budget.
+- ~~Research Critic Gate has exactly two rules~~ — **generalized**: the
+  pure-capacity (k-only) dead-end veto now covers any single hyperparameter
+  axis, not just k — grounded in a second real precedent the Research Map
+  had actually accumulated (`deepfm_wider`, only `hidden` differs from
+  `deepfm_default`, tagged `noise_floor` — the identical dead-end shape on
+  a different axis). Deliberately still narrow (single-axis, same model
+  family, an actual prior node) rather than a broad heuristic that could
+  false-positive on a legitimately different idea. Regression-tested with
+  a case mirroring the real `deepfm_wider` precedent.
+- ~~BPR direction plateaued... `DeepFM_BPR` is untested~~ — **tested**:
+  `deepfm_bpr_v1` regressed (overfitting), the regularized follow-up
+  recovered to 0.5980 but still doesn't clear even the plain FM baseline —
+  doubly confirms BPR's ceiling is structural. Then went further: LambdaRank
+  (§20) and a 3-seed-verified ensemble (§21) were tried as genuinely
+  different levers on top of this — LambdaRank regressed clearly (a third,
+  independent confirmation that pairwise-sampled losses underperform
+  pointwise BCE here); the ensemble tied exactly after proper verification.
+  `deepfm_mtl_v1` remains the project-best after **seven** structurally
+  different directions tried beyond it.
+
+**Research loop — still open, genuinely:**
+- **Phase 4 has only run a handful of iterations.** A longer run would show
+  whether the LLM keeps finding real improvements or converges to marginal/
   regressive tweaks — genuinely unknown from this much data.
-- **The LLM prompt's "dead ends" section is hand-maintained**, not derived
-  automatically from the Research Map's own diagnosis tags — see
-  `docs/PHASE4_RESULTS.md` §6 for the concrete next step (generate it from
-  `explored_summary()` instead of a hardcoded string).
-- **No budget-aware stopping in Phase 4.** `--max_iterations` is a fixed
-  count; the `budget` dict shown to the LLM in its prompt is informational
-  only — nothing makes it change behavior as budget depletes.
-- **`tools/verify_multiseed.py` is a manual step**, not auto-triggered when
-  a new best node appears. (`tools/generate_submission.py`, added this pass,
-  closes the *next* step in that chain — regenerating the submission CSVs
-  from the Research Map's confirmed best is now a real, re-runnable script,
-  not a manual/undocumented one — but promoting a fresh single-seed result
-  to 3-seed-verified is still something a human has to remember to run.)
-- **Research Critic Gate has exactly two rules** (duplicate; confirmed
-  pure-capacity dead end) — both grounded in real project data, but a
-  general "veto any candidate matching any prior `regression`-tagged
-  pattern" rule would generalize this well beyond the one case it
-  currently catches.
-- **BPR direction plateaued after 3 diagnosis-driven rounds** (see the P1
-  results above) — training dynamics fixed, but a ~0.002 quality gap to
-  baseline looks structural, not a hyperparameter away. `DeepFM_BPR`
-  (pairwise loss + the deep component) is untested and the natural next angle.
+- **The Best-First Selector's cost/gain model is a simple heuristic**, not
+  learned or calibrated — reasonable with limited historical data per model
+  family, worth revisiting once the Research Map has more nodes.
+- **The Research Critic Gate's dead-end rule is still hyperparameter-axis-
+  scoped, not model-family-scoped** — it would not, for example, catch "a
+  fourth pairwise-sampled-loss variant" as a repeating pattern the way it
+  catches "a repeated k-only change," since FM_BPR/DeepFM_BPR/DeepFM_LambdaRank
+  are three different `model` values, not the same model with one changed
+  hyperparameter. A concrete next rule, not yet built: veto a new model
+  whose training mechanism (e.g. "per-user sampled-pair loss") matches
+  >=2 prior `regression`-tagged models' mechanism, without a stated new
+  reason why this attempt would differ.
 
 **Scope not attempted, with specific reasons (not just "ran out of time"):**
 - **Bonus benchmarks (KuaiRand-1k/27k) — investigated, then declined.**
@@ -594,11 +672,18 @@ Critic Gate + dashboard):
   (silently-wrong reimplementation of pinned logic) this project has been
   careful to avoid everywhere else. Full reasoning in
   `docs/POLISH_PASS_RESULTS.md` §6.
-- **Model zoo**: FM, DeepFM, FM_BPR. DCNv2/Wide&Deep/LightGBM need
-  torch/scikit-learn, not installed in the current dev environment.
-- **Best-First Selector's cost/gain model is a simple heuristic**, not
-  learned or calibrated — reasonable with almost no historical data per
-  model family yet, worth revisiting once the Research Map has more nodes.
+- **Model zoo is now extensive** (FM, DeepFM + 12 loss/architecture/multi-
+  task variants, LightGBM) but still doesn't include DCNv2/Wide&Deep —
+  genuinely declined, not just unbuilt: every capacity/architecture lever
+  actually tried this project (embedding width, CWM's extra feature
+  domains, DIN attention, LightGBM's tree-based splits) came back flat or
+  negative, consistently corroborating the starter kit's own ablations
+  ("model architecture is the lowest-priority lever"). Spending remaining
+  budget on two more architectures with the same well-evidenced low
+  expected value was a deliberate call, not an oversight. `lightgbm` also
+  can't even load in the current dev environment (`ctypes.cdll.LoadLibrary`
+  blocked by a Windows Application Control policy) — `lgbm_baseline`'s
+  result came from a teammate's separate machine.
 - ~~`docs/dashboard.html` is generated once, by hand~~ — **fixed**:
   `tools/generate_dashboard.py` now regenerates the `NODES` array (and the
   "nodes explored" stat tile) directly from `logs/research_map.json`,

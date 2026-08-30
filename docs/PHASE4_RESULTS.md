@@ -198,26 +198,37 @@ the organizer's own `submit.py` format checks.
 
 ## 6. Honest limitations / what's next
 
-- **Only 2 iterations run.** A longer run (more `--max_iterations`) would
-  show whether the LLM can keep finding real improvements or converges to
-  proposing marginal/regressive tweaks — genuinely unknown from this data.
-- **The prompt's "dead ends" section is hand-maintained**, not derived
-  automatically from the Research Map's own diagnosis tags — a static list
-  of known non-starters (capacity, `fm_bpr` hyperparameter tuning) baked
-  into `_MODEL_HYPERPARAM_DOCS`. A more complete version would generate
-  this section from the map's own `explored_summary()` at prompt-build
-  time instead of a hardcoded string.
-- **No budget-aware stopping.** `max_iterations` is a fixed count, not a
-  real token/wall-clock budget the Strategist reasons about running out of
-  — the `budget` dict passed into the prompt is informational only; nothing
-  in the code currently makes the LLM change its behavior as budget
-  depletes, despite the prompt showing it the numbers.
-- **`tools/verify_multiseed.py` is a manual step**, not wired into the
-  orchestrator automatically — a real improvement (found in P1 or Phase 4)
-  currently needs a human (or a future automated step) to decide it's worth
-  the extra compute to verify. A natural next integration: auto-trigger it
-  whenever a new best-node is found.
-- **Iteration 2's regression wasn't itself fed back into a 3rd iteration**
-  this run (`max_iterations=2` stopped it there) — an obvious next step,
-  since the map now has a fresh `regression`-tagged node the LLM could
-  reason from on a 3rd call.
+Updated in a later pass -- 4 of the 5 gaps below (everything except "only a
+few iterations run," which just needs more wall-clock, not more code) are
+now closed:
+
+- ~~The prompt's "dead ends" section is hand-maintained~~ -- **fixed**:
+  `_dead_ends_section()` now generates it live from the Research Map's own
+  `regression`/`noise_floor` diagnosis tags at prompt-build time instead of
+  a hardcoded string in `_MODEL_HYPERPARAM_DOCS` -- a brand-new model's
+  confirmed dead end appears in the very next prompt with zero manual
+  upkeep. Regression-tested
+  (`test_dead_ends_section_generated_live_from_research_map_tags`).
+- ~~No budget-aware stopping~~ -- **fixed**: `run_p4()` now takes a real
+  `max_wall_time_s` (checked before spending the next LLM call) and
+  `min_priority_to_run` (declines Multi-Fidelity Runner compute on a
+  proposal whose own LLM-assigned priority is too low, logged as
+  `skipped_low_priority`, loop continues to the next iteration rather than
+  stopping). Both regression-tested against a fake LLM client.
+- ~~`tools/verify_multiseed.py` is a manual step~~ -- **fixed**: `run_p4()`
+  (and `run_p1()`) now call `tools/verify_multiseed.py`'s
+  `verify_node_multiseed()` automatically the instant a fresh single-seed
+  candidate becomes the new raw-leaderboard best -- the *next* prompt's
+  Research Map context always reflects a verified number, never an
+  unconfirmed single-seed one. Toggleable off for a tight compute budget.
+- ~~Iteration 2's regression wasn't fed into a 3rd iteration~~ -- superseded:
+  the Research Map has since accumulated far more than one more regression
+  to reason from (P2's DIN, PDAOM, PCGrad, focal loss, LambdaRank attempts
+  are all real `regression`/`noise_floor`-tagged nodes now available as
+  Strategist context on any future Phase 4 run).
+- **Only a handful of iterations run per invocation.** A longer run (more
+  `--max_iterations`, now genuinely boundable via `--max_wall_time_s` too)
+  would show whether the LLM keeps finding real improvements or converges
+  to proposing marginal/regressive tweaks -- genuinely unknown from this
+  much data, and the one item here that's a "run it longer" gap rather than
+  a "build more" one.

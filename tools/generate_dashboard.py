@@ -62,6 +62,7 @@ PHASE_OVERRIDES: dict[str, tuple[str, bool]] = {
     "deepfm_mtl_pcgrad_v1": ("P2", False),
     "deepfm_mtl_click_v1": ("P2", False),
     "deepfm_mtl_focal_v1": ("P2", False),
+    "deepfm_lambdarank_v1": ("P2", False),
 }
 
 # diagnosis_tag (agent/diagnosis.py) -> (dashboard visual tag, tagLabel)
