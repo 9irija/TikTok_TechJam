@@ -611,6 +611,98 @@ def test_deepfm_mtl_click_forward_backward_reduces_loss():
     assert np.allclose(m.predict(X), m2.predict(X)), "get_state/set_state round-trip must reproduce predictions"
 
 
+def test_focal_loss_downweights_easy_examples_relative_to_bce():
+    """Targeted correctness check of agent/model_zoo/deepfm_mtl_focal.py's
+    FocalLoss -- the actual modulating-factor math, not just "loss goes
+    down". Three properties, all checked against hand-reasoned expected
+    behavior: (1) for a confidently-CORRECT prediction, focal loss is much
+    smaller than plain BCE on the identical input (the whole point of the
+    (1-p_t)^gamma modulating factor); (2) for a confidently-WRONG
+    prediction, focal and BCE stay close (the modulating factor is near 1
+    when p_t is near 0 -- hard examples aren't suppressed); (3) gamma=0
+    exactly recovers alpha-weighted BCE (the modulating factor becomes
+    identically 1), a direct algebraic sanity check of the formula itself.
+
+    Cases 1-2 use alpha=0.5 -- the model's own real default, not a value
+    picked to dodge the confound below. `alpha_t = alpha` for positives,
+    `(1-alpha)` for negatives is the standard convention (a weight PER
+    CLASS, positive vs. negative) -- there is no alpha that makes both
+    simultaneously 1 (an earlier version of this test tried alpha=1.0 to
+    "disable" alpha entirely and instead zeroed the negative class's
+    weight completely, `alpha_t=1*0 + (1-1)*1=0`, silently making case 2's
+    focal loss exactly 0 regardless of gamma -- a real bug in the test,
+    not the implementation, caught by the assertion firing with a
+    suspicious focal=0.000000 rather than a plausible-looking wrong
+    number). alpha=0.5 is genuinely symmetric (equal weight, 0.5, for
+    both classes) but does uniformly scale every example -- easy and hard
+    alike -- by that same 0.5 factor, confirmed by hand-derivation:
+    BCE=5.0067, focal=2.4700, ratio=0.4933 = alpha(0.5) * modulating
+    (0.9866). The thresholds below are written against that known 0.5x
+    baseline, not against raw BCE, so what's actually being checked is
+    still the modulating factor's behavior, not alpha's."""
+    import torch
+    import torch.nn.functional as F
+    from agent.model_zoo.deepfm_mtl_focal import FocalLoss
+
+    # Case 1: confidently correct (logit strongly positive, target=1) -- focal should be MUCH smaller
+    # than the alpha=0.5 baseline (0.5 * BCE), since the modulating factor also crushes it toward 0.
+    logits = torch.tensor([5.0])
+    targets = torch.tensor([1.0])
+    bce = F.binary_cross_entropy_with_logits(logits, targets).item()
+    focal = FocalLoss(gamma=2.0, alpha=0.5).forward(logits, targets).item()
+    assert focal < bce * 0.5 * 0.1, \
+        f"a confidently-correct example should be heavily down-weighted below the 0.5x alpha baseline: BCE={bce:.6f}, focal={focal:.6f}"
+
+    # Case 2: confidently WRONG (logit strongly positive, target=0) -- focal should land close to the
+    # alpha=0.5 baseline (0.5 * BCE), since the modulating factor (1-p_t)^gamma -> 1 as p_t -> 0 --
+    # i.e. hard examples are NOT further suppressed beyond alpha's own uniform scaling.
+    logits_wrong = torch.tensor([5.0])
+    targets_wrong = torch.tensor([0.0])
+    bce_wrong = F.binary_cross_entropy_with_logits(logits_wrong, targets_wrong).item()
+    focal_wrong = FocalLoss(gamma=2.0, alpha=0.5).forward(logits_wrong, targets_wrong).item()
+    assert focal_wrong > bce_wrong * 0.5 * 0.9, \
+        f"a confidently-wrong example should land close to the 0.5x alpha baseline, not be further " \
+        f"suppressed by the modulating factor: BCE={bce_wrong:.6f}, focal={focal_wrong:.6f}"
+
+    # Case 3: at gamma=0 the modulating factor (1-p_t)^0 is identically 1 for every example, so
+    # FocalLoss must reduce to EXACTLY alpha-weighted BCE -- 0.5 * plain BCE at alpha=0.5 (alpha_t=0.5
+    # for every example regardless of class, per the same alpha convention cases 1-2 already established:
+    # not "unweighted", a uniform half-scaling). Direct algebra check of the gamma=0 edge case.
+    rng_logits = torch.tensor([-2.0, -0.5, 0.3, 1.7, 4.0])
+    rng_targets = torch.tensor([0.0, 1.0, 0.0, 1.0, 1.0])
+    bce_batch = F.binary_cross_entropy_with_logits(rng_logits, rng_targets).item()
+    focal_gamma0 = FocalLoss(gamma=0.0, alpha=0.5).forward(rng_logits, rng_targets).item()
+    assert abs(focal_gamma0 - bce_batch * 0.5) < 1e-6, \
+        f"gamma=0, alpha=0.5 must exactly equal 0.5x BCE: got {focal_gamma0}, expected {bce_batch * 0.5}"
+
+
+def test_deepfm_mtl_focal_forward_backward_reduces_loss():
+    """P2's focal-loss MTL model, through the REAL Model Zoo registry.
+    Same shape of test as deepfm_mtl's own -- loss decreases, predict/
+    get_state/set_state behave -- confirming the full model (not just the
+    isolated FocalLoss module above) trains correctly end to end."""
+    rng = np.random.default_rng(0)
+    n, n_fields, dim = 2000, 5, 200
+    X = rng.integers(0, dim, size=(n, n_fields)).astype(np.int32)
+    y = rng.integers(0, 2, size=n).astype(np.float32)
+    aux = rng.integers(0, 2, size=(n, 4)).astype(np.float32)
+
+    m = build_model("deepfm_mtl_focal", dim=dim, n_fields=n_fields, k=8, hidden=[16, 8], lr=0.01,
+                     aux_weight=0.2, focal_gamma=2.0, focal_alpha=0.5, seed=0)
+    losses = [m.mtl_step(X[i:i + 200], y[i:i + 200], aux[i:i + 200]) for i in range(0, n, 200) for _ in range(3)]
+    assert losses[-1] < losses[0], f"main-task loss should decrease on synthetic data: {losses[0]} -> {losses[-1]}"
+
+    preds = m.predict(X)
+    assert preds.shape == (n,), preds.shape
+    assert np.isfinite(preds).all(), "predictions must be finite"
+
+    state = m.get_state()
+    m2 = build_model("deepfm_mtl_focal", dim=dim, n_fields=n_fields, k=8, hidden=[16, 8], lr=0.01,
+                      aux_weight=0.2, focal_gamma=2.0, focal_alpha=0.5, seed=2)
+    m2.set_state(state)
+    assert np.allclose(m.predict(X), m2.predict(X)), "get_state/set_state round-trip must reproduce predictions"
+
+
 def test_load_aux_labels_with_click_field_matches_default_on_shared_columns():
     """Real-data check: agent/features.py's load_aux_labels(fields=...)
     parameter must return the SAME values for the original 4 columns
@@ -1206,6 +1298,8 @@ def main() -> int:
         tests.append(test_pcgrad_resolve_math_on_hand_constructed_cases)
         tests.append(test_deepfm_mtl_pcgrad_forward_backward_reduces_loss)
         tests.append(test_deepfm_mtl_click_forward_backward_reduces_loss)
+        tests.append(test_focal_loss_downweights_easy_examples_relative_to_bce)
+        tests.append(test_deepfm_mtl_focal_forward_backward_reduces_loss)
     except ImportError:
         pass
     tests += [

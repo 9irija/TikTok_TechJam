@@ -113,6 +113,7 @@ def p1_candidate_pool(map: ResearchMap) -> list[ExperimentConfig]:
     candidates.extend(_deepfm_bpr_candidates(map))
     candidates.extend(_pcgrad_candidates(map))
     candidates.extend(_mtl_click_candidates(map))
+    candidates.extend(_focal_loss_candidates(map))
     candidates.extend(_diagnosis_driven_candidates(map))
     return [c for c in candidates if c.id not in map.nodes]
 
@@ -337,6 +338,57 @@ def _mtl_click_candidates(map: ResearchMap) -> list[ExperimentConfig]:
         notes="agent/model_zoo/deepfm_mtl_click.py -- reuses agent/experiment.py's is_mtl branch via the "
               "new model-declared aux_fields attribute (AUX_LABEL_FIELDS_WITH_CLICK), wired directly into "
               "the real pipeline, not standalone-checked first.",
+    )]
+
+
+def _focal_loss_candidates(map: ResearchMap) -> list[ExperimentConfig]:
+    """From an explicit brainstorm for a genuinely different lever (not
+    another architecture, auxiliary signal, or MTL-mechanism refinement --
+    all three categories already tried and either exhausted or tied):
+    focal loss (Lin et al. 2017) changes WHICH EXAMPLES MATTER during
+    training, an axis nothing else in this Model Zoo touches. Directly
+    motivated by the per-segment diagnosis (agent/... see
+    tools/check_per_segment.py / P2_FEATURES_AND_RESULTS.md Sec.15), which
+    found deepfm_mtl_v1's ranking quality measurably worse on mid-
+    popularity items specifically -- plain BCE trains every row with equal
+    weight regardless of that per-segment difficulty; focal loss should
+    automatically reallocate gradient toward exactly the harder examples.
+    Isolated to the main task's loss function alone (aux heads/aux_weight
+    unchanged) so any effect is attributable to that one change.
+    """
+    parent = map.nodes.get("deepfm_mtl_v1")
+    if parent is None or parent.status != "done" or "deepfm_mtl_focal_v1" in map.nodes:
+        return []
+    try:
+        import torch  # noqa: F401
+    except ImportError:
+        return []  # torch not installed in this environment -- skip, don't fail the whole pool
+
+    base_hp = dict(parent.config.hyperparams)
+    base_hp["focal_gamma"] = 2.0  # the original paper's own default focusing parameter
+    base_hp["focal_alpha"] = 0.5  # neutral class-balance weight -- isolates the hard-example-focusing
+    # effect (gamma) from class-imbalance correction (alpha's other purpose), since this dataset's
+    # ~31-34% positive rate isn't the extreme imbalance focal loss was originally designed to correct.
+    return [ExperimentConfig(
+        id="deepfm_mtl_focal_v1", model="deepfm_mtl_focal",
+        hypothesis=(
+            f"Replaces '{parent.node_id}''s main-task BCE with focal loss (Lin et al. 2017) -- a genuinely "
+            f"different lever than any architecture, auxiliary-signal, or MTL-mechanism change already "
+            f"tried: it changes which examples matter during training, not the model or the signal set. "
+            f"Directly motivated by the per-segment diagnosis (P2_FEATURES_AND_RESULTS.md Sec.15), which "
+            f"found ranking quality measurably worse on mid-popularity items specifically -- plain BCE "
+            f"trains every row uniformly regardless of that per-segment difficulty; focal loss's "
+            f"(1-p_t)^gamma modulating factor should automatically reallocate gradient toward harder "
+            f"examples across the dataset. gamma=2.0 (paper default), alpha=0.5 (neutral -- isolates the "
+            f"hard-example effect from class-balance correction, a separate question this dataset's mild "
+            f"~31-34% imbalance doesn't obviously need). Same fields/k/hidden/l2/aux_weight/aux_heads as "
+            f"the parent, so the loss function is the only variable."
+        ),
+        hyperparams=base_hp, fields=list(parent.config.fields), parent_id="deepfm_mtl_v1", seeds=[0],
+        edge_type="improve",
+        notes="agent/model_zoo/deepfm_mtl_focal.py -- reuses agent/experiment.py's existing is_mtl branch "
+              "(same mtl_step(X,y,aux) contract, default aux_fields), wired directly into the real "
+              "pipeline, not standalone-checked first.",
     )]
 
 
