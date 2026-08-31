@@ -3,18 +3,21 @@
 `deepfm_mtl_v1` (§2) is the project-best and the one clear win in this
 document: multi-task auxiliary heads on `deepfm_regularized`, a
 3-seed-verified `clear_improvement` on its first attempt. Everything else
-here — 26 further sections spanning engineered features, LightGBM,
+here — 27 further sections spanning engineered features, LightGBM,
 hyperparameter search, sequence modeling, five ranking-loss variants, four
-ensembling methods, a new architecture (DCNv2), checkpoint averaging, and
-two genuinely non-standard graph-based mechanisms — is the honest record
-of trying to beat it and mostly not managing to, run and 3-seed-verified
-wherever a result was close enough to warrant it. 28 sections total: 1
-win (§2), 5 methodology/generalization-check sections without a simple
-win/loss framing (§4, §7, §9, §15, §16), and 22 further candidate results
-— every one of those 22 negative, mixed, or null, reported exactly as
-measured. The signal here is which levers this specific benchmark
-actually responds to (a multi-task training objective; nothing else,
-after a genuinely thorough search), not a scoreboard of wins. Real bugs
+ensembling methods, a new architecture (DCNv2), checkpoint averaging,
+two genuinely non-standard graph-based mechanisms, and a direct follow-up
+testing (and ruling out) a specific hypothesis for one of the diagnosis
+sections' own open findings — is the honest record of trying to beat it
+and mostly not managing to, run and 3-seed-verified wherever a result was
+close enough to warrant it. 29 sections total: 1 win (§2), 6
+methodology/generalization-check/diagnosis-follow-up sections without a
+simple win/loss framing (§4, §7, §9, §15, §16, §29), and 22 further
+candidate results — every one of those 22 negative, mixed, or null,
+reported exactly as measured. The signal here is which levers this
+specific benchmark actually responds to (a multi-task training objective;
+nothing else, after a genuinely thorough search), not a scoreboard of
+wins. Real bugs
 surfaced and fixed along the way, unrelated to modeling but genuine
 reliability gaps worth having found: a `ResearchMap.save()` concurrency
 bug (§4), a wall-time measurement bug in the verification tooling (§24,
@@ -1504,6 +1507,64 @@ simply be converging on overlapping information through different routes.
 different levers tried beyond its own original recipe, including two
 independent, honestly-negative attempts at the one genuinely non-standard
 mechanism tried this project.
+
+## 29. Chasing down §15's own open question — is the popularity dip an auxiliary-signal density effect?
+
+§15 found `deepfm_mtl_v1`'s win over `deepfm_regularized` is **not**
+uniform by item (video) popularity: positive at both popularity extremes,
+a real negative delta in the two middle quartiles (worst Q2: −0.0066). It
+wrote down one specific, untested hypothesis and explicitly declined to
+chase it further at the time — worth actually checking now that there's
+room to.
+
+**The hypothesis:** mid-popularity videos have enough interaction volume
+for the main pointwise (`long_view`) signal to already be well-estimated,
+but not enough for the sparser auxiliary signals
+(`is_like`/`is_follow`/`is_comment`/`is_forward`) to add real gradient
+beyond noise at that specific density.
+
+**The check:** `tools/check_popularity_dip_hypothesis.py` — no new
+training, purely descriptive statistics over each item-popularity
+quartile's TRAIN-split auxiliary-signal rates, reusing §15's own quartile
+boundaries exactly (imports `check_per_segment.py`'s own
+`_quartile_labels()` and video-count source rather than recomputing them,
+so the buckets are guaranteed identical, not hoped to match). Two
+independent loaders — the organizer's `data.load()` (used for the
+boundaries) and `agent/features.py`'s `load_splits()` (carries the
+auxiliary fields the organizer's loader doesn't) — are cross-checked
+against each other with a hard assertion before being joined by
+`video_id`, rather than assumed to agree: confirmed, both see the
+identical 1,141,112 train rows across 7,538 videos.
+
+| Segment | Videos | Rows/video | Mean aux rate (4 signals) | Mean aux events/video | Known delta (§15) |
+|---|---|---|---|---|---|
+| Q1 (least popular) | 1,509 | 13.5 | 0.5888% | 0.08 | **+0.0035** |
+| Q2 | 1,476 | 40.2 | 0.5792% | 0.23 | **−0.0066** |
+| Q3 | 1,478 | 106.8 | 0.6321% | 0.67 | **−0.0012** |
+| Q4 (most popular) | 1,488 | 560.6 | 0.5757% | 3.23 | **+0.0019** |
+
+**Result: the hypothesis is ruled out, not confirmed — a genuine negative
+result on the hypothesis itself.** If auxiliary-signal sparsity drove the
+dip, mean aux rate and/or mean aux-events-per-video should track the
+delta's own U-shape (positive, negative, negative, positive). Neither
+does:
+- **Mean aux rate is nearly flat** across all four quartiles (0.579%–
+  0.632%, a narrow band) — and Q3, one of the two *negative*-delta
+  quartiles, actually has the **highest** rate of any quartile, the
+  opposite of "too sparse to help."
+- **Mean aux events per video scales monotonically** with popularity
+  (0.08 → 0.23 → 0.67 → 3.23, mechanically following rows/video at a
+  roughly constant rate) — a straight line, not the U-shape the
+  hypothesis predicts.
+
+So the original hypothesis's specific mechanism (raw density) doesn't
+explain the dip. The dip itself is real (§15's own measured deltas, not
+in question here) — what's ruled out is *why* it was guessed to happen.
+The actual cause remains genuinely open; a plausible next angle, not
+tested here, is that it's about *which* users interact with mid-popularity
+videos (e.g. a niche-audience composition effect) rather than a property
+of the videos' own interaction volume — a user-side, not item-side,
+question, and a real scope boundary for this pass.
 
 ## Net effect on the project-best
 

@@ -506,6 +506,20 @@ valid rows). Reported exactly as measured, including the part that isn't
 flattering. Full detail:
 [`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §15.
 
+**Why is the dip there? One specific hypothesis, directly tested and
+ruled out.** §15 guessed the mid-popularity dip might be an
+auxiliary-signal *density* effect — not enough interaction volume for the
+sparser `is_like`/`is_follow`/etc. signals to help at that specific
+popularity band. `tools/check_popularity_dip_hypothesis.py` measured it
+directly (no new training, pure descriptive statistics, reusing §15's own
+quartile boundaries exactly): auxiliary-signal rate is nearly flat across
+every quartile (0.579%–0.632%, and actually *highest* in one of the two
+negative-delta quartiles), and events-per-video scales monotonically with
+popularity rather than dipping in the middle — neither tracks the delta's
+own +/−/−/+ shape. The density hypothesis is ruled out, not confirmed; the
+dip is real, its cause remains genuinely open. Full detail:
+[`docs/P2_FEATURES_AND_RESULTS.md`](docs/P2_FEATURES_AND_RESULTS.md) §29.
+
 **Does anything drift between train and validation?** `tools/check_temporal_drift.py`:
 98.1% of valid users / 99.9% of valid videos were already seen in train
 (negligible cold-start), but the label rate does shift (0.3366 → 0.3133).
