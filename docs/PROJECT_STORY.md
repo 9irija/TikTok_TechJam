@@ -160,6 +160,43 @@ tinkering was going to change that. Reporting a wall of negative results
 honestly, instead of quietly going back for a twenty-second attempt and
 hoping for a better story, was its own kind of discipline.
 
+## Accomplishments that we're proud of
+
+**A real, verified improvement, not a lucky seed.** +0.0028 primary-metric
+delta over the official baseline on the hidden test set sounds small until
+you look at the ceiling: the metrics don't span $[0,1]$ — a perfect
+ranking only reaches primary $0.8645$ (27.1% of users have no positive
+label at all, forcing their nDCG to 0 for any model), so our result is a
+real, meaningful bite out of the actual attainable headroom, not a rounding
+error. We didn't trust a single lucky run for it either — every number we
+call "the result" is 3-seed verified, and we independently re-confirmed it
+holds (and even grows) on TikTok's own unbiased, randomized-exposure log,
+a genuinely different data distribution than the one we trained on.
+
+**Genuine autonomy, not a rubber stamp.** Watching our LLM Research
+Strategist read its own experiment history and independently flag an
+overfitting pattern our own hand-authored logic had missed — then propose
+exactly the right fix, which became a real, verified win — was the moment
+this stopped feeling like a script and started feeling like a colleague.
+
+**Catching real bugs before they mattered.** We found and fixed two
+genuinely silent bugs (a report generator whose sections had never once
+rendered correctly; a "current best" headline stuck on a stale result for
+days) purely by reading our own output critically instead of trusting that
+"no crash" meant "correct." Neither would have shown up in a casual demo.
+
+**Robustness we actually tested, not just claimed.** Our Failure Recovery
+system survived a genuine out-of-memory crash (a real ~293 TiB allocation
+request, not a simulated one) and a real training timeout mid-run,
+recovering both times without ever taking down the whole pipeline —
+exactly the kind of thing that's easy to assert and easy to never verify.
+
+**An honest, thorough search, even when it kept saying no.** Thirty-three
+real, logged experiments; roughly two-thirds of them negative results, all
+reported exactly as measured instead of quietly filed away. We're proud of
+the discipline that took as much as we're proud of the one result that
+worked.
+
 ## What we learned
 
 Concretely, on the machine learning side: what a hand-derived backward
@@ -180,3 +217,39 @@ letting a result go unrecorded, never trusting a number we hadn't
 independently verified against the organizer's own pinned scoring code,
 and being honest, every single time, about which parts of the process
 were the agent's own reasoning and which were ours.
+
+## What's next for tiktokers
+
+**Turn the graph from a feature into an architecture.** Our one genuinely
+non-standard experiment — initializing embeddings from a LightGCN-style
+propagation over the user-video interaction graph — came back a clean
+null, but only as a one-time *initialization*. We never tried making that
+propagation a live part of the forward pass, recomputed against the
+model's *current*, evolving embeddings every step instead of a frozen
+snapshot from before training started. That's a real architecture change,
+not a data-prep step, and it's the most promising untested idea we have.
+
+**Let the LLM run longer, with a real budget to manage.** Our Research
+Strategist has only ever run a handful of iterations at a time. With
+budget-aware stopping already built, the natural next step is a long,
+unattended run — hours, not minutes — to see whether it converges on
+something none of us thought to try by hand.
+
+**Generalize the Research Critic Gate.** Right now it catches one specific
+repeated pattern (a pure-capacity hyperparameter change). A version that
+recognizes "a fourth pairwise-loss variant" as the same *kind* of dead end
+as "a fourth k-only change" would make the agent's own judgment sharper,
+not just its search wider.
+
+**Scale up, properly.** KuaiRand-1k and KuaiRand-27k are sitting right
+there as bonus benchmarks. We deliberately didn't force a shortcut through
+the Starter Kit's `_pure`-hardcoded loader just to claim the bonus points —
+a real, config-driven, validated loader for the larger benchmarks is
+worth building properly next, not rushed.
+
+**Take the counterfactual angle further.** KuaiRand's randomized-exposure
+log already let us confirm our result generalizes to unbiased data. The
+same log is a genuine foundation for real off-policy evaluation and
+debiased training — using the *unbiased* subset not just to check a model
+trained on biased data, but to train one that corrects for that bias
+directly.
