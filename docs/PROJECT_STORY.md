@@ -10,9 +10,13 @@ We also drew directly on three papers the problem statement pointed us toward. A
 
 ## What it does
 
-Given the KuaiRand Pure benchmark and a fixed baseline, the agent autonomously reproduces that baseline, then iterates: proposing, training, evaluating, and diagnosing new candidates until the validation score converges by the organizer's own rule (a run is converged once the best score hasn't improved by more than 0.002 over the last 3 consecutive iterations). Every iteration's hypothesis, code diff, metrics, and any error or recovery event gets logged automatically and rendered into a clickable Research Map.
+Given the KuaiRand Pure benchmark and a fixed baseline, the agent autonomously reproduces that baseline, then iterates: proposing, training, evaluating, and diagnosing new candidates until the validation score converges by the organizer's own rule. Formally, a run is converged once
 
-The result that shipped, a multi task DeepFM model we call `deepfm_mtl_v1`, beats the official baseline by 0.0028 on the primary metric on the hidden test set, verified across 3 random seeds. That edge holds, and even grows, on TikTok's own unbiased randomized exposure log: real evidence it isn't an artifact of the platform's normal serving bias.
+$$\text{best\_valid\_primary}_i - \text{best\_valid\_primary}_{i-N} \le \varepsilon, \qquad \varepsilon = 0.002,\ N = 3,$$
+
+meaning the best score seen so far hasn't improved by more than $\varepsilon$ over the last $N$ consecutive iterations. Every iteration's hypothesis, code diff, metrics, and any error or recovery event gets logged automatically and rendered into a clickable Research Map.
+
+The scored metric itself is a simple average of two ranking metrics, $\text{primary} = \tfrac{1}{2}(\text{GAUC} + \text{nDCG@5})$, and every result is judged against the baseline as $\Delta = \text{primary}_{\text{agent}} - \text{primary}_{\text{baseline}}$. The result that shipped, a multi task DeepFM model we call `deepfm_mtl_v1`, achieves $\Delta = +0.0028$ on the hidden test set, verified across 3 random seeds. That edge holds, and even grows, on TikTok's own unbiased randomized exposure log: real evidence it isn't an artifact of the platform's normal serving bias.
 
 ## How we built it
 
@@ -20,9 +24,17 @@ We built this in layers, each one earning the right to add the next.
 
 **Foundation first.** Before any modeling, we built the boring but critical plumbing: an evaluator wrapper that calls the organizer's own scoring code directly instead of reimplementing it (the single easiest way to silently score yourself wrong), and a convergence detector that reads the required threshold and iteration count live from the organizer's own published file rather than hardcoding it. Only once that harness self checked correctly against a known reference score did we trust anything it reported afterward.
 
-**The models, hand derived first.** Our first real model was a Factorization Machine, ported faithfully from the official baseline. In plain terms, its prediction is three things added together: a starting bias, a simple weighted sum of the input features, and a learned interaction term that lets sparse categorical features like user ID, video ID, and author ID cross with each other, without an explosion of parameters, by representing each one as a small learned vector and taking the dot product of every pair. We hand derived and hand coded its backward pass in plain NumPy rather than reaching for a framework immediately, which turned out to be genuinely useful for understanding what autograd is actually doing under the hood once we did start using it. DeepFM extended this with a small neural network component reading the same embeddings, still hand rolled.
+**The models, hand derived first.** Our first real model was a Factorization Machine, ported faithfully from the official baseline. In plain terms, its prediction is three things added together: a starting bias, a simple weighted sum of the input features, and a learned interaction term that lets sparse categorical features like user ID, video ID, and author ID cross with each other, without an explosion of parameters, by representing each one as a small learned vector and taking the dot product of every pair:
 
-**PyTorch, added deliberately, not by default.** We kept the NumPy only philosophy for as long as it made sense, and only reached for PyTorch when automatic differentiation was a genuine win rather than a shortcut. Specifically, for a five headed multi task network (one main loss plus four auxiliary engagement signals, all sharing one embedding table) whose backward pass has five different gradients merging back into a shared trunk. Hand deriving that would have been real effort spent on the wrong problem. That one model, `deepfm_mtl_v1`, turned out to be the actual project best, and it landed there on its very first attempt.
+$$\hat{y}(x) = b + \sum_{i=1}^{n} w_i x_i + \sum_{i=1}^{n}\sum_{j=i+1}^{n} \langle v_i, v_j \rangle\, x_i x_j.$$
+
+We hand derived and hand coded its backward pass ($\partial \hat{y} / \partial v_i$, $\partial \hat{y} / \partial w_i$) in plain NumPy rather than reaching for a framework immediately, which turned out to be genuinely useful for understanding what autograd is actually doing under the hood once we did start using it. DeepFM extended this with a small neural network component reading the same embeddings, still hand rolled.
+
+**PyTorch, added deliberately, not by default.** We kept the NumPy only philosophy for as long as it made sense, and only reached for PyTorch when automatic differentiation was a genuine win rather than a shortcut. Specifically, for a five headed multi task network trained on a combined objective,
+
+$$\mathcal{L} = \mathcal{L}_{\text{main}} + \lambda \sum_{k=1}^{4} \mathcal{L}_{\text{aux}}^{(k)},$$
+
+one main loss plus four auxiliary engagement signals, all sharing one embedding table, whose backward pass has five different gradients merging back into a shared trunk. Hand deriving that would have been real effort spent on the wrong problem. That one model, `deepfm_mtl_v1`, turned out to be the actual project best, and it landed there on its very first attempt.
 
 **A memory, not a log.** Rather than a flat list of what we tried and what happened, we built a persistent, tree structured Research Map, directly inspired by AIDE, where every experiment is a node with a parent, a type of edge (a fresh idea, an improvement, or a bug fix), and a diagnosis. A metric aware diagnosis engine reads the pattern across both scored metrics, not just whether the headline number went up, so a result where broad ranking quality improved but top of list precision got worse is correctly tagged as a genuine trade off, not lumped in with a clean win or a clean loss. That distinction mattered more than once.
 
@@ -42,7 +54,11 @@ We built this in layers, each one earning the right to add the next.
 
 ## Accomplishments that we're proud of
 
-**A real, verified improvement, not a lucky seed.** A gain of 0.0028 on the primary metric sounds small until you look at the ceiling. The metrics used here don't span a full 0 to 1 range; a perfect ranking only reaches about 0.86, since over a quarter of users have no positive label at all, which forces their score to zero no matter how good the model is. So our result is a real, meaningful bite out of the actual attainable headroom, not a rounding error. We didn't trust a single lucky run for it either. Every number we call "the result" is verified across 3 seeds, and we independently confirmed it holds, and even grows, on a genuinely different, unbiased data distribution than the one we trained on.
+**A real, verified improvement, not a lucky seed.** A gain of 0.0028 on the primary metric sounds small until you look at the ceiling. The metrics used here don't span a full 0 to 1 range; a perfect ranking only reaches about 0.86, since over a quarter of users have no positive label at all, which forces their score to zero no matter how good the model is. Define the attainable headroom as the gap between a perfect ranking and pure random scoring,
+
+$$\text{headroom} = \text{primary}_{\text{oracle}} - \text{primary}_{\text{random}} = 0.8645 - 0.4753 = 0.3892,$$
+
+and the official baseline already sits at $(0.5946-0.4753)/0.3892 \approx 31\%$ of the way up it. Our own gain adds another $0.0028/0.3892 \approx 0.7\%$ of that same headroom on top, a real, meaningful bite, not a rounding error. We didn't trust a single lucky run for it either. Every number we call "the result" is verified across 3 seeds, and we independently confirmed it holds, and even grows, on a genuinely different, unbiased data distribution than the one we trained on.
 
 **Genuine autonomy, not a rubber stamp.** Watching our LLM research strategist read its own experiment history and independently flag an overfitting pattern our own hand authored logic had missed, then propose exactly the right fix, which became a real, verified win, was the moment this stopped feeling like a script and started feeling like a colleague.
 
@@ -50,7 +66,7 @@ We built this in layers, each one earning the right to add the next.
 
 **Robustness we actually tested, not just claimed.** Our failure recovery system survived a genuine out of memory crash, a real allocation request of nearly 300 terabytes, not a simulated one, and a real training timeout mid run, recovering both times without ever taking down the whole pipeline. That is exactly the kind of thing that is easy to assert and easy to never actually verify.
 
-**An honest, thorough search, even when it kept saying no.** Thirty three real, logged experiments, roughly two thirds of them negative results, all reported exactly as measured instead of quietly filed away. We're proud of the discipline that took as much as we're proud of the one result that worked.
+**An honest, thorough search, even when it kept saying no.** Thirty three real, logged experiments, only three of them a clean win, all reported exactly as measured instead of quietly filed away. We're proud of the discipline that took as much as we're proud of the one result that worked.
 
 ## What we learned
 
@@ -58,7 +74,7 @@ Concretely, on the machine learning side: what a hand derived backward pass actu
 
 More broadly, a genuinely autonomous research loop is mostly an exercise in restraint and record keeping, not cleverness. The value was in never letting a result go unrecorded, never trusting a number we hadn't independently verified against the organizer's own pinned scoring code, and being honest, every single time, about which parts of the process were the agent's own reasoning and which were ours.
 
-## What's next for tiktokers
+## What's next for our project
 
 **Turn the graph from a feature into an architecture.** Our one genuinely non standard experiment, initializing embeddings from a graph propagation over the user video interaction graph, came back a clean null, but only as a one time initialization. We never tried making that propagation a live part of the forward pass, recomputed against the model's current, evolving embeddings every step instead of a frozen snapshot from before training started. That is a real architecture change, not a data prep step, and it's the most promising untested idea we have.
 

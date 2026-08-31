@@ -471,7 +471,10 @@ alias stub in this environment that fails with no interpreter installed).
   positive at both popularity extremes; the aggregate win is
   disproportionately carried by the most-popular-item quartile, which
   alone holds 71% of valid rows. See `docs/P2_FEATURES_AND_RESULTS.md`
-  §15 for the full breakdown and an untested hypothesis for the dip.
+  §15 for the full breakdown. §15's own hypothesis for *why* (auxiliary-
+  signal sparsity at mid-popularity) is now tested and ruled out (§29) --
+  the dip itself is real, but that specific mechanism doesn't explain it;
+  the actual cause is still genuinely open.
 - **Still not built from the P1 tier:** generalized (not per-node-id-
   hardcoded) diagnosis-driven candidate generation. Sequence modeling
   (DIN/SIM-style, the starter kit's own #2-ranked untested item) and
@@ -482,12 +485,15 @@ alias stub in this environment that fails with no interpreter installed).
   never used before) found `deepfm_mtl_v1`'s edge over the baseline holds
   -- and grows -- on unbiased data, the strongest evidence yet that the
   win isn't an artifact of TikTok's own biased serving/logging policy.
-- **Not yet built from Phase 4:** budget-aware stopping (the `budget` dict
-  in the LLM prompt is informational only -- nothing changes behavior as it
-  depletes), auto-triggering `verify_multiseed.py` when a new best node
-  appears, generating the prompt's "dead ends" section from the Research
-  Map's own tags instead of a hand-maintained string. See
-  `docs/PHASE4_RESULTS.md` §6 for the complete list.
+- **All three of Phase 4's previously-open gaps are now closed** (see
+  `docs/PHASE4_RESULTS.md` §6 for the full detail): budget-aware stopping
+  (`max_wall_time_s` checked before every LLM call, plus a
+  `min_priority_to_run` floor -- both real, checked stop conditions, not
+  just informational context anymore); auto-triggered multi-seed
+  verification the moment an LLM proposal becomes the new raw-leaderboard
+  best, before the next prompt is built; and the prompt's "dead ends"
+  section now generates live from the Research Map's own tags
+  (`_dead_ends_section()`) instead of a hand-maintained string.
 - **Phase 3 (Model Zoo + tuning) -- mostly covered:** FM/DeepFM/FM_BPR
   (numpy) + DeepFM_MTL (torch, P2) done; LightGBM tried standalone (not
   integrated -- real interface mismatch with the per-epoch SGD loop, not

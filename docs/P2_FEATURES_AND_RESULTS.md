@@ -759,6 +759,10 @@ individually sparser than `long_view` itself) to add much beyond noise at
 that specific density — worth a dedicated follow-up, not asserted as
 confirmed here.
 
+**Update:** chased down in §29 — this specific density mechanism is
+tested and ruled out. The dip itself is still real; its actual cause
+remains open.
+
 ## 16. Temporal drift check — train→valid boundary, and day-by-day within validation
 
 Priority #3 from the user's own next-steps list. Two checks,
