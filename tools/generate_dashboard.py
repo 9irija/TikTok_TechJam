@@ -33,6 +33,17 @@ sys.path.insert(0, str(REPO_ROOT))
 from agent.research_map import ResearchMap  # noqa: E402
 
 MAP_PATH = REPO_ROOT / "logs" / "research_map.json"
+MANUAL_INTERVENTIONS_PATH = REPO_ROOT / "logs" / "manual_interventions.jsonl"
+
+
+def _manual_intervention_count() -> int:
+    """Same "compute it, don't hand-maintain a drifting number" fix as the
+    node count below -- the dashboard's "Manual interventions" tile used to
+    be a hardcoded "0" in the HTML itself, caught stale the moment a real
+    one got logged (see docs/RESULTS_SUMMARY.md's Autonomy breakdown)."""
+    if not MANUAL_INTERVENTIONS_PATH.exists():
+        return 0
+    return sum(1 for line in MANUAL_INTERVENTIONS_PATH.read_text(encoding="utf-8").splitlines() if line.strip())
 DASHBOARD_PATH = REPO_ROOT / "docs" / "dashboard.html"
 
 # node_id -> (phase, llm). Required for every node -- see module docstring.
@@ -164,6 +175,13 @@ def main() -> int:
     html_new = re.sub(
         r'(<div class="label">Nodes explored</div>\s*<div class="value tnum">)\d+(</div>\s*<div class="sub">)[^<]*(</div>)',
         lambda m: f"{m.group(1)}{n_total}{m.group(2)}{breakdown}{m.group(3)}",
+        html_new, count=1,
+    )
+    mi_count = _manual_intervention_count()
+    mi_sub = "across every phase" if mi_count == 0 else "see RESULTS_SUMMARY.md for the full account"
+    html_new = re.sub(
+        r'(<div class="label">Manual interventions</div>\s*<div class="value tnum">)\d+(</div>\s*<div class="sub">)[^<]*(</div>)',
+        lambda m: f"{m.group(1)}{mi_count}{m.group(2)}{mi_sub}{m.group(3)}",
         html_new, count=1,
     )
     # The two chart aria-labels each cite the node count in prose -- caught going stale
