@@ -19,6 +19,16 @@ anything specific. The one-line score: **0.6046 valid primary, +0.0028
 over the official baseline on hidden test, 3-seed verified** — see
 "Results" just below for the full table.
 
+The result came from one repeated loop, not a single lucky run: reproduce
+the baseline → diagnose its weaknesses → generate and rank candidate
+experiments → reject the weak ones on cost/gain grounds before spending
+real compute → test the promising one cheaply, then scale it up → record
+the insight → repeat until the organizer's own convergence rule fires.
+Every step of that is a real, logged transition — see
+[`logs/run_log.jsonl`](logs/run_log.jsonl) and
+[`docs/dashboard.html`](docs/dashboard.html), not a narrative written
+after the fact.
+
 **Contents:** [Results](#results-current-project-best-3-seed-verified) ·
 [P1](#p1-results-three-rounds--each-acts-on-the-previous-rounds-own-diagnosis) ·
 [Phase 4 / LLM](#phase-4-results--the-llm-found-a-real-verified-improvement) ·
@@ -311,6 +321,17 @@ have one clean backward pass, worth hand-deriving to keep the starter
 kit's numpy-only philosophy. A 5-headed shared-bottom network's backward
 pass — one shared trunk, five different loss gradients merging back into
 it — is exactly the case autograd is for, not a shortcut around it.
+
+Framing this as more than "generic multi-task learning": TikTok has
+publicly described its own production recommender as optimizing a
+*blend* of engagement signals rather than any single label (see
+`docs/TikTok TechJam Hackathon.md` Appendix A.3). This benchmark only
+ever scores `long_view`, so we can't literally reproduce that blended
+objective — but training the shared embedding table jointly against
+`is_like`/`is_follow`/`is_comment`/`is_forward` is this project's
+approximation of it: the auxiliary losses shape what the embedding table
+learns, even though only the main head is ever evaluated. That's the
+mechanism this section's result is actually testing, not incidental to it.
 
 `deepfm_mtl_v1` (`parent_id=deepfm_regularized`, same fields/k/hidden/lr/l2
 — the multi-task objective is the only variable) ran single-seed first
@@ -918,18 +939,20 @@ and declined with a stated reason.
   (silently-wrong reimplementation of pinned logic) this project has been
   careful to avoid everywhere else. Full reasoning in
   `docs/POLISH_PASS_RESULTS.md` §6.
-- **Model zoo is now extensive** (FM, DeepFM + 12 loss/architecture/multi-
-  task variants, LightGBM) but still doesn't include DCNv2/Wide&Deep —
+- **Model zoo is now extensive** (FM, DeepFM + 14 loss/architecture/multi-
+  task variants, LightGBM, DCNv2) but still doesn't include Wide&Deep —
   genuinely declined, not just unbuilt: every capacity/architecture lever
   actually tried this project (embedding width, CWM's extra feature
-  domains, DIN attention, LightGBM's tree-based splits) came back flat or
-  negative, consistently corroborating the starter kit's own ablations
-  ("model architecture is the lowest-priority lever"). Spending remaining
-  budget on two more architectures with the same well-evidenced low
-  expected value was a deliberate call, not an oversight. `lightgbm` also
-  can't even load in the current dev environment (`ctypes.cdll.LoadLibrary`
-  blocked by a Windows Application Control policy) — `lgbm_baseline`'s
-  result came from a teammate's separate machine.
+  domains, DIN attention, LightGBM's tree-based splits, and DCNv2 itself
+  — §24, landed exactly on the significance bar, still below
+  `deepfm_mtl_v1`) came back flat or negative, consistently corroborating
+  the starter kit's own ablations ("model architecture is the
+  lowest-priority lever"). Spending remaining budget on one more
+  architecture with the same well-evidenced low expected value was a
+  deliberate call, not an oversight. `lightgbm` also can't even load in
+  the current dev environment (`ctypes.cdll.LoadLibrary` blocked by a
+  Windows Application Control policy) — `lgbm_baseline`'s result came
+  from a teammate's separate machine.
 - ~~`docs/dashboard.html` is generated once, by hand~~ — **fixed**:
   `tools/generate_dashboard.py` now regenerates the `NODES` array (and the
   "nodes explored" stat tile) directly from `logs/research_map.json`,
